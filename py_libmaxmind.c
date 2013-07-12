@@ -232,8 +232,7 @@ static PyObject *MMDB_GetAttr(PyObject * self, char *attrname)
 }
 
 static PyTypeObject MMDB_MMDBType = {
-    PyObject_HEAD_INIT(NULL)
-        0,
+    PyVarObject_HEAD_INIT(NULL, 0)
     "MMDB",
     sizeof(MMDB_MMDBObject),
     0,
