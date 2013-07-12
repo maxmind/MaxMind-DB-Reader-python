@@ -214,7 +214,7 @@ static PyObject *mkobj_r(MMDB_s * mmdb, MMDB_decode_all_s ** current)
     case MMDB_DTYPE_BOOLEAN:
     case MMDB_DTYPE_UINT16:
     case MMDB_DTYPE_INT32:
-        sv = PyInt_FromLong((*current)->decode.data.sinteger);
+        sv = PyLong_FromLong((*current)->decode.data.sinteger);
         break;
     default:
         assert(0);
@@ -273,11 +273,11 @@ MOD_INIT(MMDB)
     PyMMDBError = PyErr_NewException("py_mmdb.error", NULL, NULL);
     PyDict_SetItemString(d, "error", PyMMDBError);
 
-    tmp = PyInt_FromLong(MMDB_MODE_STANDARD);
+    tmp = PyLong_FromLong(MMDB_MODE_STANDARD);
     PyDict_SetItemString(d, "MMDB_MODE_STANDARD", tmp);
     Py_DECREF(tmp);
 
-    tmp = PyInt_FromLong(MMDB_MODE_MEMORY_CACHE);
+    tmp = PyLong_FromLong(MMDB_MODE_MEMORY_CACHE);
     PyDict_SetItemString(d, "MMDB_MODE_MEMORY_CACHE", tmp);
     Py_DECREF(tmp);
 
