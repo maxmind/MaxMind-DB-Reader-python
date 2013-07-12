@@ -7,7 +7,11 @@
 static PyTypeObject MMDB_MMDBType;
 static PyObject *mkobj_r(MMDB_s * mmdb, MMDB_decode_all_s ** current);
 
-
+#if PY_MAJOR_VERSION >= 3
+    #define MOD_INIT(name) PyMODINIT_FUNC PyInit_##name(void)
+#else
+    #define MOD_INIT(name) PyMODINIT_FUNC init##name(void)
+#endif
 
 /* Exception object for python */
 static PyObject *PyMMDBError;
@@ -255,7 +259,8 @@ static PyMethodDef MMDB_Class_methods[] = {
     {NULL, NULL, 0, NULL}
 };
 
-DL_EXPORT(void) initMMDB(void)
+
+MOD_INIT(MMDB)
 {
     PyObject *m, *d, *tmp;
     MMDB_MMDBType.ob_type = &PyType_Type;
