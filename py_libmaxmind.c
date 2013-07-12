@@ -8,11 +8,11 @@ static PyTypeObject MMDB_MMDBType;
 static PyObject *mkobj_r(MMDB_s * mmdb, MMDB_decode_all_s ** current);
 
 #if PY_MAJOR_VERSION >= 3
-    #define MOD_INIT(name) PyMODINIT_FUNC PyInit_##name(void)
-    #define RETURN_MOD_INIT(m) return(m)
+#define MOD_INIT(name) PyMODINIT_FUNC PyInit_##name(void)
+#define RETURN_MOD_INIT(m) return(m)
 #else
-    #define MOD_INIT(name) PyMODINIT_FUNC init##name(void)
-    #define RETURN_MOD_INIT(m) return
+#define MOD_INIT(name) PyMODINIT_FUNC init##name(void)
+#define RETURN_MOD_INIT(m) return
 #endif
 
 /* Exception object for python */
@@ -22,7 +22,6 @@ typedef struct {
     PyObject_HEAD               /* no semicolon */
     MMDB_s * mmdb;
 } MMDB_MMDBObject;
-
 
 // Create a new Python MMDB object
 static PyObject *MMDB_new_Py(PyObject * self, PyObject * args)
@@ -99,8 +98,6 @@ static PyObject *MMDB_lookup_Py(PyObject * self, PyObject * args)
     Py_RETURN_NONE;
 }
 
-
-
 // minor helper fuction to create a python string from the database
 static PyObject *build_PyString_FromStringAndSize(MMDB_s * mmdb, void *ptr,
                                                   int size)
@@ -155,9 +152,7 @@ static PyObject *mkobj_r(MMDB_s * mmdb, MMDB_decode_all_s ** current)
                 void *key_ptr = size ? (void *)(*current)->decode.data.ptr : "";
                 *current = (*current)->next;
                 val = mkobj_r(mmdb, current);
-                key =
-                    build_PyString_FromStringAndSize(mmdb, key_ptr,
-                                                     key_size);
+                key = build_PyString_FromStringAndSize(mmdb, key_ptr, key_size);
                 PyDict_SetItem(hv, key, val);
                 Py_DECREF(val);
                 Py_DECREF(key);
@@ -180,7 +175,7 @@ static PyObject *mkobj_r(MMDB_s * mmdb, MMDB_decode_all_s ** current)
     case MMDB_DTYPE_UTF8_STRING:
         {
             int size = (*current)->decode.data.data_size;
-            void *ptr = size ? (void*)(*current)->decode.data.ptr : "";
+            void *ptr = size ? (void *)(*current)->decode.data.ptr : "";
             sv = build_PyUnicode_DecodeUTF8(mmdb, ptr, size);
         }
         break;
@@ -188,8 +183,8 @@ static PyObject *mkobj_r(MMDB_s * mmdb, MMDB_decode_all_s ** current)
         {
             int size = (*current)->decode.data.data_size;
             sv = build_PyString_FromStringAndSize(mmdb,
-                                                  (void *)(*current)->
-                                                  decode.data.ptr, size);
+                                                  (void *)(*current)->decode.
+                                                  data.ptr, size);
         }
         break;
     case MMDB_DTYPE_IEEE754_FLOAT:
@@ -203,13 +198,13 @@ static PyObject *mkobj_r(MMDB_s * mmdb, MMDB_decode_all_s ** current)
         break;
     case MMDB_DTYPE_UINT64:
         sv = build_PyString_FromStringAndSize(mmdb,
-                                              (void *)(*current)->decode.
-                                              data.c8, 8);
+                                              (void *)(*current)->decode.data.
+                                              c8, 8);
         break;
     case MMDB_DTYPE_UINT128:
         sv = build_PyString_FromStringAndSize(mmdb,
-                                              (void *)(*current)->decode.
-                                              data.c16, 16);
+                                              (void *)(*current)->decode.data.
+                                              c16, 16);
         break;
     case MMDB_DTYPE_BOOLEAN:
     case MMDB_DTYPE_UINT16:
@@ -261,26 +256,24 @@ static PyMethodDef MMDB_Class_methods[] = {
     {NULL, NULL, 0, NULL}
 };
 
-
-
 #if PY_MAJOR_VERSION >= 3
 static struct PyModuleDef pymmdbmodule = {
-  PyModuleDef_HEAD_INIT,
-  "MMDB",     /* m_name */
-  "This is a module to read mmdb databases",  /* m_doc */
-  -1,                  /* m_size */
-  MMDB_Class_methods,    /* m_methods */
-  NULL,                /* m_reload */
-  NULL,                /* m_traverse */
-  NULL,                /* m_clear */
-  NULL,                /* m_free */
+    PyModuleDef_HEAD_INIT,
+    "MMDB",                     /* m_name */
+    "This is a module to read mmdb databases",  /* m_doc */
+    -1,                         /* m_size */
+    MMDB_Class_methods,         /* m_methods */
+    NULL,                       /* m_reload */
+    NULL,                       /* m_traverse */
+    NULL,                       /* m_clear */
+    NULL,                       /* m_free */
 };
 #endif
 
-
-static void common_mod_init( PyObject * mod){
+static void common_mod_init(PyObject * mod)
+{
     PyObject *d, *tmp;
-      d = PyModule_GetDict(mod);
+    d = PyModule_GetDict(mod);
 
     PyMMDBError = PyErr_NewException("py_mmdb.error", NULL, NULL);
     PyDict_SetItemString(d, "error", PyMMDBError);
@@ -294,17 +287,16 @@ static void common_mod_init( PyObject * mod){
     Py_DECREF(tmp);
 }
 
-
 MOD_INIT(MMDB)
 {
     PyObject *m;
 
 #if PY_MAJOR_VERSION >= 3
-    Py_TYPE((&MMDB_MMDBType)) =  &PyType_Type;
+    Py_TYPE((&MMDB_MMDBType)) = &PyType_Type;
     m = PyModule_Create(&pymmdbmodule);
     common_mod_init(m);
     Py_INCREF(&MMDB_MMDBType);
-   PyModule_AddObject(m, "MMDB", (PyObject *)&MMDB_MMDBType);
+    PyModule_AddObject(m, "MMDB", (PyObject *) & MMDB_MMDBType);
 #else
     MMDB_MMDBType.ob_type = &PyType_Type;
     m = Py_InitModule("MMDB", MMDB_Class_methods);
