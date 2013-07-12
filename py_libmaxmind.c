@@ -9,8 +9,10 @@ static PyObject *mkobj_r(MMDB_s * mmdb, MMDB_decode_all_s ** current);
 
 #if PY_MAJOR_VERSION >= 3
     #define MOD_INIT(name) PyMODINIT_FUNC PyInit_##name(void)
+    #define RETURN_MOD_INIT(m) return(m)
 #else
     #define MOD_INIT(name) PyMODINIT_FUNC init##name(void)
+    #define RETURN_MOD_INIT(m) return
 #endif
 
 /* Exception object for python */
@@ -278,4 +280,6 @@ MOD_INIT(MMDB)
     tmp = PyInt_FromLong(MMDB_MODE_MEMORY_CACHE);
     PyDict_SetItemString(d, "MMDB_MODE_MEMORY_CACHE", tmp);
     Py_DECREF(tmp);
+
+    RETURN_MOD_INIT(m);
 }
