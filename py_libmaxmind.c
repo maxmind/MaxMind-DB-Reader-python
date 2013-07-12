@@ -262,13 +262,25 @@ static PyMethodDef MMDB_Class_methods[] = {
 };
 
 
-MOD_INIT(MMDB)
-{
-    PyObject *m, *d, *tmp;
-    MMDB_MMDBType.ob_type = &PyType_Type;
 
-    m = Py_InitModule("MMDB", MMDB_Class_methods);
-    d = PyModule_GetDict(m);
+#if PY_MAJOR_VERSION >= 3
+static struct PyModuleDef pymmdbmodule = {
+  PyModuleDef_HEAD_INIT,
+  "MMDB",     /* m_name */
+  "This is a module to read mmdb databases",  /* m_doc */
+  -1,                  /* m_size */
+  MMDB_Class_methods,    /* m_methods */
+  NULL,                /* m_reload */
+  NULL,                /* m_traverse */
+  NULL,                /* m_clear */
+  NULL,                /* m_free */
+};
+#endif
+
+
+static void common_mod_init( PyObject * mod){
+    PyObject *d, *tmp;
+      d = PyModule_GetDict(mod);
 
     PyMMDBError = PyErr_NewException("py_mmdb.error", NULL, NULL);
     PyDict_SetItemString(d, "error", PyMMDBError);
@@ -280,6 +292,24 @@ MOD_INIT(MMDB)
     tmp = PyLong_FromLong(MMDB_MODE_MEMORY_CACHE);
     PyDict_SetItemString(d, "MMDB_MODE_MEMORY_CACHE", tmp);
     Py_DECREF(tmp);
+}
+
+
+MOD_INIT(MMDB)
+{
+    PyObject *m;
+
+#if PY_MAJOR_VERSION >= 3
+    Py_TYPE((&MMDB_MMDBType)) =  &PyType_Type;
+    m = PyModule_Create(&pymmdbmodule);
+    common_mod_init(m);
+    Py_INCREF(&MMDB_MMDBType);
+   PyModule_AddObject(m, "MMDB", (PyObject *)&MMDB_MMDBType);
+#else
+    MMDB_MMDBType.ob_type = &PyType_Type;
+    m = Py_InitModule("MMDB", MMDB_Class_methods);
+    common_mod_init(m);
+#endif
 
     RETURN_MOD_INIT(m);
 }
