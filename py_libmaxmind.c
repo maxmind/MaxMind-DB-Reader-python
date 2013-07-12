@@ -4,7 +4,7 @@
 #include <MMDB.h>
 #include <netdb.h>
 
-staticforward PyTypeObject MMDB_MMDBType;
+static PyTypeObject MMDB_MMDBType;
 static PyObject *mkobj_r(MMDB_s * mmdb, MMDB_decode_all_s ** current);
 
 
