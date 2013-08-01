@@ -13,6 +13,7 @@ static PyObject *mkobj_r(MMDB_s * mmdb, MMDB_decode_all_s ** current);
 #else
 #define MOD_INIT(name) PyMODINIT_FUNC init##name(void)
 #define RETURN_MOD_INIT(m) return
+#define PyLong_FromLong PyInt_FromLong
 #endif
 
 /* Exception object for python */
