@@ -99,6 +99,15 @@ static PyObject *MMDB_lookup_Py(PyObject * self, PyObject * args)
     Py_RETURN_NONE;
 }
 
+static PyObject *Py23String_FromStringAndSize(void *ptr, int size)
+{
+#if PY_MAJOR_VERSION >= 3
+    return PyBytes_FromStringAndSize(ptr, size);
+#else
+    return PyString_FromStringAndSize(ptr, size);
+#endif
+}
+
 // minor helper fuction to create a python string from the database
 static PyObject *build_PyString_FromStringAndSize(MMDB_s * mmdb, void *ptr,
                                                   int size)
@@ -107,13 +116,14 @@ static PyObject *build_PyString_FromStringAndSize(MMDB_s * mmdb, void *ptr,
     char buffer[BSIZE];
     int fd = mmdb->fd;
     if (fd < 0)
-        return PyString_FromStringAndSize(ptr, size);
+        return Py23String_FromStringAndSize(ptr, size);
 
     void *bptr = size < BSIZE ? buffer : malloc(size);
-    assert(bptr);
+    if (!bptr)
+        abort();
     uint32_t segments = mmdb->full_record_size_bytes * mmdb->node_count;
     MMDB_pread(fd, bptr, size, segments + (uintptr_t) ptr);
-    PyObject *py = PyString_FromStringAndSize(bptr, size);
+    PyObject *py = Py23String_FromStringAndSize(bptr, size);
     if (size >= BSIZE)
         free(bptr);
     return py;
@@ -184,8 +194,8 @@ static PyObject *mkobj_r(MMDB_s * mmdb, MMDB_decode_all_s ** current)
         {
             int size = (*current)->decode.data.data_size;
             sv = build_PyString_FromStringAndSize(mmdb,
-                                                  (void *)(*current)->decode.
-                                                  data.ptr, size);
+                                                  (void *)(*current)->
+                                                  decode.data.ptr, size);
         }
         break;
     case MMDB_DTYPE_IEEE754_FLOAT:
@@ -199,13 +209,13 @@ static PyObject *mkobj_r(MMDB_s * mmdb, MMDB_decode_all_s ** current)
         break;
     case MMDB_DTYPE_UINT64:
         sv = build_PyString_FromStringAndSize(mmdb,
-                                              (void *)(*current)->decode.data.
-                                              c8, 8);
+                                              (void *)(*current)->decode.
+                                              data.c8, 8);
         break;
     case MMDB_DTYPE_UINT128:
         sv = build_PyString_FromStringAndSize(mmdb,
-                                              (void *)(*current)->decode.data.
-                                              c16, 16);
+                                              (void *)(*current)->decode.
+                                              data.c16, 16);
         break;
     case MMDB_DTYPE_BOOLEAN:
     case MMDB_DTYPE_UINT16:
@@ -234,7 +244,7 @@ static PyObject *MMDB_GetAttr(PyObject * self, char *attrname)
 
 static PyTypeObject MMDB_MMDBType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    "MMDB",
+        "MMDB",
     sizeof(MMDB_MMDBObject),
     0,
     MMDB_MMDB_dealloc,          /*tp_dealloc */
