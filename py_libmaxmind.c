@@ -194,8 +194,8 @@ static PyObject *mkobj_r(MMDB_s * mmdb, MMDB_decode_all_s ** current)
         {
             int size = (*current)->decode.data.data_size;
             sv = build_PyString_FromStringAndSize(mmdb,
-                                                  (void *)(*current)->decode.
-                                                  data.ptr, size);
+                                                  (void *)(*current)->
+                                                  decode.data.ptr, size);
         }
         break;
     case MMDB_DTYPE_IEEE754_FLOAT:
@@ -209,13 +209,13 @@ static PyObject *mkobj_r(MMDB_s * mmdb, MMDB_decode_all_s ** current)
         break;
     case MMDB_DTYPE_UINT64:
         sv = build_PyString_FromStringAndSize(mmdb,
-                                              (void *)(*current)->decode.data.
-                                              c8, 8);
+                                              (void *)(*current)->decode.
+                                              data.c8, 8);
         break;
     case MMDB_DTYPE_UINT128:
         sv = build_PyString_FromStringAndSize(mmdb,
-                                              (void *)(*current)->decode.data.
-                                              c16, 16);
+                                              (void *)(*current)->decode.
+                                              data.c16, 16);
         break;
     case MMDB_DTYPE_BOOLEAN:
     case MMDB_DTYPE_UINT16:
@@ -335,7 +335,11 @@ MOD_INIT(MMDB)
     PyObject *m;
 
 #if PY_MAJOR_VERSION >= 3
-    Py_TYPE((&MMDB_MMDBType)) = &PyType_Type;
+
+    MMDB_MMDBType.tp_new = PyType_GenericNew;
+    if (PyType_Ready(&MMDB_MMDBType) < 0)
+        return NULL;
+
     m = PyModule_Create(&pymmdbmodule);
     common_mod_init(m);
     Py_INCREF(&MMDB_MMDBType);
