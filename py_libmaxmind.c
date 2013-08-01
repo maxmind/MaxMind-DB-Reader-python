@@ -194,8 +194,8 @@ static PyObject *mkobj_r(MMDB_s * mmdb, MMDB_decode_all_s ** current)
         {
             int size = (*current)->decode.data.data_size;
             sv = build_PyString_FromStringAndSize(mmdb,
-                                                  (void *)(*current)->
-                                                  decode.data.ptr, size);
+                                                  (void *)(*current)->decode.
+                                                  data.ptr, size);
         }
         break;
     case MMDB_DTYPE_IEEE754_FLOAT:
@@ -209,13 +209,13 @@ static PyObject *mkobj_r(MMDB_s * mmdb, MMDB_decode_all_s ** current)
         break;
     case MMDB_DTYPE_UINT64:
         sv = build_PyString_FromStringAndSize(mmdb,
-                                              (void *)(*current)->decode.
-                                              data.c8, 8);
+                                              (void *)(*current)->decode.data.
+                                              c8, 8);
         break;
     case MMDB_DTYPE_UINT128:
         sv = build_PyString_FromStringAndSize(mmdb,
-                                              (void *)(*current)->decode.
-                                              data.c16, 16);
+                                              (void *)(*current)->decode.data.
+                                              c16, 16);
         break;
     case MMDB_DTYPE_BOOLEAN:
     case MMDB_DTYPE_UINT16:
@@ -237,10 +237,13 @@ static PyMethodDef MMDB_Object_methods[] = {
     {NULL, NULL, 0, NULL}
 };
 
+#if PY_MAJOR_VERSION < 3
+// not sure if we need this
 static PyObject *MMDB_GetAttr(PyObject * self, char *attrname)
 {
     return Py_FindMethod(MMDB_Object_methods, self, attrname);
 }
+#endif
 
 static PyTypeObject MMDB_MMDBType = {
     PyVarObject_HEAD_INIT(NULL, 0)
@@ -249,7 +252,11 @@ static PyTypeObject MMDB_MMDBType = {
     0,
     MMDB_MMDB_dealloc,          /*tp_dealloc */
     0,                          /*tp_print */
+#if PY_MAJOR_VERSION >= 3
+    0,                          /*tp_getattr */
+#else
     (getattrfunc) MMDB_GetAttr, /*tp_getattr */
+#endif
     0,                          /*tp_setattr */
     0,                          /*tp_compare */
     0,                          /*tp_repr */
@@ -257,6 +264,32 @@ static PyTypeObject MMDB_MMDBType = {
     0,                          /*tp_as_sequence */
     0,                          /*tp_as_mapping */
     0,                          /*tp_hash */
+#if PY_MAJOR_VERSION >= 3
+    0,                          /* tp_call */
+    0,                          /* tp_str */
+    0,                          /* tp_getattro */
+    0,                          /* tp_setattro */
+    0,                          /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT,         /* tp_flags */
+    "MMDB Object",              /* tp_doc */
+    0,                          /* tp_traverse */
+    0,                          /* tp_clear */
+    0,                          /* tp_richcompare */
+    0,                          /* tp_weaklistoffset */
+    0,                          /* tp_iter */
+    0,                          /* tp_iternext */
+    MMDB_Object_methods,        /* tp_methods */
+    0,                          /* tp_members */
+    0,                          /* tp_getset */
+    0,                          /* tp_base */
+    0,                          /* tp_dict */
+    0,                          /* tp_descr_get */
+    0,                          /* tp_descr_set */
+    0,                          /* tp_dictoffset */
+    0,                          /* tp_init */
+    0,                          /* tp_alloc */
+    0,                          /* tp_new */
+#endif
 };
 
 static PyMethodDef MMDB_Class_methods[] = {
