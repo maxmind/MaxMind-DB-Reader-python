@@ -4,7 +4,13 @@
 #include <maxminddb.h>
 #include <netdb.h>
 
-static PyTypeObject MMDB_module;
+static PyTypeObject Reader_Type;
+static PyObject *MaxMind_DB_Error;
+
+typedef struct {
+    PyObject_HEAD               /* no semicolon */
+    MMDB_s * mmdb;
+} Reader_obj;
 
 static const MMDB_entry_data_list_s *handle_entry_data_list(
     const MMDB_entry_data_list_s *entry_data_list,
@@ -19,34 +25,21 @@ static void handle_uint128(const MMDB_entry_data_list_s *entry_data_list,
                            PyObject **py_obj);
 static void handle_uint64(const MMDB_entry_data_list_s *entry_data_list,
                           PyObject **py_obj);
-
 static bool file_is_readable(const char *filename);
 
-#if PY_MAJOR_VERSION < 3
+#if PY_MAJOR_VERSION >= 3
+    #define MOD_INIT(name) PyMODINIT_FUNC PyInit_ ## name(void)
+    #define RETURN_MOD_INIT(m) return (m)
+#else
+    #define MOD_INIT(name) PyMODINIT_FUNC init ## name(void)
+    #define RETURN_MOD_INIT(m) return
     #define PyInt_FromLong PyLong_FromLong
 #endif
 
-#if PY_MAJOR_VERSION >= 3
-#define MOD_INIT(name) PyMODINIT_FUNC PyInit_ ## name(void)
-#define RETURN_MOD_INIT(m) return (m)
-#else
-#define MOD_INIT(name) PyMODINIT_FUNC init ## name(void)
-#define RETURN_MOD_INIT(m) return
-#define PyLong_FromLong PyLong_FromLong
-#endif
 
-/* Exception object for python */
-static PyObject *PyMMDBError;
-
-typedef struct {
-    PyObject_HEAD               /* no semicolon */
-    MMDB_s * mmdb;
-} MMDB_Reader_obj;
-
-// Create a new Python MMDB object
 static PyObject *Reader_constructor(PyObject * self, PyObject * args)
 {
-    MMDB_Reader_obj *obj;
+    Reader_obj *obj;
     char *filename;
 
     if (!PyArg_ParseTuple(args, "s", &filename)) {
@@ -60,7 +53,7 @@ static PyObject *Reader_constructor(PyObject * self, PyObject * args)
         return NULL;
     }
 
-    obj = PyObject_New(MMDB_Reader_obj, &MMDB_module);
+    obj = PyObject_New(Reader_obj, &Reader_Type);
     if (!obj) {
         return NULL;
     }
@@ -73,7 +66,7 @@ static PyObject *Reader_constructor(PyObject * self, PyObject * args)
 
     if (MMDB_SUCCESS != status) {
          PyErr_Format(
-            PyMMDBError,
+            MaxMind_DB_Error,
             "Error opening database file (%s). Is this a valid MaxMind DB file?",
             filename
             );
@@ -86,10 +79,9 @@ static PyObject *Reader_constructor(PyObject * self, PyObject * args)
     return (PyObject *)obj;
 }
 
-// Destroy the MMDB object
-static void MMDB_MMDB_dealloc(PyObject * self)
+static void Reader_dealloc(PyObject * self)
 {
-    MMDB_Reader_obj *obj = (MMDB_Reader_obj *)self;
+    Reader_obj *obj = (Reader_obj *)self;
     if (obj->mmdb != NULL) {
         MMDB_close(obj->mmdb);
         free(obj->mmdb);
@@ -99,12 +91,12 @@ static void MMDB_MMDB_dealloc(PyObject * self)
 }
 
 
-static PyObject *MMDB_Reader_get(PyObject * self, PyObject * args)
+static PyObject *Reader_get(PyObject * self, PyObject * args)
 {
     char *ip_address = NULL;
 
 
-    MMDB_Reader_obj *mmdb_obj = (MMDB_Reader_obj *)self;
+    Reader_obj *mmdb_obj = (Reader_obj *)self;
     if (!PyArg_ParseTuple(args, "s", &ip_address)) {
         return NULL;
     }
@@ -132,7 +124,7 @@ static PyObject *MMDB_Reader_get(PyObject * self, PyObject * args)
     }
 
     if (MMDB_SUCCESS != mmdb_error) {
-        PyErr_Format(PyMMDBError, "Error looking up %s", ip_address);
+        PyErr_Format(MaxMind_DB_Error, "Error looking up %s", ip_address);
         return NULL;
     }
 
@@ -143,7 +135,7 @@ static PyObject *MMDB_Reader_get(PyObject * self, PyObject * args)
 
         int status = MMDB_get_entry_data_list(&result.entry, &entry_data_list);
         if (MMDB_SUCCESS != status) {
-            PyErr_Format(PyMMDBError,
+            PyErr_Format(MaxMind_DB_Error,
                          "Error while looking up data for %s", ip_address);
         } else if (NULL != entry_data_list) {
             handle_entry_data_list(entry_data_list, &py_obj);
@@ -201,7 +193,7 @@ static const MMDB_entry_data_list_s *handle_entry_data_list(
         *py_obj =  PyLong_FromLong(entry_data_list->entry_data.int32);
         break;
     default:
-        PyErr_Format(PyMMDBError,
+        PyErr_Format(MaxMind_DB_Error,
                         "Invalid data type arguments: %d",
                         entry_data_list->entry_data.type);
         return NULL;
@@ -311,31 +303,19 @@ static bool file_is_readable(const char *filename)
     return false;
 }
 
-static PyMethodDef MMDB_Reader_methods[] = {
-    { "get", MMDB_Reader_get, 1, "Get record for IP address" },
+static PyMethodDef Reader_methods[] = {
+    { "get", Reader_get, 1, "Get record for IP address" },
     { NULL,     NULL,           0, NULL                     }
 };
 
-#if PY_MAJOR_VERSION < 3
-// not sure if we need this
-static PyObject *MMDB_GetAttr(PyObject * self, char *attrname)
-{
-    return Py_FindMethod(MMDB_Reader_methods, self, attrname);
-}
-#endif
-
-static PyTypeObject MMDB_module = {
+static PyTypeObject Reader_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     "maxminddb",
-    sizeof(MMDB_Reader_obj),
+    sizeof(Reader_obj),
     0,
-    MMDB_MMDB_dealloc,          /*tp_dealloc */
+    Reader_dealloc,          /*tp_dealloc */
     0,                          /*tp_print */
-#if PY_MAJOR_VERSION >= 3
     0,                          /*tp_getattr */
-#else
-    (getattrfunc)MMDB_GetAttr,  /*tp_getattr */
-#endif
     0,                          /*tp_setattr */
     0,                          /*tp_compare */
     0,                          /*tp_repr */
@@ -357,7 +337,7 @@ static PyTypeObject MMDB_module = {
     0,                          /* tp_weaklistoffset */
     0,                          /* tp_iter */
     0,                          /* tp_iternext */
-    MMDB_Reader_methods,        /* tp_methods */
+    Reader_methods,        /* tp_methods */
     0,                          /* tp_members */
     0,                          /* tp_getset */
     0,                          /* tp_base */
@@ -371,19 +351,19 @@ static PyTypeObject MMDB_module = {
 #endif
 };
 
-static PyMethodDef MMDB_methods[] = {
+static PyMethodDef MaxMindDB_methods[] = {
     { "Reader",         Reader_constructor,         1,
       "Creates a new maxminddb.Reader object" },
     { NULL,          NULL,                0,NULL                        }
 };
 
 #if PY_MAJOR_VERSION >= 3
-static struct PyModuleDef pymmdbmodule = {
+static struct PyModuleDef MaxMindDB_module = {
     PyModuleDef_HEAD_INIT,
     "maxminddb",                                    /* m_name */
     "This is a module to read mmdb databases", /* m_doc */
     -1,                                        /* m_size */
-    MMDB_methods,                        /* m_methods */
+    MaxMindDB_methods,                        /* m_methods */
     NULL,                                      /* m_reload */
     NULL,                                      /* m_traverse */
     NULL,                                      /* m_clear */
@@ -395,15 +375,15 @@ MOD_INIT(maxminddb){
     PyObject *m;
 
 #if PY_MAJOR_VERSION >= 3
-    m = PyModule_Create(&pymmdbmodule);
-    MMDB_module.tp_new = PyType_GenericNew;
-    if (PyType_Ready(&MMDB_module) < 0) {
+    m = PyModule_Create(&MaxMindDB_module);
+    Reader_Type.tp_new = PyType_GenericNew;
+    if (PyType_Ready(&Reader_Type) < 0) {
         return NULL;
     }
-    PyModule_AddObject(m, "maxminddb", (PyObject *)&MMDB_module);
-    Py_INCREF(&MMDB_module);
+    PyModule_AddObject(m, "maxminddb", (PyObject *)&Reader_Type);
+    Py_INCREF(&Reader_Type);
 #else
-    m = Py_InitModule("maxminddb", MMDB_methods);
+    m = Py_InitModule("maxminddb", MaxMindDB_methods);
 #endif
 
     RETURN_MOD_INIT(m);
