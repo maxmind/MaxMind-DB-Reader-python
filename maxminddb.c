@@ -4,7 +4,7 @@
 #include <maxminddb.h>
 #include <netdb.h>
 
-static PyTypeObject MMDB_MMDBType;
+static PyTypeObject MMDB_module;
 
 static const MMDB_entry_data_list_s *handle_entry_data_list(
     const MMDB_entry_data_list_s *entry_data_list,
@@ -41,12 +41,12 @@ static PyObject *PyMMDBError;
 typedef struct {
     PyObject_HEAD               /* no semicolon */
     MMDB_s * mmdb;
-} MMDB_MMDBObject;
+} MMDB_Reader_obj;
 
 // Create a new Python MMDB object
-static PyObject *MMDB_new_Py(PyObject * self, PyObject * args)
+static PyObject *Reader_constructor(PyObject * self, PyObject * args)
 {
-    MMDB_MMDBObject *obj;
+    MMDB_Reader_obj *obj;
     char *filename;
 
     if (!PyArg_ParseTuple(args, "s", &filename)) {
@@ -60,7 +60,7 @@ static PyObject *MMDB_new_Py(PyObject * self, PyObject * args)
         return NULL;
     }
 
-    obj = PyObject_New(MMDB_MMDBObject, &MMDB_MMDBType);
+    obj = PyObject_New(MMDB_Reader_obj, &MMDB_module);
     if (!obj) {
         return NULL;
     }
@@ -89,7 +89,7 @@ static PyObject *MMDB_new_Py(PyObject * self, PyObject * args)
 // Destroy the MMDB object
 static void MMDB_MMDB_dealloc(PyObject * self)
 {
-    MMDB_MMDBObject *obj = (MMDB_MMDBObject *)self;
+    MMDB_Reader_obj *obj = (MMDB_Reader_obj *)self;
     if (obj->mmdb != NULL) {
         MMDB_close(obj->mmdb);
         free(obj->mmdb);
@@ -98,28 +98,13 @@ static void MMDB_MMDB_dealloc(PyObject * self)
     PyObject_Del(self);
 }
 
-// // This function creates the Py object for us
-// static PyObject *mkobj(MMDB_s * mmdb, MMDB_decode_all_s ** current)
-// {
-//     MMDB_decode_all_s *tmp = *current;
-//     PyObject *py = mkobj_r(mmdb, current);
-//     *current = tmp;
-//     return py;
-// }
 
-// // Return the version of the CAPI
-// static PyObject *MMDB_lib_version_Py(PyObject * self, PyObject * args)
-// {
-//     return Py_BuildValue("s", MMDB_lib_version());
-// }
-
-// This function is used to do the lookup
-static PyObject *MMDB_get_Py(PyObject * self, PyObject * args)
+static PyObject *MMDB_Reader_get(PyObject * self, PyObject * args)
 {
     char *ip_address = NULL;
 
 
-    MMDB_MMDBObject *mmdb_obj = (MMDB_MMDBObject *)self;
+    MMDB_Reader_obj *mmdb_obj = (MMDB_Reader_obj *)self;
     if (!PyArg_ParseTuple(args, "s", &ip_address)) {
         return NULL;
     }
@@ -326,8 +311,8 @@ static bool file_is_readable(const char *filename)
     return false;
 }
 
-static PyMethodDef MMDB_Object_methods[] = {
-    { "get", MMDB_get_Py, 1, "Get record for IP address" },
+static PyMethodDef MMDB_Reader_methods[] = {
+    { "get", MMDB_Reader_get, 1, "Get record for IP address" },
     { NULL,     NULL,           0, NULL                     }
 };
 
@@ -335,14 +320,14 @@ static PyMethodDef MMDB_Object_methods[] = {
 // not sure if we need this
 static PyObject *MMDB_GetAttr(PyObject * self, char *attrname)
 {
-    return Py_FindMethod(MMDB_Object_methods, self, attrname);
+    return Py_FindMethod(MMDB_Reader_methods, self, attrname);
 }
 #endif
 
-static PyTypeObject MMDB_MMDBType = {
+static PyTypeObject MMDB_module = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    "MMDB",
-    sizeof(MMDB_MMDBObject),
+    "maxminddb",
+    sizeof(MMDB_Reader_obj),
     0,
     MMDB_MMDB_dealloc,          /*tp_dealloc */
     0,                          /*tp_print */
@@ -365,14 +350,14 @@ static PyTypeObject MMDB_MMDBType = {
     0,                          /* tp_setattro */
     0,                          /* tp_as_buffer */
     Py_TPFLAGS_DEFAULT,         /* tp_flags */
-    "MMDB Object",              /* tp_doc */
+    "maxminddb.Reader object",  /* tp_doc */
     0,                          /* tp_traverse */
     0,                          /* tp_clear */
     0,                          /* tp_richcompare */
     0,                          /* tp_weaklistoffset */
     0,                          /* tp_iter */
     0,                          /* tp_iternext */
-    MMDB_Object_methods,        /* tp_methods */
+    MMDB_Reader_methods,        /* tp_methods */
     0,                          /* tp_members */
     0,                          /* tp_getset */
     0,                          /* tp_base */
@@ -386,19 +371,19 @@ static PyTypeObject MMDB_MMDBType = {
 #endif
 };
 
-static PyMethodDef MMDB_Class_methods[] = {
-    { "new",         MMDB_new_Py,         1,
-      "MMDB Constructor with database filename argument" },
+static PyMethodDef MMDB_methods[] = {
+    { "Reader",         Reader_constructor,         1,
+      "Creates a new maxminddb.Reader object" },
     { NULL,          NULL,                0,NULL                        }
 };
 
 #if PY_MAJOR_VERSION >= 3
 static struct PyModuleDef pymmdbmodule = {
     PyModuleDef_HEAD_INIT,
-    "MMDB",                                    /* m_name */
+    "maxminddb",                                    /* m_name */
     "This is a module to read mmdb databases", /* m_doc */
     -1,                                        /* m_size */
-    MMDB_Class_methods,                        /* m_methods */
+    MMDB_methods,                        /* m_methods */
     NULL,                                      /* m_reload */
     NULL,                                      /* m_traverse */
     NULL,                                      /* m_clear */
@@ -406,19 +391,19 @@ static struct PyModuleDef pymmdbmodule = {
 };
 #endif
 
-MOD_INIT(MMDB){
+MOD_INIT(maxminddb){
     PyObject *m;
 
 #if PY_MAJOR_VERSION >= 3
     m = PyModule_Create(&pymmdbmodule);
-    MMDB_MMDBType.tp_new = PyType_GenericNew;
-    if (PyType_Ready(&MMDB_MMDBType) < 0) {
+    MMDB_module.tp_new = PyType_GenericNew;
+    if (PyType_Ready(&MMDB_module) < 0) {
         return NULL;
     }
-    PyModule_AddObject(m, "MMDB", (PyObject *)&MMDB_MMDBType);
-    Py_INCREF(&MMDB_MMDBType);
+    PyModule_AddObject(m, "maxminddb", (PyObject *)&MMDB_module);
+    Py_INCREF(&MMDB_module);
 #else
-    m = Py_InitModule("MMDB", MMDB_Class_methods);
+    m = Py_InitModule("maxminddb", MMDB_methods);
 #endif
 
     RETURN_MOD_INIT(m);
