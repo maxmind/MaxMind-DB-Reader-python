@@ -2,7 +2,6 @@
 
 #include <Python.h>
 #include <maxminddb.h>
-#include <netdb.h>
 
 static PyTypeObject Reader_Type;
 static PyObject *MaxMind_DB_Error;
@@ -85,6 +84,7 @@ static void Reader_dealloc(PyObject * self)
     if (obj->mmdb != NULL) {
         MMDB_close(obj->mmdb);
         free(obj->mmdb);
+        obj->mmdb = NULL;
     }
 
     PyObject_Del(self);
@@ -94,7 +94,6 @@ static void Reader_dealloc(PyObject * self)
 static PyObject *Reader_get(PyObject * self, PyObject * args)
 {
     char *ip_address = NULL;
-
 
     Reader_obj *mmdb_obj = (Reader_obj *)self;
     if (!PyArg_ParseTuple(args, "s", &ip_address)) {
@@ -269,13 +268,14 @@ static void handle_uint128(const MMDB_entry_data_list_s *entry_data_list,
 #endif
 
     char *num_str;
-    int status = asprintf(&num_str, "0x%016" PRIX64 "%016" PRIX64, high, low);
+    int status = asprintf(&num_str, "%016" PRIX64 "%016" PRIX64, high, low);
 
     if (status <= 0) {
         PyErr_NoMemory();
     }
 
     *py_obj = PyLong_FromString(num_str, NULL, 10);
+
     free(num_str);
 }
 
