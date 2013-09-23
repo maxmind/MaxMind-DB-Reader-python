@@ -1,8 +1,7 @@
 #!/usr/bin/python3
 
 import MMDB
-print (MMDB.lib_version());
-mmdb = MMDB.new("/usr/local/share/GeoIP2/GeoIP2-City.mmdb",MMDB.MMDB_MODE_MEMORY_CACHE )
+mmdb = MMDB.new(
+    "/usr/local/share/GeoIP/GeoIP2-City.mmdb")
 
-print (mmdb.lookup("24.24.24.24"))
-
+print(mmdb.get("24.24.24.24"))

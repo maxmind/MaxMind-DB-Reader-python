@@ -1,11 +1,30 @@
 /* -*- Mode: C; indent-tabs-mode: t; c-basic-offset: 4; tab-width: 4 -*- */
 
 #include <Python.h>
-#include <MMDB.h>
+#include <maxminddb.h>
 #include <netdb.h>
 
 static PyTypeObject MMDB_MMDBType;
-static PyObject *mkobj_r(MMDB_s * mmdb, MMDB_decode_all_s ** current);
+
+static const MMDB_entry_data_list_s *handle_entry_data_list(
+    const MMDB_entry_data_list_s *entry_data_list,
+    PyObject **py_obj);
+static const MMDB_entry_data_list_s *handle_map(
+    const MMDB_entry_data_list_s *entry_data_list,
+    PyObject **py_obj);
+static const MMDB_entry_data_list_s *handle_array(
+    const MMDB_entry_data_list_s *entry_data_list,
+    PyObject **py_obj);
+static void handle_uint128(const MMDB_entry_data_list_s *entry_data_list,
+                           PyObject **py_obj);
+static void handle_uint64(const MMDB_entry_data_list_s *entry_data_list,
+                          PyObject **py_obj);
+
+static bool file_is_readable(const char *filename);
+
+#if PY_MAJOR_VERSION < 3
+    #define PyInt_FromLong PyLong_FromLong
+#endif
 
 #if PY_MAJOR_VERSION >= 3
 #define MOD_INIT(name) PyMODINIT_FUNC PyInit_ ## name(void)
@@ -13,7 +32,7 @@ static PyObject *mkobj_r(MMDB_s * mmdb, MMDB_decode_all_s ** current);
 #else
 #define MOD_INIT(name) PyMODINIT_FUNC init ## name(void)
 #define RETURN_MOD_INIT(m) return
-#define PyLong_FromLong PyInt_FromLong
+#define PyLong_FromLong PyLong_FromLong
 #endif
 
 /* Exception object for python */
@@ -29,9 +48,15 @@ static PyObject *MMDB_new_Py(PyObject * self, PyObject * args)
 {
     MMDB_MMDBObject *obj;
     char *filename;
-    int flags;
 
-    if (!PyArg_ParseTuple(args, "si", &filename, &flags)) {
+    if (!PyArg_ParseTuple(args, "s", &filename)) {
+        return NULL;
+    }
+
+    if (!file_is_readable(filename)) {
+        PyErr_Format(PyExc_ValueError,
+                        "The file \"%s\" does not exist or is not readable.",
+                        filename);
         return NULL;
     }
 
@@ -40,12 +65,24 @@ static PyObject *MMDB_new_Py(PyObject * self, PyObject * args)
         return NULL;
     }
 
-    obj->mmdb = MMDB_open(filename, flags);
-    if (!obj->mmdb) {
-        PyErr_SetString(PyMMDBError, "Can't create obj->mmdb object");
+    MMDB_s *mmdb = (MMDB_s *)malloc(sizeof(MMDB_s));
+    if (NULL == mmdb) {
+         PyErr_NoMemory();
+    }
+    uint16_t status = MMDB_open(filename, MMDB_MODE_MMAP, mmdb);
+
+    if (MMDB_SUCCESS != status) {
+         PyErr_Format(
+            PyMMDBError,
+            "Error opening database file (%s). Is this a valid MaxMind DB file?",
+            filename
+            );
         Py_DECREF(obj);
+        free(mmdb);
         return NULL;
     }
+
+    obj->mmdb = mmdb;
     return (PyObject *)obj;
 }
 
@@ -53,194 +90,244 @@ static PyObject *MMDB_new_Py(PyObject * self, PyObject * args)
 static void MMDB_MMDB_dealloc(PyObject * self)
 {
     MMDB_MMDBObject *obj = (MMDB_MMDBObject *)self;
-    MMDB_close(obj->mmdb);
+    if (obj->mmdb != NULL) {
+        MMDB_close(obj->mmdb);
+        free(obj->mmdb);
+    }
+
     PyObject_Del(self);
 }
 
-// This function creates the Py object for us
-static PyObject *mkobj(MMDB_s * mmdb, MMDB_decode_all_s ** current)
-{
-    MMDB_decode_all_s *tmp = *current;
-    PyObject *py = mkobj_r(mmdb, current);
-    *current = tmp;
-    return py;
-}
+// // This function creates the Py object for us
+// static PyObject *mkobj(MMDB_s * mmdb, MMDB_decode_all_s ** current)
+// {
+//     MMDB_decode_all_s *tmp = *current;
+//     PyObject *py = mkobj_r(mmdb, current);
+//     *current = tmp;
+//     return py;
+// }
 
-// Return the version of the CAPI
-static PyObject *MMDB_lib_version_Py(PyObject * self, PyObject * args)
-{
-    return Py_BuildValue("s", MMDB_lib_version());
-}
+// // Return the version of the CAPI
+// static PyObject *MMDB_lib_version_Py(PyObject * self, PyObject * args)
+// {
+//     return Py_BuildValue("s", MMDB_lib_version());
+// }
 
 // This function is used to do the lookup
-static PyObject *MMDB_lookup_Py(PyObject * self, PyObject * args)
+static PyObject *MMDB_get_Py(PyObject * self, PyObject * args)
 {
-    char *name;
-    struct in6_addr ip;
-    int status;
+    char *ip_address = NULL;
 
-    MMDB_MMDBObject *obj = (MMDB_MMDBObject *)self;
-    if (!PyArg_ParseTuple(args, "s", &name)) {
+
+    MMDB_MMDBObject *mmdb_obj = (MMDB_MMDBObject *)self;
+    if (!PyArg_ParseTuple(args, "s", &ip_address)) {
         return NULL;
     }
 
-    status = MMDB_lookupaddressX(name, AF_INET6, AI_V4MAPPED, &ip);
-    if (status == 0) {
-        MMDB_root_entry_s root = { .entry.mmdb = obj->mmdb };
-        status = MMDB_lookup_by_ipnum_128(ip, &root);
-        if (status == MMDB_SUCCESS && root.entry.offset > 0) {
-            MMDB_decode_all_s *decode_all;
-            if (MMDB_get_tree(&root.entry, &decode_all) == MMDB_SUCCESS) {
-                PyObject *retval = mkobj(obj->mmdb, &decode_all);
-                MMDB_free_decode_all(decode_all);
-                return retval;
-            }
-        }
+
+    MMDB_s *mmdb = mmdb_obj->mmdb;
+
+    if (NULL == mmdb) {
+       PyErr_SetString(PyExc_ValueError,
+                        "Attempt to read from a closed MaxMind DB.");
+        return NULL;
     }
+
+    int gai_error = MMDB_SUCCESS;
+    int mmdb_error = MMDB_SUCCESS;
+    MMDB_lookup_result_s result =
+        MMDB_lookup_string(mmdb, ip_address, &gai_error,
+                           &mmdb_error);
+
+    if (MMDB_SUCCESS != gai_error) {
+        PyErr_Format(PyExc_ValueError,
+                        "The value \"%s\" is not a valid IP address.",
+                        ip_address);
+        return NULL;
+    }
+
+    if (MMDB_SUCCESS != mmdb_error) {
+        PyErr_Format(PyMMDBError, "Error looking up %s", ip_address);
+        return NULL;
+    }
+
+    MMDB_entry_data_list_s *entry_data_list = NULL;
+
+    if (result.found_entry) {
+        PyObject *py_obj = NULL;
+
+        int status = MMDB_get_entry_data_list(&result.entry, &entry_data_list);
+        if (MMDB_SUCCESS != status) {
+            PyErr_Format(PyMMDBError,
+                         "Error while looking up data for %s", ip_address);
+        } else if (NULL != entry_data_list) {
+            handle_entry_data_list(entry_data_list, &py_obj);
+        }
+
+        MMDB_free_entry_data_list(entry_data_list);
+        return py_obj;
+    }
+
     Py_RETURN_NONE;
 }
 
-static PyObject *Py23String_FromStringAndSize(void *ptr, int size)
+static const MMDB_entry_data_list_s *handle_entry_data_list(
+    const MMDB_entry_data_list_s *entry_data_list,
+    PyObject **py_obj)
 {
-#if PY_MAJOR_VERSION >= 3
-    return PyBytes_FromStringAndSize(ptr, size);
-#else
-    return PyString_FromStringAndSize(ptr, size);
-#endif
-}
-
-// minor helper fuction to create a python string from the database
-static PyObject *build_PyString_FromStringAndSize(MMDB_s * mmdb, void *ptr,
-                                                  int size)
-{
-    const int BSIZE = 256;
-    char buffer[BSIZE];
-    int fd = mmdb->fd;
-    if (fd < 0) {
-        return Py23String_FromStringAndSize(ptr, size);
-    }
-
-    void *bptr = size < BSIZE ? buffer : malloc(size);
-    if (!bptr) {
-        abort();
-    }
-    uint32_t segments = mmdb->full_record_size_bytes * mmdb->node_count;
-    MMDB_pread(fd, bptr, size, segments + (uintptr_t)ptr);
-    PyObject *py = Py23String_FromStringAndSize(bptr, size);
-    if (size >= BSIZE) {
-        free(bptr);
-    }
-    return py;
-}
-
-// minor helper fuction to create a python string from the database
-static PyObject *build_PyUnicode_DecodeUTF8(MMDB_s * mmdb, void *ptr, int size)
-{
-    const int BSIZE = 256;
-    char buffer[BSIZE];
-    int fd = mmdb->fd;
-    if (fd < 0) {
-        return PyUnicode_DecodeUTF8(ptr, size, NULL);
-    }
-
-    void *bptr = size < BSIZE ? buffer : malloc(size);
-    assert(bptr);
-    uint32_t segments = mmdb->full_record_size_bytes * mmdb->node_count;
-    MMDB_pread(fd, bptr, size, segments + (uintptr_t)ptr);
-    PyObject *py = PyUnicode_DecodeUTF8(bptr, size, NULL);
-    if (size >= BSIZE) {
-        free(bptr);
-    }
-    return py;
-}
-
-// iterated over our datastructure and create python from it
-static PyObject *mkobj_r(MMDB_s * mmdb, MMDB_decode_all_s ** current)
-{
-    PyObject *sv = NULL;
-    switch ((*current)->decode.data.type) {
-    case MMDB_DTYPE_MAP:
-        {
-            PyObject *hv = PyDict_New();
-            int size = (*current)->decode.data.data_size;
-            for (*current = (*current)->next; size; size--) {
-                PyObject *key, *val;
-                int key_size = (*current)->decode.data.data_size;
-                void *key_ptr = size ? (void *)(*current)->decode.data.ptr : "";
-                *current = (*current)->next;
-                val = mkobj_r(mmdb, current);
-                key = build_PyString_FromStringAndSize(mmdb, key_ptr, key_size);
-                PyDict_SetItem(hv, key, val);
-                Py_DECREF(val);
-                Py_DECREF(key);
-            }
-            return hv;
-        }
+    switch (entry_data_list->entry_data.type) {
+    case MMDB_DATA_TYPE_MAP:
+        return handle_map(entry_data_list, py_obj);
+    case MMDB_DATA_TYPE_ARRAY:
+        return handle_array(entry_data_list, py_obj);
+    case MMDB_DATA_TYPE_UTF8_STRING:
+        *py_obj =  PyUnicode_FromStringAndSize(
+                     (char *)entry_data_list->entry_data.utf8_string,
+                     entry_data_list->entry_data.data_size
+                     );
         break;
-    case MMDB_DTYPE_ARRAY:
-        {
-            int size = (*current)->decode.data.data_size;
-            PyObject *av = PyList_New(0);
-            for (*current = (*current)->next; size; size--) {
-                PyObject *val = mkobj_r(mmdb, current);
-                PyList_Append(av, val);
-                Py_DECREF(val);
-            }
-            return av;
-        }
+    case MMDB_DATA_TYPE_BYTES:
+        *py_obj = PyByteArray_FromStringAndSize(
+                    (char *)entry_data_list->entry_data.bytes,
+                     entry_data_list->entry_data.data_size);
         break;
-    case MMDB_DTYPE_UTF8_STRING:
-        {
-            int size = (*current)->decode.data.data_size;
-            void *ptr = size ? (void *)(*current)->decode.data.ptr : "";
-            sv = build_PyUnicode_DecodeUTF8(mmdb, ptr, size);
-        }
+    case MMDB_DATA_TYPE_DOUBLE:
+        *py_obj = PyFloat_FromDouble(entry_data_list->entry_data.double_value);
         break;
-    case MMDB_DTYPE_BYTES:
-        {
-            int size = (*current)->decode.data.data_size;
-            sv = build_PyString_FromStringAndSize(mmdb,
-                                                  (void *)(*current)->
-                                                  decode.data.ptr, size);
-        }
+    case MMDB_DATA_TYPE_FLOAT:
+        *py_obj = PyFloat_FromDouble(entry_data_list->entry_data.float_value);
         break;
-    case MMDB_DTYPE_IEEE754_FLOAT:
-        sv = Py_BuildValue("d", (*current)->decode.data.float_value);
+    case MMDB_DATA_TYPE_UINT16:
+        *py_obj = PyLong_FromLong( entry_data_list->entry_data.uint16);
         break;
-    case MMDB_DTYPE_IEEE754_DOUBLE:
-        sv = Py_BuildValue("d", (*current)->decode.data.double_value);
+    case MMDB_DATA_TYPE_UINT32:
+        *py_obj =  PyLong_FromLong(entry_data_list->entry_data.uint32);
         break;
-    case MMDB_DTYPE_UINT32:
-        sv = Py_BuildValue("I", (*current)->decode.data.uinteger);
+    case MMDB_DATA_TYPE_BOOLEAN:
+        *py_obj = PyBool_FromLong(entry_data_list->entry_data.boolean);
         break;
-    case MMDB_DTYPE_UINT64:
-        sv = build_PyString_FromStringAndSize(mmdb,
-                                              (void *)(*current)->decode.
-                                              data.c8, 8);
+    case MMDB_DATA_TYPE_UINT64:
+        handle_uint64(entry_data_list, py_obj);
         break;
-    case MMDB_DTYPE_UINT128:
-        sv = build_PyString_FromStringAndSize(mmdb,
-                                              (void *)(*current)->decode.
-                                              data.c16, 16);
+    case MMDB_DATA_TYPE_UINT128:
+        handle_uint128(entry_data_list, py_obj);
         break;
-    case MMDB_DTYPE_BOOLEAN:
-    case MMDB_DTYPE_UINT16:
-    case MMDB_DTYPE_INT32:
-        sv = PyLong_FromLong((*current)->decode.data.sinteger);
+    case MMDB_DATA_TYPE_INT32:
+        *py_obj =  PyLong_FromLong(entry_data_list->entry_data.int32);
         break;
     default:
-        assert(0);
+        PyErr_Format(PyMMDBError,
+                        "Invalid data type arguments: %d",
+                        entry_data_list->entry_data.type);
+        return NULL;
+    }
+    return entry_data_list->next;
+}
+
+static const MMDB_entry_data_list_s *handle_map(
+    const MMDB_entry_data_list_s *entry_data_list,
+    PyObject **py_obj)
+{
+    *py_obj = PyDict_New();
+
+    const uint32_t map_size = entry_data_list->entry_data.data_size;
+    entry_data_list = entry_data_list->next;
+
+    uint i;
+    for (i = 0; i < map_size && entry_data_list; i++ ) {
+        PyObject *key, *value;
+
+        key = PyUnicode_FromStringAndSize(
+                     (char *)entry_data_list->entry_data.utf8_string,
+                     entry_data_list->entry_data.data_size
+                     );
+
+        entry_data_list = entry_data_list->next;
+
+        entry_data_list = handle_entry_data_list(entry_data_list,
+                                                 &value);
+        PyDict_SetItem(*py_obj, key, value);
+        Py_DECREF(value);
+        Py_DECREF(key);
+    }
+    return entry_data_list;
+}
+
+static const MMDB_entry_data_list_s *handle_array(
+    const MMDB_entry_data_list_s *entry_data_list,
+    PyObject **py_obj)
+{
+    const uint32_t size = entry_data_list->entry_data.data_size;
+
+    *py_obj = PyList_New(size);
+    entry_data_list = entry_data_list->next;
+
+    uint i;
+    for (i = 0; i < size && entry_data_list; i++) {
+        PyObject *new_value;
+        entry_data_list = handle_entry_data_list(entry_data_list,
+                                                 &new_value);
+        PyList_SET_ITEM(*py_obj, i, new_value);
+    }
+    return entry_data_list;
+}
+
+static void handle_uint128(const MMDB_entry_data_list_s *entry_data_list,
+                           PyObject **py_obj)
+{
+    uint64_t high = 0;
+    uint64_t low = 0;
+#if MISSING_UINT128
+    int i;
+    for (i = 0; i < 8; i++) {
+        high = (high << 8) | entry_data_list->entry_data.uint128[i];
     }
 
-    if (*current) {
-        *current = (*current)->next;
+    for (i = 8; i < 16; i++) {
+        low = (low << 8) | entry_data_list->entry_data.uint128[i];
+    }
+#else
+    high = entry_data_list->entry_data.uint128 >> 64;
+    low = (uint64_t)entry_data_list->entry_data.uint128;
+#endif
+
+    char *num_str;
+    int status = asprintf(&num_str, "0x%016" PRIX64 "%016" PRIX64, high, low);
+
+    if (status <= 0) {
+        PyErr_NoMemory();
     }
 
-    return sv;
+    *py_obj = PyLong_FromString(num_str, NULL, 10);
+    free(num_str);
+}
+
+static void handle_uint64(const MMDB_entry_data_list_s *entry_data_list,
+                          PyObject **py_obj)
+{
+    char *int_str;
+    int status = asprintf(&int_str, "%" PRIu64,
+             entry_data_list->entry_data.uint64 );
+    if (status <= 0) {
+        PyErr_NoMemory();
+    }
+
+    *py_obj = PyLong_FromString(int_str, NULL, 10);
+    free(int_str);
+}
+
+static bool file_is_readable(const char *filename)
+{
+    FILE *file = fopen(filename, "r");
+    if (file) {
+        fclose(file);
+        return true;
+    }
+    return false;
 }
 
 static PyMethodDef MMDB_Object_methods[] = {
-    { "lookup", MMDB_lookup_Py, 1, "Lookup entry by ipaddr" },
+    { "get", MMDB_get_Py, 1, "Get record for IP address" },
     { NULL,     NULL,           0, NULL                     }
 };
 
@@ -302,7 +389,6 @@ static PyTypeObject MMDB_MMDBType = {
 static PyMethodDef MMDB_Class_methods[] = {
     { "new",         MMDB_new_Py,         1,
       "MMDB Constructor with database filename argument" },
-    { "lib_version", MMDB_lib_version_Py, 1,"Returns the CAPI version"  },
     { NULL,          NULL,                0,NULL                        }
 };
 
@@ -320,41 +406,19 @@ static struct PyModuleDef pymmdbmodule = {
 };
 #endif
 
-static void common_mod_init(PyObject * mod)
-{
-    PyObject *d, *tmp;
-    d = PyModule_GetDict(mod);
-
-    PyMMDBError = PyErr_NewException("py_mmdb.error", NULL, NULL);
-    PyDict_SetItemString(d, "error", PyMMDBError);
-
-    tmp = PyLong_FromLong(MMDB_MODE_STANDARD);
-    PyDict_SetItemString(d, "MMDB_MODE_STANDARD", tmp);
-    Py_DECREF(tmp);
-
-    tmp = PyLong_FromLong(MMDB_MODE_MEMORY_CACHE);
-    PyDict_SetItemString(d, "MMDB_MODE_MEMORY_CACHE", tmp);
-    Py_DECREF(tmp);
-}
-
 MOD_INIT(MMDB){
     PyObject *m;
 
 #if PY_MAJOR_VERSION >= 3
-
+    m = PyModule_Create(&pymmdbmodule);
     MMDB_MMDBType.tp_new = PyType_GenericNew;
     if (PyType_Ready(&MMDB_MMDBType) < 0) {
         return NULL;
     }
-
-    m = PyModule_Create(&pymmdbmodule);
-    common_mod_init(m);
-    Py_INCREF(&MMDB_MMDBType);
     PyModule_AddObject(m, "MMDB", (PyObject *)&MMDB_MMDBType);
+    Py_INCREF(&MMDB_MMDBType);
 #else
-    MMDB_MMDBType.ob_type = &PyType_Type;
     m = Py_InitModule("MMDB", MMDB_Class_methods);
-    common_mod_init(m);
 #endif
 
     RETURN_MOD_INIT(m);
