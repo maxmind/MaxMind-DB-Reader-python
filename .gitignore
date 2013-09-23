@@ -1,0 +1,13 @@
+*~
+build
+.coverage
+dist
+docs/_build
+docs/html
+env/
+maxminddb.egg-info/
+MANIFEST
+*.pyc
+pylint.txt
+*.swp
+violations.pyflakes.txt
