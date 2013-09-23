@@ -1,5 +1,6 @@
 *~
 build
+core
 .coverage
 dist
 docs/_build
