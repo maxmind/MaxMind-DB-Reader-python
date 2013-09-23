@@ -2,7 +2,7 @@ from distutils.core import setup, Extension
 
 module1 = Extension('MMDB',
 	libraries = ['maxminddb'],
-	sources = ['py_libmaxmind.c'],
+	sources = ['maxminddb.c'],
 	library_dirs = ['/usr/local/lib'],
 	include_dirs = ['/usr/local/include'])
 
