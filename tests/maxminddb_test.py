@@ -33,12 +33,12 @@ class TestReader(unittest.TestCase):
         reader = Reader('maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb')
         record = reader.get('::1.1.1.0')
 
-        self.assertEqual([1, 2, 3], record['array'])
-        self.assertEqual(True, record['boolean'])
-        self.assertEqual(bytearray(b'\x00\x00\x00*'), record['bytes'])
-        self.assertEqual(42.123456, record['double'])
-        self.assertAlmostEqual(1.1, record['float'])
-        self.assertEqual(-268435456, record['int32'])
+        self.assertEqual(record['array'], [1, 2, 3])
+        self.assertEqual(record['boolean'], True)
+        self.assertEqual(record['bytes'], bytearray(b'\x00\x00\x00*'))
+        self.assertEqual(record['double'], 42.123456)
+        self.assertAlmostEqual(record['float'], 1.1)
+        self.assertEqual(record['int32'], -268435456)
         self.assertEqual(
             {
                 'mapX': {
@@ -49,10 +49,10 @@ class TestReader(unittest.TestCase):
             record['map']
         )
 
-        self.assertEqual(100, record['uint16'])
-        self.assertEqual(268435456, record['uint32'])
-        self.assertEqual(1152921504606846976, record['uint64'])
-        self.assertEqual('unicode! ☯ - ♫', record['utf8_string'])
+        self.assertEqual(record['uint16'], 100)
+        self.assertEqual(record['uint32'], 268435456)
+        self.assertEqual(record['uint64'], 1152921504606846976)
+        self.assertEqual(record['utf8_string'], 'unicode! ☯ - ♫')
 
         self.assertEqual(
             1329227995784915872903807060280344576,
@@ -79,7 +79,7 @@ class TestReader(unittest.TestCase):
         self.assertRaises(TypeError, Reader, ('README.md', 1))
 
     def test_no_constructor_args(self):
-        self.assertRaises(TypeError, Reader, ())
+        self.assertRaises(TypeError, Reader)
 
     def test_too_many_get_args(self):
         reader = Reader(
@@ -91,13 +91,22 @@ class TestReader(unittest.TestCase):
         reader = Reader(
             'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
         )
-        self.assertRaises(TypeError, reader.get, ())
+        self.assertRaises(TypeError, reader.get)
 
     def test_metadata_args(self):
         reader = Reader(
             'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
         )
         self.assertRaises(TypeError, reader.metadata, ('blah'))
+
+    def test_metadata_args(self):
+        reader = Reader(
+            'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
+        )
+        metadata = reader.metadata()
+        with self.assertRaisesRegexp(AttributeError,
+                                     "'maxminddb.Metadata' object has no attribute 'blah'"):
+            metadata.blah
 
     def test_close(self):
         reader = Reader(
@@ -140,22 +149,19 @@ class TestReader(unittest.TestCase):
             metadata.binary_format_major_version,
             'major version'
         )
-        self.assertEqual(0, metadata.binary_format_minor_version)
-        self.assertEqual(1373571901, metadata.build_epoch)
-        self.assertEqual('Test', metadata.database_type)
+        self.assertEqual(metadata.binary_format_minor_version, 0)
+        self.assertEqual(metadata.build_epoch, 1373571901)
+        self.assertEqual(metadata.database_type, 'Test')
 
         self.assertEqual(
             {'en': 'Test Database', 'zh': 'Test Database Chinese'},
             metadata.description
         )
+        self.assertEqual(metadata.ip_version, ip_version)
+        self.assertEqual(metadata.languages, ['en', 'zh'])
+        self.assertGreater(metadata.node_count, 36)
 
-        self.assertEqual(ip_version, metadata.ip_version)
-        self.assertEqual(['en', 'zh'], metadata.languages)
-        self.assertEqual(record_size / 4, metadata.node_byte_size)
-        self.assertGreater(36, metadata.node_count)
-
-        self.assertEqual(record_size, metadata.record_size)
-        self.assertGreater(200, metadata.search_tree_size)
+        self.assertEqual(metadata.record_size, record_size)
 
     def _check_ip_v4(self, reader, file_name):
         for i in range(6):

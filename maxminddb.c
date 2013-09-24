@@ -3,12 +3,18 @@
 
 
 static PyTypeObject Reader_Type;
+static PyTypeObject Metadata_Type;
 static PyObject *MaxMindDB_error;
 
 typedef struct {
     PyObject_HEAD               /* no semicolon */
     MMDB_s * mmdb;
 } Reader_obj;
+
+typedef struct {
+    PyObject_HEAD               /* no semicolon */
+    PyObject *metadata;
+} Metadata_obj;
 
 static const MMDB_entry_data_list_s *handle_entry_data_list(
     const MMDB_entry_data_list_s *entry_data_list,
@@ -35,14 +41,13 @@ static bool file_is_readable(const char *filename);
 #endif
 
 #ifdef __GNUC__
-#  define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
+    #  define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
 #else
-#  define UNUSED(x) UNUSED_ ## x
+    #  define UNUSED(x) UNUSED_ ## x
 #endif
 
 static PyObject *Reader_constructor(PyObject *UNUSED(self), PyObject * args)
 {
-    Reader_obj *obj;
     char *filename;
 
     if (!PyArg_ParseTuple(args, "s", &filename)) {
@@ -56,7 +61,7 @@ static PyObject *Reader_constructor(PyObject *UNUSED(self), PyObject * args)
         return NULL;
     }
 
-    obj = PyObject_New(Reader_obj, &Reader_Type);
+    Reader_obj *obj = PyObject_New(Reader_obj, &Reader_Type);
     if (!obj) {
         return NULL;
     }
@@ -144,7 +149,24 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args))
                         "Attempt to read from a closed MaxMind DB.");
         return NULL;
     }
-    Py_RETURN_NONE;
+
+    Metadata_obj *obj = PyObject_New(Metadata_obj, &Metadata_Type);
+    if (!obj) {
+        return NULL;
+    }
+
+    PyObject *metadata_dict;
+
+    MMDB_entry_data_list_s *entry_data_list;
+    MMDB_get_metadata_as_entry_data_list(mmdb_obj->mmdb, &entry_data_list);
+
+    handle_entry_data_list(entry_data_list, &metadata_dict);
+    MMDB_free_entry_data_list(entry_data_list);
+
+    obj->metadata = metadata_dict;
+    Py_INCREF(metadata_dict);
+
+    return (PyObject *)obj;
 }
 
 static PyObject *Reader_close(PyObject * self, PyObject *UNUSED(args))
@@ -170,6 +192,29 @@ static void Reader_dealloc(PyObject * self)
         Reader_close(self, NULL);
     }
 
+    PyObject_Del(self);
+}
+
+static PyObject *Metadata_GetAttr(PyObject *self, PyObject *name )
+{
+    Metadata_obj *metadata_obj = (Metadata_obj *)self;
+
+    PyObject *prop = PyDict_GetItem(metadata_obj->metadata, name);
+    if (NULL == prop) {
+        PyObject *byte_name = PyUnicode_AsUTF8String(name);
+        char *attribute = PyBytes_AsString(byte_name);
+        PyErr_Format(PyExc_AttributeError,
+                     "'maxminddb.Metadata' object has no attribute '%s'",
+                     attribute);
+        Py_DECREF(byte_name);
+    }
+    return prop;
+}
+
+static void Metadata_dealloc(PyObject * self)
+{
+    Metadata_obj *obj = (Metadata_obj *)self;
+    Py_DECREF(obj->metadata);
     PyObject_Del(self);
 }
 
@@ -330,20 +375,37 @@ static bool file_is_readable(const char *filename)
 }
 
 static PyMethodDef Reader_methods[] = {
-    { "get", Reader_get, METH_VARARGS, "Get record for IP address" },
-    { "metadata", Reader_metadata, METH_NOARGS, "Returns metadata object for database"},
-    { "close", Reader_close, METH_NOARGS, "Closes database"},
-    { NULL,  NULL,       0, NULL                        }
+    { "get",      Reader_get,      METH_VARARGS,
+      "Get record for IP address" },
+    { "metadata", Reader_metadata, METH_NOARGS,
+      "Returns metadata object for database" },
+    { "close",    Reader_close,    METH_NOARGS, "Closes database"},
+    { NULL,       NULL,            0,           NULL        }
 };
 
 static PyTypeObject Reader_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "maxminddb.Reader",
     .tp_basicsize = sizeof(Reader_obj),
     .tp_dealloc = Reader_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_doc = "maxminddb.Reader object",
+    .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_methods = Reader_methods,
+    .tp_name = "maxminddb.Reader",
+};
+
+static PyMethodDef Metadata_methods[] = {
+    { NULL, NULL, 0, NULL }
+};
+
+static PyTypeObject Metadata_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_basicsize = sizeof(Metadata_obj),
+    .tp_dealloc = Metadata_dealloc,
+    .tp_doc = "maxminddb.Metadata object",
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_getattro = Metadata_GetAttr,
+    .tp_methods = Metadata_methods,
+    .tp_name = "maxminddb.Metadata",
 };
 
 static PyMethodDef MaxMindDB_methods[] = {
@@ -361,23 +423,26 @@ static struct PyModuleDef MaxMindDB_module = {
 };
 #endif
 
+static void init_type(PyObject *m, PyTypeObject *type)
+{
+    Metadata_Type.tp_new = PyType_GenericNew;
+
+    if (PyType_Ready(type) == 0) {
+        Py_INCREF(type);
+        PyModule_AddObject(m, "maxminddb", (PyObject *)type);
+    }
+}
+
 MOD_INIT(maxminddb){
     PyObject *m;
 
-#if PY_MAJOR_VERSION >= 3
     m = PyModule_Create(&MaxMindDB_module);
     if (m == NULL) {
         return NULL;
     }
-    Reader_Type.tp_new = PyType_GenericNew;
-    if (PyType_Ready(&Reader_Type) < 0) {
-        return NULL;
-    }
-    PyModule_AddObject(m, "maxminddb", (PyObject *)&Reader_Type);
-    Py_INCREF(&Reader_Type);
-#else
-    m = Py_InitModule("maxminddb", MaxMindDB_methods);
-#endif
+
+    init_type(m, &Reader_Type);
+    init_type(m, &Metadata_Type);
 
     MaxMindDB_error = PyErr_NewException("maxminddb.InvalidDatabaseError", NULL,
                                          NULL);
