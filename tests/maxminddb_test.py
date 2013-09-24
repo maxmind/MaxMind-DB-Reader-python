@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from maxminddb import Reader
+from maxminddb import Reader, InvalidDatabaseError
 import sys
 if sys.version_info[:2] == (2, 6):
     import unittest2 as unittest
@@ -19,25 +19,25 @@ class TestReader(unittest.TestCase):
         for record_size in [24, 28, 32]:
             for ip_version in [4, 6]:
                 file_name = ('maxmind-db/test-data/MaxMind-DB-test-ipv' +
-                             ip_version + '-' + recordSize + '.mmdb')
+                             str(ip_version) + '-' + str(record_size) + '.mmdb')
                 reader = Reader(file_name)
 
-                #$this->checkMetadata(reader, ip_version, recordSize)
+                self._check_metadata(reader, ip_version, record_size)
 
                 if ip_version == 4:
-                    self.check_ip_v4(reader, file_name)
+                    self._check_ip_v4(reader, file_name)
                 else:
-                    self.check_ip_v6(reader, file_name)
+                    self._check_ip_v6(reader, file_name)
 
     def test_decoder(self):
         reader = Reader('maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb')
         record = reader.get('::1.1.1.0')
 
         self.assertEqual([1, 2, 3], record['array'])
-        self.assertEqual(true, record['boolean'])
-        self.assertEqual(pack('N', 42), record['bytes'])
+        self.assertEqual(True, record['boolean'])
+        self.assertEqual(bytearray(b'\x00\x00\x00*'), record['bytes'])
         self.assertEqual(42.123456, record['double'])
-        self.assertEqual(1.1000000238419, record['float'])
+        self.assertAlmostEqual(1.1, record['float'])
         self.assertEqual(-268435456, record['int32'])
         self.assertEqual(
             {
@@ -51,80 +51,53 @@ class TestReader(unittest.TestCase):
 
         self.assertEqual(100, record['uint16'])
         self.assertEqual(268435456, record['uint32'])
-        self.assertEqual('1152921504606846976', record['uint64'])
+        self.assertEqual(1152921504606846976, record['uint64'])
         self.assertEqual('unicode! ☯ - ♫', record['utf8_string'])
 
         self.assertEqual(
-            '1329227995784915872903807060280344576',
+            1329227995784915872903807060280344576,
             record['uint128']
         )
 
-    # /**
-    #  * @expectedException InvalidArgumentException
-    #  * @expectedExceptionMessage The value "not_ip" is not a valid IP address.
-    #  */
     def test_ip_validation(self):
         reader = Reader('maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb')
-        reader.get('not_ip')
+        self.assertRaisesRegexp(ValueError,
+                                'The value "not_ip" is not a valid IP address.',
+                                reader.get, ('not_ip'))
 
-    # /**
-    #  * @expectedException InvalidArgumentException
-    #  * @expectedExceptionMessage The file "file-does-not-exist.mmdb" does not exist or is not readable.
-    #  */
     def test_missing_database(self):
-        Reader('file-does-not-exist.mmdb')
+        self.assertRaisesRegexp(ValueError,
+                                'The file "file-does-not-exist.mmdb" does not exist or is not readable.',
+                                Reader, ('file-does-not-exist.mmdb'))
 
-    # /**
-    #  * @expectedException MaxMind\Db\Reader\InvalidDatabaseException
-    #  * @expectedExceptionMessage Error opening database file (README.md). Is this a valid MaxMind DB file?
-    #  */
     def test_nondatabase(self):
-        Reader('README.md')
+        self.assertRaisesRegexp(InvalidDatabaseError,
+                                'Error opening database file \(README.md\). Is this a valid MaxMind DB file\?',
+                                Reader, ('README.md'))
 
-    # /**
-    #  * @expectedException InvalidArgumentException
-    #  * @expectedExceptionMessage The constructor takes exactly one argument.
-    #  */
     def test_too_many_constructor_args(self):
-        Reader('README.md', 1)
+        self.assertRaises(TypeError, Reader, ('README.md', 1))
 
-    # /**
-    #  * @expectedException InvalidArgumentException
-    #  *
-    #  * This test only matters for the extension.
-    #  */
     def test_no_constructor_args(self):
-        Reader()
+        self.assertRaises(TypeError, Reader, ())
 
-    # /**
-    #  * @expectedException InvalidArgumentException
-    #  * @expectedExceptionMessage Method takes exactly one argument.
-    #  */
     def test_too_many_get_args(self):
         reader = Reader(
             'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
         )
-        reader.get('1.1.1.1', 'blah')
+        self.assertRaises(TypeError, reader.get, ('1.1.1.1', 'blah'))
 
-    # /**
-    #  * @expectedException InvalidArgumentException
-    #  *
-    #  * This test only matters for the extension.
-    #  */
     def test_no_get_args(self):
         reader = Reader(
             'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
         )
+        self.assertRaises(TypeError, reader.get, ())
 
-    # /**
-    #  * @expectedException InvalidArgumentException
-    #  * @expectedExceptionMessage Method takes no arguments.
-    #  */
     def test_metadata_args(self):
         reader = Reader(
             'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
         )
-        reader.metadata('blah')
+        self.assertRaises(TypeError, reader.metadata, ('blah'))
 
     def test_close(self):
         reader = Reader(
@@ -132,50 +105,44 @@ class TestReader(unittest.TestCase):
         )
         reader.close()
 
-    # /**
-    #  * @expectedException BadMethodCallException
-    #  * @expectedExceptionMessage Attempt to close a closed MaxMind DB.
-    #  */
     def test_double_close(self):
         reader = Reader(
             'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
         )
         reader.close()
-        reader.close()
+        self.assertRaisesRegexp(IOError,
+                                'Attempt to close a closed MaxMind DB.',
+                                reader.close)
 
-    # /**
-    #  * @expectedException BadMethodCallException
-    #  * @expectedExceptionMessage Attempt to read from a closed MaxMind DB.
-    #  */
     def test_closed_get(self):
         reader = Reader(
             'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
         )
         reader.close()
-        reader.get('1.1.1.1')
+        self.assertRaisesRegexp(IOError,
+                                'Attempt to read from a closed MaxMind DB.',
+                                reader.get, ('1.1.1.1'))
 
-    # /**
-    #  * @expectedException BadMethodCallException
-    #  * @expectedExceptionMessage Attempt to read from a closed MaxMind DB.
-    #  */
     def test_closed_metadata(self):
         reader = Reader(
             'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
         )
         reader.close()
-        reader.metadata()
+        self.assertRaisesRegexp(IOError,
+                                'Attempt to read from a closed MaxMind DB.',
+                                reader.metadata)
 
     def _check_metadata(self, reader, ip_version, record_size):
         metadata = reader.metadata()
 
         self.assertEqual(
             2,
-            metadata.binaryFormatMajorVersion,
+            metadata.binary_format_major_version,
             'major version'
         )
-        self.assertEqual(0, metadata.binaryFormatMinorVersion)
-        self.assertEqual(1373571901, metadata.buildEpoch)
-        self.assertEqual('Test', metadata.databaseType)
+        self.assertEqual(0, metadata.binary_format_minor_version)
+        self.assertEqual(1373571901, metadata.build_epoch)
+        self.assertEqual('Test', metadata.database_type)
 
         self.assertEqual(
             {'en': 'Test Database', 'zh': 'Test Database Chinese'},
@@ -184,15 +151,15 @@ class TestReader(unittest.TestCase):
 
         self.assertEqual(ip_version, metadata.ip_version)
         self.assertEqual(['en', 'zh'], metadata.languages)
-        self.assertEqual(recordSize / 4, metadata.nodeByteSize)
-        self.assertGreater(36, metadata.nodeCount)
+        self.assertEqual(record_size / 4, metadata.node_byte_size)
+        self.assertGreater(36, metadata.node_count)
 
-        self.assertEqual(recordSize, metadata.recordSize)
-        self.assertGreater(200, metadata.searchTreeSize)
+        self.assertEqual(record_size, metadata.record_size)
+        self.assertGreater(200, metadata.search_tree_size)
 
     def _check_ip_v4(self, reader, file_name):
         for i in range(6):
-            address = '1.1.1.' + pow(2, i)
+            address = '1.1.1.' + str(pow(2, i))
             self.assertEqual(
                 {'ip': address},
                 reader.get(address),
@@ -209,7 +176,7 @@ class TestReader(unittest.TestCase):
             '1.1.1.17': '1.1.1.16',
             '1.1.1.31': '1.1.1.16'
         }
-        for key_address, value_address in pairs.iteritems():
+        for key_address, value_address in pairs.items():
             data = {'ip': value_address}
 
             self.assertEqual(
@@ -245,7 +212,7 @@ class TestReader(unittest.TestCase):
             '::2:0:59': '::2:0:58'
         }
 
-        for key_address, value_address in pairs.iteritems():
+        for key_address, value_address in pairs.items():
             self.assertEqual(
                 {'ip':  value_address},
                 reader.get(key_address),

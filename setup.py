@@ -3,8 +3,8 @@ from distutils.core import setup, Extension
 module1 = Extension('maxminddb',
                     libraries=['maxminddb'],
                     sources=['maxminddb.c'],
-                    library_dirs=['/usr/local/lib'],
-                    include_dirs=['/usr/local/include'])
+                    extra_compile_args=['-Wall', '-Werror', '-Wextra'],
+                    )
 
 setup(name='MaxMind DB Reader',
       version='1.0.0',
