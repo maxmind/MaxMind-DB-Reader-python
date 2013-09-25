@@ -386,8 +386,8 @@ static PyMethodDef Reader_methods[] = {
       "Get record for IP address" },
     { "metadata", Reader_metadata, METH_NOARGS,
       "Returns metadata object for database" },
-    { "close",    Reader_close,    METH_NOARGS,      "Closes database"                      },
-    { NULL,       NULL,            0,                NULL                                   }
+    { "close",    Reader_close,    METH_NOARGS, "Closes database"},
+    { NULL,       NULL,            0,           NULL        }
 };
 
 static PyTypeObject Reader_Type = {
@@ -405,7 +405,7 @@ static PyMethodDef Metadata_methods[] = {
 };
 
 static PyMemberDef Metadata_members[] = {
-    { "binary_format_major_version", T_OBJECT,                   offsetof(
+    { "binary_format_major_version", T_OBJECT, offsetof(
           Metadata_obj, binary_format_major_version), READONLY, NULL },
     { "binary_format_minor_version", T_OBJECT, offsetof(
           Metadata_obj, binary_format_minor_version), READONLY, NULL },
@@ -422,7 +422,7 @@ static PyMemberDef Metadata_members[] = {
                                                         ip_version),
       READONLY, NULL },
     { "languages",                   T_OBJECT,
-      offsetof(Metadata_obj, languages),                   READONLY, NULL },
+      offsetof(Metadata_obj, languages), READONLY, NULL },
     { "node_count",                  T_OBJECT, offsetof(Metadata_obj,
                                                         node_count),
       READONLY, NULL },
@@ -446,7 +446,7 @@ static PyTypeObject Metadata_Type = {
 static PyMethodDef MaxMindDB_methods[] = {
     { "Reader", Reader_constructor, METH_VARARGS,
       "Creates a new maxminddb.Reader object" },
-    { NULL,     NULL,               0,              NULL}
+    { NULL,     NULL,               0,           NULL}
 };
 
 #if PY_MAJOR_VERSION >= 3
