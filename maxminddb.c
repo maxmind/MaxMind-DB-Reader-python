@@ -2,6 +2,9 @@
 #include <maxminddb.h>
 #include "structmember.h"
 
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
+
 static PyTypeObject Reader_Type;
 static PyTypeObject Metadata_Type;
 static PyObject *MaxMindDB_error;
