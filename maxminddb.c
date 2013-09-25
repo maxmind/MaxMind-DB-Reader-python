@@ -38,7 +38,6 @@ static const MMDB_entry_data_list_s *handle_array(
     PyObject **py_obj);
 static void handle_uint128(const MMDB_entry_data_list_s *entry_data_list,
                            PyObject **py_obj);
-static bool file_is_readable(const char *filename);
 
 #if PY_MAJOR_VERSION >= 3
     #define MOD_INIT(name) PyMODINIT_FUNC PyInit_ ## name(void)
@@ -63,7 +62,7 @@ static PyObject *Reader_constructor(PyObject *UNUSED(self), PyObject * args)
         return NULL;
     }
 
-    if (!file_is_readable(filename)) {
+    if (0!=access(filename, R_OK)) {
         PyErr_Format(PyExc_ValueError,
                      "The file \"%s\" does not exist or is not readable.",
                      filename);
@@ -369,16 +368,6 @@ static void handle_uint128(const MMDB_entry_data_list_s *entry_data_list,
     *py_obj = PyLong_FromString(num_str, NULL, 0);
 
     free(num_str);
-}
-
-static bool file_is_readable(const char *filename)
-{
-    FILE *file = fopen(filename, "r");
-    if (file) {
-        fclose(file);
-        return true;
-    }
-    return false;
 }
 
 static PyMethodDef Reader_methods[] = {
