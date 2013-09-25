@@ -2,7 +2,6 @@
 #include <maxminddb.h>
 #include "structmember.h"
 
-
 static PyTypeObject Reader_Type;
 static PyTypeObject Metadata_Type;
 static PyObject *MaxMindDB_error;
@@ -447,12 +446,14 @@ static PyMethodDef MaxMindDB_methods[] = {
     { NULL,     NULL,               0,              NULL}
 };
 
+#if PY_MAJOR_VERSION >= 3
 static struct PyModuleDef MaxMindDB_module = {
     PyModuleDef_HEAD_INIT,
     .m_name = "maxminddb",
     .m_doc = "This is a module to read MaxMind DB file format",
     .m_methods = MaxMindDB_methods,
 };
+#endif
 
 static void init_type(PyObject *m, PyTypeObject *type)
 {
@@ -467,10 +468,11 @@ static void init_type(PyObject *m, PyTypeObject *type)
 MOD_INIT(maxminddb){
     PyObject *m;
 
+#if PY_MAJOR_VERSION >= 3
     m = PyModule_Create(&MaxMindDB_module);
-    if (m == NULL) {
-        return NULL;
-    }
+#else
+    m = Py_InitModule("maxminddb", MaxMindDB_methods);
+#endif
 
     init_type(m, &Reader_Type);
     init_type(m, &Metadata_Type);

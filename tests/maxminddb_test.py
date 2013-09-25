@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from __future__ import unicode_literals
+
 from maxminddb import Reader, InvalidDatabaseError
 import sys
 if sys.version_info[:2] == (2, 6):
