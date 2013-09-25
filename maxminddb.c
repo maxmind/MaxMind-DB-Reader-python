@@ -429,7 +429,7 @@ static PyMemberDef Metadata_members[] = {
     { "record_size",                 T_OBJECT, offsetof(Metadata_obj,
                                                         record_size),
       READONLY, NULL },
-    { NULL }
+    { NULL,                          0,        0,                    0,NULL }
 };
 
 static PyTypeObject Metadata_Type = {
