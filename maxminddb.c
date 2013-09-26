@@ -402,40 +402,29 @@ static PyMethodDef Metadata_methods[] = {
     { NULL, NULL, 0, NULL }
 };
 
+/* *INDENT-OFF* */
 static PyMemberDef Metadata_members[] = {
     { "binary_format_major_version", T_OBJECT, offsetof(
           Metadata_obj, binary_format_major_version), READONLY, NULL },
     { "binary_format_minor_version", T_OBJECT, offsetof(
           Metadata_obj, binary_format_minor_version), READONLY, NULL },
-    { "build_epoch",                 T_OBJECT, offsetof(
-          Metadata_obj,
-          build_epoch),
-      READONLY, NULL },
-    { "database_type",               T_OBJECT, offsetof(
-          Metadata_obj,
-          database_type),
-      READONLY, NULL },
-    { "description",                 T_OBJECT, offsetof(
-          Metadata_obj,
-          description),
-      READONLY, NULL },
-    { "ip_version",                  T_OBJECT, offsetof(
-          Metadata_obj,
-          ip_version),
-      READONLY, NULL },
-    { "languages",                   T_OBJECT,
-      offsetof(Metadata_obj, languages), READONLY, NULL },
-    { "node_count",                  T_OBJECT, offsetof(
-          Metadata_obj,
-          node_count),
-      READONLY, NULL },
-    { "record_size",                 T_OBJECT, offsetof(
-          Metadata_obj,
-          record_size),
-      READONLY, NULL },
-    { NULL,                          0,        0,
-      0, NULL }
+    { "build_epoch", T_OBJECT, offsetof(Metadata_obj, build_epoch),
+          READONLY, NULL },
+    { "database_type", T_OBJECT, offsetof(Metadata_obj, database_type),
+          READONLY, NULL },
+    { "description", T_OBJECT, offsetof(Metadata_obj, description),
+          READONLY, NULL },
+    { "ip_version", T_OBJECT, offsetof(Metadata_obj, ip_version),
+          READONLY, NULL },
+    { "languages", T_OBJECT, offsetof(Metadata_obj, languages), READONLY,
+          NULL },
+    { "node_count", T_OBJECT, offsetof(Metadata_obj, node_count),
+          READONLY, NULL },
+    { "record_size", T_OBJECT, offsetof(Metadata_obj, record_size),
+          READONLY, NULL },
+    { NULL, 0, 0, 0, NULL }
 };
+/* *INDENT-ON* */
 
 static PyTypeObject Metadata_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
