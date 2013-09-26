@@ -3,7 +3,6 @@
 
 from __future__ import unicode_literals
 
-from maxminddb import Reader, InvalidDatabaseError
 import sys
 if sys.version_info[:2] == (2, 6):
     import unittest2 as unittest
@@ -14,6 +13,8 @@ if sys.version_info[0] == 2:
     unittest.TestCase.assertRaisesRegex = unittest.TestCase.assertRaisesRegexp
     unittest.TestCase.assertRegex = unittest.TestCase.assertRegexpMatches
 
+from maxminddb import Reader, InvalidDatabaseError
+
 
 class TestReader(unittest.TestCase):
 
@@ -21,7 +22,8 @@ class TestReader(unittest.TestCase):
         for record_size in [24, 28, 32]:
             for ip_version in [4, 6]:
                 file_name = ('maxmind-db/test-data/MaxMind-DB-test-ipv' +
-                             str(ip_version) + '-' + str(record_size) + '.mmdb')
+                             str(ip_version) + '-' + str(record_size) +
+                             '.mmdb')
                 reader = Reader(file_name)
 
                 self._check_metadata(reader, ip_version, record_size)
@@ -63,19 +65,22 @@ class TestReader(unittest.TestCase):
 
     def test_ip_validation(self):
         reader = Reader('maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb')
-        self.assertRaisesRegexp(ValueError,
-                                'The value "not_ip" is not a valid IP address.',
-                                reader.get, ('not_ip'))
+        self.assertRaisesRegex(ValueError,
+                               'The value "not_ip" is not a valid IP '
+                               'address.',
+                               reader.get, ('not_ip'))
 
     def test_missing_database(self):
-        self.assertRaisesRegexp(ValueError,
-                                'The file "file-does-not-exist.mmdb" does not exist or is not readable.',
-                                Reader, ('file-does-not-exist.mmdb'))
+        self.assertRaisesRegex(ValueError,
+                               'The file "file-does-not-exist.mmdb" does '
+                               'not exist or is not readable.',
+                               Reader, ('file-does-not-exist.mmdb'))
 
     def test_nondatabase(self):
-        self.assertRaisesRegexp(InvalidDatabaseError,
-                                'Error opening database file \(README.md\). Is this a valid MaxMind DB file\?',
-                                Reader, ('README.md'))
+        self.assertRaisesRegex(InvalidDatabaseError,
+                               'Error opening database file \(README.rst\). '
+                               'Is this a valid MaxMind DB file\?',
+                               Reader, ('README.rst'))
 
     def test_too_many_constructor_args(self):
         self.assertRaises(TypeError, Reader, ('README.md', 1))
@@ -101,13 +106,14 @@ class TestReader(unittest.TestCase):
         )
         self.assertRaises(TypeError, reader.metadata, ('blah'))
 
-    def test_metadata_args(self):
+    def test_metadata_unknown_attribute(self):
         reader = Reader(
             'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
         )
         metadata = reader.metadata()
-        with self.assertRaisesRegexp(AttributeError,
-                                     "'maxminddb.Metadata' object has no attribute 'blah'"):
+        with self.assertRaisesRegex(AttributeError,
+                                    "'maxminddb.Metadata' object has no "
+                                    "attribute 'blah'"):
             metadata.blah
 
     def test_close(self):
@@ -121,27 +127,27 @@ class TestReader(unittest.TestCase):
             'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
         )
         reader.close()
-        self.assertRaisesRegexp(IOError,
-                                'Attempt to close a closed MaxMind DB.',
-                                reader.close)
+        self.assertRaisesRegex(IOError,
+                               'Attempt to close a closed MaxMind DB.',
+                               reader.close)
 
     def test_closed_get(self):
         reader = Reader(
             'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
         )
         reader.close()
-        self.assertRaisesRegexp(IOError,
-                                'Attempt to read from a closed MaxMind DB.',
-                                reader.get, ('1.1.1.1'))
+        self.assertRaisesRegex(IOError,
+                               'Attempt to read from a closed MaxMind DB.',
+                               reader.get, ('1.1.1.1'))
 
     def test_closed_metadata(self):
         reader = Reader(
             'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
         )
         reader.close()
-        self.assertRaisesRegexp(IOError,
-                                'Attempt to read from a closed MaxMind DB.',
-                                reader.metadata)
+        self.assertRaisesRegex(IOError,
+                               'Attempt to read from a closed MaxMind DB.',
+                               reader.metadata)
 
     def _check_metadata(self, reader, ip_version, record_size):
         metadata = reader.metadata()

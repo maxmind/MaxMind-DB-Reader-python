@@ -1,12 +1,40 @@
-from distutils.core import setup, Extension
+try:
+    from setuptools import setup, Extension
+except ImportError:
+    from distutils.core import setup, Extension
 
-module1 = Extension('maxminddb',
-                    libraries=['maxminddb'],
-                    sources=['maxminddb.c'],
-                    extra_compile_args=['-Wall', '-Werror', '-Wextra'],
-                    )
 
-setup(name='MaxMind DB Reader',
-      version='1.0.0',
-      description='This is a python wrapper to libmaxminddb',
-      ext_modules=[module1])
+module = Extension(
+    'maxminddb',
+    libraries=['maxminddb'],
+    sources=['maxminddb.c'],
+    extra_compile_args=['-Wall', '-Werror', '-Wextra'],
+)
+
+setup(
+    name='maxminddb',
+    version='0.1.0',
+    description='Python extension for reading the MaxMind DB format',
+    ext_modules=[module],
+    long_description=open('README.rst').read(),
+    url='http://www.maxmind.com/',
+    bugtrack_url='https://github.com/maxmind/MaxMind-DB-Reader-python/issues',
+    package_data={'': ['LICENSE']},
+    include_package_data=True,
+    test_suite='nose.collector',
+    license=open('LICENSE').read(),
+    classifiers=(
+        'Development Status :: 3 - Alpha',
+        'Environment :: Web Environment',
+        'Intended Audience :: Developers',
+        'Intended Audience :: System Administrators',
+        'License :: OSI Approved :: GNU Lesser General Public License v2 or later (LGPLv2+)',
+        'Programming Language :: Python :: 2.6',
+        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.3',
+        'Programming Language :: Python',
+        'Topic :: Internet :: Proxy Servers',
+        'Topic :: Internet',
+    ),
+)

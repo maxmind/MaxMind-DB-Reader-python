@@ -359,13 +359,13 @@ static void handle_uint128(const MMDB_entry_data_list_s *entry_data_list,
 #endif
 
     char *num_str;
-    int status = asprintf(&num_str, "0x%016" PRIX64 "%016" PRIX64, high, low);
+    int status = asprintf(&num_str, "%016" PRIX64 "%016" PRIX64, high, low);
 
     if (status <= 0) {
         PyErr_NoMemory();
     }
 
-    *py_obj = PyLong_FromString(num_str, NULL, 0);
+    *py_obj = PyLong_FromString(num_str, NULL, 16);
 
     free(num_str);
 }

@@ -10,5 +10,6 @@ maxminddb.egg-info/
 MANIFEST
 *.pyc
 pylint.txt
-*.swp
+*.sw?
+valgrind-python.supp
 violations.pyflakes.txt
