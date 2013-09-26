@@ -62,7 +62,7 @@ static PyObject *Reader_constructor(PyObject *UNUSED(self), PyObject * args)
         return NULL;
     }
 
-    if (0!=access(filename, R_OK)) {
+    if (0 != access(filename, R_OK)) {
         PyErr_Format(PyExc_ValueError,
                      "The file \"%s\" does not exist or is not readable.",
                      filename);
@@ -116,7 +116,7 @@ static PyObject *Reader_get(PyObject * self, PyObject * args)
         MMDB_lookup_string(mmdb, ip_address, &gai_error,
                            &mmdb_error);
 
-    if (MMDB_SUCCESS != gai_error) {
+    if (0 != gai_error) {
         PyErr_Format(PyExc_ValueError,
                      "The value \"%s\" is not a valid IP address.",
                      ip_address);
@@ -124,28 +124,37 @@ static PyObject *Reader_get(PyObject * self, PyObject * args)
     }
 
     if (MMDB_SUCCESS != mmdb_error) {
-        PyErr_Format(MaxMindDB_error, "Error looking up %s", ip_address);
+        PyErr_Format(MaxMindDB_error, "Error looking up %s: %s",
+                     ip_address, MMDB_strerror(mmdb_error));
         return NULL;
     }
 
     MMDB_entry_data_list_s *entry_data_list = NULL;
 
-    if (result.found_entry) {
-        PyObject *py_obj = NULL;
-
-        int status = MMDB_get_entry_data_list(&result.entry, &entry_data_list);
-        if (MMDB_SUCCESS != status) {
-            PyErr_Format(MaxMindDB_error,
-                         "Error while looking up data for %s", ip_address);
-        } else if (NULL != entry_data_list) {
-            handle_entry_data_list(entry_data_list, &py_obj);
-        }
-
-        MMDB_free_entry_data_list(entry_data_list);
-        return py_obj;
+    if (!result.found_entry) {
+        Py_RETURN_NONE;
     }
 
-    Py_RETURN_NONE;
+    PyObject *py_obj = NULL;
+
+    int status = MMDB_get_entry_data_list(&result.entry, &entry_data_list);
+    if (MMDB_SUCCESS != status) {
+        PyErr_Format(MaxMindDB_error,
+                     "Error while looking up data for %s: %s",
+                     ip_address, MMDB_strerror(status));
+        MMDB_free_entry_data_list(entry_data_list);
+        return NULL;
+    } else if (NULL == entry_data_list) {
+        PyErr_Format(
+            MaxMindDB_error,
+            "Error while looking up data for %s. Your database may be corrupt or you have found a bug in libmaxminddb.",
+            ip_address);
+        return NULL;
+    }
+
+    handle_entry_data_list(entry_data_list, &py_obj);
+    MMDB_free_entry_data_list(entry_data_list);
+    return py_obj;
 }
 
 static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args))
@@ -398,27 +407,34 @@ static PyMemberDef Metadata_members[] = {
           Metadata_obj, binary_format_major_version), READONLY, NULL },
     { "binary_format_minor_version", T_OBJECT, offsetof(
           Metadata_obj, binary_format_minor_version), READONLY, NULL },
-    { "build_epoch",                 T_OBJECT, offsetof(Metadata_obj,
-                                                        build_epoch),
+    { "build_epoch",                 T_OBJECT, offsetof(
+          Metadata_obj,
+          build_epoch),
       READONLY, NULL },
-    { "database_type",               T_OBJECT, offsetof(Metadata_obj,
-                                                        database_type),
+    { "database_type",               T_OBJECT, offsetof(
+          Metadata_obj,
+          database_type),
       READONLY, NULL },
-    { "description",                 T_OBJECT, offsetof(Metadata_obj,
-                                                        description),
+    { "description",                 T_OBJECT, offsetof(
+          Metadata_obj,
+          description),
       READONLY, NULL },
-    { "ip_version",                  T_OBJECT, offsetof(Metadata_obj,
-                                                        ip_version),
+    { "ip_version",                  T_OBJECT, offsetof(
+          Metadata_obj,
+          ip_version),
       READONLY, NULL },
     { "languages",                   T_OBJECT,
       offsetof(Metadata_obj, languages), READONLY, NULL },
-    { "node_count",                  T_OBJECT, offsetof(Metadata_obj,
-                                                        node_count),
+    { "node_count",                  T_OBJECT, offsetof(
+          Metadata_obj,
+          node_count),
       READONLY, NULL },
-    { "record_size",                 T_OBJECT, offsetof(Metadata_obj,
-                                                        record_size),
+    { "record_size",                 T_OBJECT, offsetof(
+          Metadata_obj,
+          record_size),
       READONLY, NULL },
-    { NULL,                          0,        0,                    0,NULL }
+    { NULL,                          0,        0,
+      0, NULL }
 };
 
 static PyTypeObject Metadata_Type = {

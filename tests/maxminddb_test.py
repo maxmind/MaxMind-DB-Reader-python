@@ -63,6 +63,13 @@ class TestReader(unittest.TestCase):
             record['uint128']
         )
 
+    def test_ipv6_address_in_ipv4_database(self):
+        reader = Reader('maxmind-db/test-data/MaxMind-DB-test-ipv4-24.mmdb')
+        with self.assertRaisesRegex(ValueError,
+                                    'The value "2001::" is not a valid IP '
+                                    'address.'):
+            reader.get('2001::')
+
     def test_ip_validation(self):
         reader = Reader('maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb')
         self.assertRaisesRegex(ValueError,
