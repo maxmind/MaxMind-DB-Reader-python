@@ -70,6 +70,17 @@ class TestReader(unittest.TestCase):
                                     'address.'):
             reader.get('2001::')
 
+    def test_broken_database(self):
+        reader = Reader('maxmind-db/test-data/'
+                        'GeoIP2-City-Test-Broken-Double-Format.mmdb')
+        with self.assertRaisesRegex(InvalidDatabaseError,
+                                    "Error while looking up data for "
+                                    "2001:220::: The MaxMind DB file's data "
+                                    "section contains bad data \(unknown data "
+                                    "type or corrupt data\)"
+                                    ):
+            reader.get('2001:220::')
+
     def test_ip_validation(self):
         reader = Reader('maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb')
         self.assertRaisesRegex(ValueError,
