@@ -21,7 +21,7 @@ class TestReader(unittest.TestCase):
     def test_reader(self):
         for record_size in [24, 28, 32]:
             for ip_version in [4, 6]:
-                file_name = ('maxmind-db/test-data/MaxMind-DB-test-ipv' +
+                file_name = ('tests/data/test-data/MaxMind-DB-test-ipv' +
                              str(ip_version) + '-' + str(record_size) +
                              '.mmdb')
                 reader = Reader(file_name)
@@ -34,7 +34,7 @@ class TestReader(unittest.TestCase):
                     self._check_ip_v6(reader, file_name)
 
     def test_decoder(self):
-        reader = Reader('maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb')
+        reader = Reader('tests/data/test-data/MaxMind-DB-test-decoder.mmdb')
         record = reader.get('::1.1.1.0')
 
         self.assertEqual(record['array'], [1, 2, 3])
@@ -64,14 +64,14 @@ class TestReader(unittest.TestCase):
         )
 
     def test_ipv6_address_in_ipv4_database(self):
-        reader = Reader('maxmind-db/test-data/MaxMind-DB-test-ipv4-24.mmdb')
+        reader = Reader('tests/data/test-data/MaxMind-DB-test-ipv4-24.mmdb')
         with self.assertRaisesRegex(ValueError,
                                     'The value "2001::" is not a valid IP '
                                     'address.'):
             reader.get('2001::')
 
     def test_broken_database(self):
-        reader = Reader('maxmind-db/test-data/'
+        reader = Reader('tests/data/test-data/'
                         'GeoIP2-City-Test-Broken-Double-Format.mmdb')
         with self.assertRaisesRegex(InvalidDatabaseError,
                                     "Error while looking up data for "
@@ -82,7 +82,7 @@ class TestReader(unittest.TestCase):
             reader.get('2001:220::')
 
     def test_ip_validation(self):
-        reader = Reader('maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb')
+        reader = Reader('tests/data/test-data/MaxMind-DB-test-decoder.mmdb')
         self.assertRaisesRegex(ValueError,
                                'The value "not_ip" is not a valid IP '
                                'address.',
@@ -108,25 +108,25 @@ class TestReader(unittest.TestCase):
 
     def test_too_many_get_args(self):
         reader = Reader(
-            'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
+            'tests/data/test-data/MaxMind-DB-test-decoder.mmdb'
         )
         self.assertRaises(TypeError, reader.get, ('1.1.1.1', 'blah'))
 
     def test_no_get_args(self):
         reader = Reader(
-            'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
+            'tests/data/test-data/MaxMind-DB-test-decoder.mmdb'
         )
         self.assertRaises(TypeError, reader.get)
 
     def test_metadata_args(self):
         reader = Reader(
-            'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
+            'tests/data/test-data/MaxMind-DB-test-decoder.mmdb'
         )
         self.assertRaises(TypeError, reader.metadata, ('blah'))
 
     def test_metadata_unknown_attribute(self):
         reader = Reader(
-            'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
+            'tests/data/test-data/MaxMind-DB-test-decoder.mmdb'
         )
         metadata = reader.metadata()
         with self.assertRaisesRegex(AttributeError,
@@ -136,13 +136,13 @@ class TestReader(unittest.TestCase):
 
     def test_close(self):
         reader = Reader(
-            'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
+            'tests/data/test-data/MaxMind-DB-test-decoder.mmdb'
         )
         reader.close()
 
     def test_double_close(self):
         reader = Reader(
-            'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
+            'tests/data/test-data/MaxMind-DB-test-decoder.mmdb'
         )
         reader.close()
         self.assertRaisesRegex(IOError,
@@ -151,7 +151,7 @@ class TestReader(unittest.TestCase):
 
     def test_closed_get(self):
         reader = Reader(
-            'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
+            'tests/data/test-data/MaxMind-DB-test-decoder.mmdb'
         )
         reader.close()
         self.assertRaisesRegex(IOError,
@@ -160,7 +160,7 @@ class TestReader(unittest.TestCase):
 
     def test_closed_metadata(self):
         reader = Reader(
-            'maxmind-db/test-data/MaxMind-DB-test-decoder.mmdb'
+            'tests/data/test-data/MaxMind-DB-test-decoder.mmdb'
         )
         reader.close()
         self.assertRaisesRegex(IOError,
