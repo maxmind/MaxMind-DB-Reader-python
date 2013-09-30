@@ -140,7 +140,7 @@ static PyObject *Reader_get(PyObject * self, PyObject * args)
     int status = MMDB_get_entry_data_list(&result.entry, &entry_data_list);
     if (MMDB_SUCCESS != status) {
         PyErr_Format(MaxMindDB_error,
-                     "Error while looking up data for %s: %s",
+                     "Error while looking up data for %s. %s",
                      ip_address, MMDB_strerror(status));
         MMDB_free_entry_data_list(entry_data_list);
         return NULL;
