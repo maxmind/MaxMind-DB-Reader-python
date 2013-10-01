@@ -471,6 +471,9 @@ MOD_INIT(maxminddb){
     m = Py_InitModule("maxminddb", MaxMindDB_methods);
 #endif
 
+    if (!m)
+	return NULL;
+
     init_type(m, &Reader_Type);
     init_type(m, &Metadata_Type);
 
