@@ -69,24 +69,26 @@ static PyObject *Reader_constructor(PyObject *UNUSED(self), PyObject * args)
         return NULL;
     }
 
+    MMDB_s *mmdb = (MMDB_s *)malloc(sizeof(MMDB_s));
+    if (NULL == mmdb) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+
     Reader_obj *obj = PyObject_New(Reader_obj, &Reader_Type);
     if (!obj) {
         return NULL;
     }
 
-    MMDB_s *mmdb = (MMDB_s *)malloc(sizeof(MMDB_s));
-    if (NULL == mmdb) {
-        PyErr_NoMemory();
-    }
     uint16_t status = MMDB_open(filename, MMDB_MODE_MMAP, mmdb);
 
     if (MMDB_SUCCESS != status) {
         free(mmdb);
         return PyErr_Format(
-                   MaxMindDB_error,
-                   "Error opening database file (%s). Is this a valid MaxMind DB file?",
-                   filename
-                   );
+            MaxMindDB_error,
+            "Error opening database file (%s). Is this a valid MaxMind DB file?",
+            filename
+            );
     }
 
     obj->mmdb = mmdb;
@@ -305,6 +307,10 @@ static const MMDB_entry_data_list_s *handle_map(
     PyObject **py_obj)
 {
     *py_obj = PyDict_New();
+    if (*py_obj == NULL) {
+        PyErr_NoMemory();
+        return NULL;
+    }
 
     const uint32_t map_size = entry_data_list->entry_data.data_size;
     entry_data_list = entry_data_list->next;
@@ -336,6 +342,10 @@ static const MMDB_entry_data_list_s *handle_array(
     const uint32_t size = entry_data_list->entry_data.data_size;
 
     *py_obj = PyList_New(size);
+    if (*py_obj == NULL) {
+        PyErr_NoMemory();
+        return NULL;
+    }
     entry_data_list = entry_data_list->next;
 
     uint i;
@@ -370,8 +380,10 @@ static void handle_uint128(const MMDB_entry_data_list_s *entry_data_list,
     char *num_str;
     int status = asprintf(&num_str, "%016" PRIX64 "%016" PRIX64, high, low);
 
-    if (status <= 0) {
+    if (status == -1) {
         PyErr_NoMemory();
+        *py_obj = NULL;
+        return;
     }
 
     *py_obj = PyLong_FromString(num_str, NULL, 16);
@@ -471,16 +483,18 @@ MOD_INIT(maxminddb){
     m = Py_InitModule("maxminddb", MaxMindDB_methods);
 #endif
 
-    if (!m)
-	return NULL;
+    if (!m) {
+        return NULL;
+    }
 
     init_type(m, &Reader_Type);
     init_type(m, &Metadata_Type);
 
     MaxMindDB_error = PyErr_NewException("maxminddb.InvalidDatabaseError", NULL,
                                          NULL);
-    if (MaxMindDB_error == NULL)
-	return NULL;
+    if (MaxMindDB_error == NULL) {
+        return NULL;
+    }
     Py_INCREF(MaxMindDB_error);
     PyModule_AddObject(m, "InvalidDatabaseError", MaxMindDB_error);
 
