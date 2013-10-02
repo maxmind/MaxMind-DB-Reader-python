@@ -17,6 +17,11 @@ IPv6).
 Installation
 ------------
 
+First you must install the `libmaxminddb
+<https://github.com/maxmind/libmaxminddb>`_ C library. At the moment, you must
+use the `dave/major-refactor` branch. (If this branch does not exist when you
+read this, it was likely merged into master.)
+
 To install the MaxMind DB extension, type:
 
 .. code-block:: bash
