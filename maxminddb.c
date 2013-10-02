@@ -484,11 +484,7 @@ MOD_INIT(maxminddb){
 #endif
 
     if (!m) {
-#if PY_MAJOR_VERSION >= 3
-        return NULL;
-#else
-        return;
-#endif
+        RETURN_MOD_INIT(NULL);
     }
 
     init_type(m, &Reader_Type);
@@ -497,12 +493,9 @@ MOD_INIT(maxminddb){
     MaxMindDB_error = PyErr_NewException("maxminddb.InvalidDatabaseError", NULL,
                                          NULL);
     if (MaxMindDB_error == NULL) {
-#if PY_MAJOR_VERSION >= 3
-        return NULL;
-#else
-        return;
-#endif
+        RETURN_MOD_INIT(NULL);
     }
+
     Py_INCREF(MaxMindDB_error);
     PyModule_AddObject(m, "InvalidDatabaseError", MaxMindDB_error);
 
