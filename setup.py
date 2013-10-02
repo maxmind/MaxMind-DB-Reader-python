@@ -1,3 +1,4 @@
+import multiprocessing
 try:
     from setuptools import setup, Extension
 except ImportError:
