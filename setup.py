@@ -22,6 +22,7 @@ setup(
     bugtrack_url='https://github.com/maxmind/MaxMind-DB-Reader-python/issues',
     package_data={'': ['LICENSE']},
     include_package_data=True,
+    tests_require=['nose'],
     test_suite='nose.collector',
     license=open('LICENSE').read(),
     classifiers=(

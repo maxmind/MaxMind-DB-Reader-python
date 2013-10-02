@@ -17,9 +17,6 @@ IPv6).
 Installation
 ------------
 
-Installation
-------------
-
 To install the MaxMind DB extension, type:
 
 .. code-block:: bash
@@ -59,6 +56,10 @@ Example
     >>> reader = maxminddb.Reader('GeoLite2-City.mmdb')
     >>> reader.get('1.1.1.1')
     {'country': ... }
+    >>>
+    >>> # The optional 'close' method will release the resources to the
+    >>> # system immediately.
+    >>> reader.close()
 
 Exceptions
 ----------
