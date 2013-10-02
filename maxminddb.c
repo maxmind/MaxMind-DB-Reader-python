@@ -85,10 +85,10 @@ static PyObject *Reader_constructor(PyObject *UNUSED(self), PyObject * args)
     if (MMDB_SUCCESS != status) {
         free(mmdb);
         return PyErr_Format(
-            MaxMindDB_error,
-            "Error opening database file (%s). Is this a valid MaxMind DB file?",
-            filename
-            );
+                   MaxMindDB_error,
+                   "Error opening database file (%s). Is this a valid MaxMind DB file?",
+                   filename
+                   );
     }
 
     obj->mmdb = mmdb;
