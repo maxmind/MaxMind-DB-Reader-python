@@ -11,7 +11,7 @@ static PyObject *MaxMindDB_error;
 
 typedef struct {
     PyObject_HEAD               /* no semicolon */
-    MMDB_s * mmdb;
+    MMDB_s *mmdb;
 } Reader_obj;
 
 typedef struct {
@@ -27,17 +27,10 @@ typedef struct {
     PyObject *record_size;
 } Metadata_obj;
 
-static const MMDB_entry_data_list_s *handle_entry_data_list(
-    const MMDB_entry_data_list_s *entry_data_list,
-    PyObject **py_obj);
-static const MMDB_entry_data_list_s *handle_map(
-    const MMDB_entry_data_list_s *entry_data_list,
-    PyObject **py_obj);
-static const MMDB_entry_data_list_s *handle_array(
-    const MMDB_entry_data_list_s *entry_data_list,
-    PyObject **py_obj);
-static void handle_uint128(const MMDB_entry_data_list_s *entry_data_list,
-                           PyObject **py_obj);
+static PyObject *from_entry_data_list(MMDB_entry_data_list_s **entry_data_list);
+static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list);
+static PyObject *from_array(MMDB_entry_data_list_s **entry_data_list);
+static PyObject *from_uint128(const MMDB_entry_data_list_s *entry_data_list);
 
 #if PY_MAJOR_VERSION >= 3
     #define MOD_INIT(name) PyMODINIT_FUNC PyInit_ ## name(void)
@@ -54,7 +47,7 @@ static void handle_uint128(const MMDB_entry_data_list_s *entry_data_list,
     #  define UNUSED(x) UNUSED_ ## x
 #endif
 
-static PyObject *Reader_constructor(PyObject *UNUSED(self), PyObject * args)
+static PyObject *Reader_constructor(PyObject *UNUSED(self), PyObject *args)
 {
     char *filename;
 
@@ -77,6 +70,7 @@ static PyObject *Reader_constructor(PyObject *UNUSED(self), PyObject * args)
 
     Reader_obj *obj = PyObject_New(Reader_obj, &Reader_Type);
     if (!obj) {
+        PyErr_NoMemory();
         return NULL;
     }
 
@@ -84,6 +78,7 @@ static PyObject *Reader_constructor(PyObject *UNUSED(self), PyObject * args)
 
     if (MMDB_SUCCESS != status) {
         free(mmdb);
+        PyObject_Del(obj);
         return PyErr_Format(
                    MaxMindDB_error,
                    "Error opening database file (%s). Is this a valid MaxMind DB file?",
@@ -95,7 +90,7 @@ static PyObject *Reader_constructor(PyObject *UNUSED(self), PyObject * args)
     return (PyObject *)obj;
 }
 
-static PyObject *Reader_get(PyObject * self, PyObject * args)
+static PyObject *Reader_get(PyObject *self, PyObject *args)
 {
     char *ip_address = NULL;
 
@@ -131,14 +126,11 @@ static PyObject *Reader_get(PyObject * self, PyObject * args)
         return NULL;
     }
 
-    MMDB_entry_data_list_s *entry_data_list = NULL;
-
     if (!result.found_entry) {
         Py_RETURN_NONE;
     }
 
-    PyObject *py_obj = NULL;
-
+    MMDB_entry_data_list_s *entry_data_list = NULL;
     int status = MMDB_get_entry_data_list(&result.entry, &entry_data_list);
     if (MMDB_SUCCESS != status) {
         PyErr_Format(MaxMindDB_error,
@@ -154,8 +146,9 @@ static PyObject *Reader_get(PyObject * self, PyObject * args)
         return NULL;
     }
 
-    handle_entry_data_list(entry_data_list, &py_obj);
-    MMDB_free_entry_data_list(entry_data_list);
+    MMDB_entry_data_list_s *original_entry_data_list = entry_data_list;
+    PyObject *py_obj = from_entry_data_list(&entry_data_list);
+    MMDB_free_entry_data_list(original_entry_data_list);
     return py_obj;
 }
 
@@ -174,13 +167,18 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args))
         return NULL;
     }
 
-    PyObject *metadata_dict;
-
     MMDB_entry_data_list_s *entry_data_list;
     MMDB_get_metadata_as_entry_data_list(mmdb_obj->mmdb, &entry_data_list);
+    MMDB_entry_data_list_s *original_entry_data_list = entry_data_list;
 
-    handle_entry_data_list(entry_data_list, &metadata_dict);
-    MMDB_free_entry_data_list(entry_data_list);
+    PyObject *metadata_dict = from_entry_data_list(&entry_data_list);
+    MMDB_free_entry_data_list(original_entry_data_list);
+    if (NULL == metadata_dict || !PyDict_Check(metadata_dict)) {
+        PyErr_SetString(MaxMindDB_error,
+                        "Error decoding metadata.");
+        PyObject_Del(obj);
+        return NULL;
+    }
 
     obj->binary_format_major_version = PyDict_GetItemString(
         metadata_dict, "binary_format_major_version");
@@ -194,6 +192,21 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args))
     obj->node_count = PyDict_GetItemString(metadata_dict, "node_count");
     obj->record_size = PyDict_GetItemString(metadata_dict, "record_size");
 
+    if (NULL == obj->binary_format_major_version ||
+        NULL == obj->binary_format_minor_version ||
+        NULL == obj->build_epoch ||
+        NULL == obj->database_type ||
+        NULL == obj->description ||
+        NULL == obj->ip_version ||
+        NULL == obj->languages ||
+        NULL == obj->node_count ||
+        NULL == obj->record_size) {
+        PyErr_SetString(MaxMindDB_error,
+                        "Error decoding metadata.");
+        PyObject_Del(obj);
+        return NULL;
+    }
+
     Py_INCREF(obj->binary_format_major_version);
     Py_INCREF(obj->binary_format_minor_version);
     Py_INCREF(obj->build_epoch);
@@ -203,11 +216,13 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args))
     Py_INCREF(obj->languages);
     Py_INCREF(obj->node_count);
     Py_INCREF(obj->record_size);
+
     Py_DECREF(metadata_dict);
+
     return (PyObject *)obj;
 }
 
-static PyObject *Reader_close(PyObject * self, PyObject *UNUSED(args))
+static PyObject *Reader_close(PyObject *self, PyObject *UNUSED(args))
 {
     Reader_obj *mmdb_obj = (Reader_obj *)self;
 
@@ -223,7 +238,7 @@ static PyObject *Reader_close(PyObject * self, PyObject *UNUSED(args))
     Py_RETURN_NONE;
 }
 
-static void Reader_dealloc(PyObject * self)
+static void Reader_dealloc(PyObject *self)
 {
     Reader_obj *obj = (Reader_obj *)self;
     if (NULL != obj->mmdb) {
@@ -233,7 +248,7 @@ static void Reader_dealloc(PyObject * self)
     PyObject_Del(self);
 }
 
-static void Metadata_dealloc(PyObject * self)
+static void Metadata_dealloc(PyObject *self)
 {
     Metadata_obj *obj = (Metadata_obj *)self;
     Py_DECREF(obj->binary_format_major_version);
@@ -248,118 +263,108 @@ static void Metadata_dealloc(PyObject * self)
     PyObject_Del(self);
 }
 
-static const MMDB_entry_data_list_s *handle_entry_data_list(
-    const MMDB_entry_data_list_s *entry_data_list,
-    PyObject **py_obj)
+static PyObject *from_entry_data_list(MMDB_entry_data_list_s **entry_data_list)
 {
-    switch (entry_data_list->entry_data.type) {
+    switch ((*entry_data_list)->entry_data.type) {
     case MMDB_DATA_TYPE_MAP:
-        return handle_map(entry_data_list, py_obj);
+        return from_map(entry_data_list);
     case MMDB_DATA_TYPE_ARRAY:
-        return handle_array(entry_data_list, py_obj);
+        return from_array(entry_data_list);
     case MMDB_DATA_TYPE_UTF8_STRING:
-        *py_obj = PyUnicode_FromStringAndSize(
-            entry_data_list->entry_data.utf8_string,
-            entry_data_list->entry_data.data_size
-            );
-        break;
+        return PyUnicode_FromStringAndSize(
+                   (*entry_data_list)->entry_data.utf8_string,
+                   (*entry_data_list)->entry_data.data_size
+                   );
     case MMDB_DATA_TYPE_BYTES:
-        *py_obj = PyByteArray_FromStringAndSize(
-            (const char *)entry_data_list->entry_data.bytes,
-            (Py_ssize_t)entry_data_list->entry_data.data_size);
-        break;
+        return PyByteArray_FromStringAndSize(
+                   (const char *)(*entry_data_list)->entry_data.bytes,
+                   (Py_ssize_t)(*entry_data_list)->entry_data.data_size);
     case MMDB_DATA_TYPE_DOUBLE:
-        *py_obj = PyFloat_FromDouble(entry_data_list->entry_data.double_value);
-        break;
+        return PyFloat_FromDouble((*entry_data_list)->entry_data.double_value);
     case MMDB_DATA_TYPE_FLOAT:
-        *py_obj = PyFloat_FromDouble(entry_data_list->entry_data.float_value);
-        break;
+        return PyFloat_FromDouble((*entry_data_list)->entry_data.float_value);
     case MMDB_DATA_TYPE_UINT16:
-        *py_obj = PyLong_FromLong( entry_data_list->entry_data.uint16);
-        break;
+        return PyLong_FromLong( (*entry_data_list)->entry_data.uint16);
     case MMDB_DATA_TYPE_UINT32:
-        *py_obj = PyLong_FromLong(entry_data_list->entry_data.uint32);
-        break;
+        return PyLong_FromLong((*entry_data_list)->entry_data.uint32);
     case MMDB_DATA_TYPE_BOOLEAN:
-        *py_obj = PyBool_FromLong(entry_data_list->entry_data.boolean);
-        break;
+        return PyBool_FromLong((*entry_data_list)->entry_data.boolean);
     case MMDB_DATA_TYPE_UINT64:
-        *py_obj = PyLong_FromUnsignedLongLong(
-            entry_data_list->entry_data.uint64);
-        break;
+        return PyLong_FromUnsignedLongLong(
+                   (*entry_data_list)->entry_data.uint64);
     case MMDB_DATA_TYPE_UINT128:
-        handle_uint128(entry_data_list, py_obj);
-        break;
+        return from_uint128(*entry_data_list);
     case MMDB_DATA_TYPE_INT32:
-        *py_obj = PyLong_FromLong(entry_data_list->entry_data.int32);
-        break;
+        return PyLong_FromLong((*entry_data_list)->entry_data.int32);
     default:
         PyErr_Format(MaxMindDB_error,
                      "Invalid data type arguments: %d",
-                     entry_data_list->entry_data.type);
+                     (*entry_data_list)->entry_data.type);
         return NULL;
     }
-    return entry_data_list->next;
+    return NULL;
 }
 
-static const MMDB_entry_data_list_s *handle_map(
-    const MMDB_entry_data_list_s *entry_data_list,
-    PyObject **py_obj)
+static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list)
 {
-    *py_obj = PyDict_New();
-    if (*py_obj == NULL) {
+    PyObject *py_obj = PyDict_New();
+    if (NULL == py_obj) {
         PyErr_NoMemory();
         return NULL;
     }
 
-    const uint32_t map_size = entry_data_list->entry_data.data_size;
-    entry_data_list = entry_data_list->next;
+    const uint32_t map_size = (*entry_data_list)->entry_data.data_size;
 
     uint i;
     for (i = 0; i < map_size && entry_data_list; i++) {
-        PyObject *key, *value;
+        *entry_data_list = (*entry_data_list)->next;
 
-        key = PyUnicode_FromStringAndSize(
-            (char *)entry_data_list->entry_data.utf8_string,
-            entry_data_list->entry_data.data_size
+        PyObject *key = PyUnicode_FromStringAndSize(
+            (char *)(*entry_data_list)->entry_data.utf8_string,
+            (*entry_data_list)->entry_data.data_size
             );
 
-        entry_data_list = entry_data_list->next;
+        *entry_data_list = (*entry_data_list)->next;
 
-        entry_data_list = handle_entry_data_list(entry_data_list,
-                                                 &value);
-        PyDict_SetItem(*py_obj, key, value);
+        PyObject *value = from_entry_data_list(entry_data_list);
+        if (NULL == value) {
+            Py_DECREF(key);
+            Py_DECREF(py_obj);
+            return NULL;
+        }
+        PyDict_SetItem(py_obj, key, value);
         Py_DECREF(value);
         Py_DECREF(key);
     }
-    return entry_data_list;
+
+    return py_obj;
 }
 
-static const MMDB_entry_data_list_s *handle_array(
-    const MMDB_entry_data_list_s *entry_data_list,
-    PyObject **py_obj)
+static PyObject *from_array(MMDB_entry_data_list_s **entry_data_list)
 {
-    const uint32_t size = entry_data_list->entry_data.data_size;
+    const uint32_t size = (*entry_data_list)->entry_data.data_size;
 
-    *py_obj = PyList_New(size);
-    if (*py_obj == NULL) {
+    PyObject *py_obj = PyList_New(size);
+    if (NULL == py_obj) {
         PyErr_NoMemory();
         return NULL;
     }
-    entry_data_list = entry_data_list->next;
 
     uint i;
     for (i = 0; i < size && entry_data_list; i++) {
-        PyObject *new_value;
-        entry_data_list = handle_entry_data_list(entry_data_list,
-                                                 &new_value);
-        PyList_SET_ITEM(*py_obj, i, new_value);
+        *entry_data_list = (*entry_data_list)->next;
+        PyObject *value = from_entry_data_list(entry_data_list);
+        if (NULL == value) {
+            Py_DECREF(py_obj);
+            return NULL;
+        }
+        // PyList_SetItem 'steals' the reference
+        PyList_SetItem(py_obj, i, value);
     }
-    return entry_data_list;
+    return py_obj;
 }
 
-static void handle_uint128(const MMDB_entry_data_list_s *entry_data_list,
-                           PyObject **py_obj)
+static PyObject *from_uint128(const MMDB_entry_data_list_s *entry_data_list)
 {
     uint64_t high = 0;
     uint64_t low = 0;
@@ -377,18 +382,18 @@ static void handle_uint128(const MMDB_entry_data_list_s *entry_data_list,
     low = (uint64_t)entry_data_list->entry_data.uint128;
 #endif
 
-    char *num_str;
-    int status = asprintf(&num_str, "%016" PRIX64 "%016" PRIX64, high, low);
-
-    if (status == -1) {
+    char *num_str = malloc(33);
+    if (NULL == num_str) {
         PyErr_NoMemory();
-        *py_obj = NULL;
-        return;
+        return NULL;
     }
 
-    *py_obj = PyLong_FromString(num_str, NULL, 16);
+    snprintf(num_str, 33, "%016" PRIX64 "%016" PRIX64, high, low);
+
+    PyObject *py_obj = PyLong_FromString(num_str, NULL, 16);
 
     free(num_str);
+    return py_obj;
 }
 
 static PyMethodDef Reader_methods[] = {

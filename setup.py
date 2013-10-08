@@ -1,4 +1,6 @@
+# This import is apparently needed for Nose on Red Hat's Python
 import multiprocessing
+
 try:
     from setuptools import setup, Extension
 except ImportError:
@@ -9,7 +11,8 @@ module = Extension(
     'maxminddb',
     libraries=['maxminddb'],
     sources=['maxminddb.c'],
-    extra_compile_args=['-Wall', '-Werror', '-Wextra'],
+    extra_compile_args=[
+        '-Wall', '-Werror', '-Wextra', '-std=c99', '-pedantic'],
 )
 
 setup(
