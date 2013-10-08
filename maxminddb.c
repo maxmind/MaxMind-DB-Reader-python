@@ -112,7 +112,7 @@ static PyObject *Reader_get(PyObject * self, PyObject * args)
         return NULL;
     }
 
-    int gai_error = MMDB_SUCCESS;
+    int gai_error = 0;
     int mmdb_error = MMDB_SUCCESS;
     MMDB_lookup_result_s result =
         MMDB_lookup_string(mmdb, ip_address, &gai_error,
