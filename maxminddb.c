@@ -121,7 +121,14 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
     }
 
     if (MMDB_SUCCESS != mmdb_error) {
-        PyErr_Format(MaxMindDB_error, "Error looking up %s: %s",
+        PyObject *exception;
+        if (MMDB_IPV6_LOOKUP_IN_IPV4_DATABASE_ERROR == mmdb_error) {
+            exception = PyExc_ValueError;
+        }
+        else {
+            exception = MaxMindDB_error;
+        }
+        PyErr_Format(exception, "Error looking up %s. %s",
                      ip_address, MMDB_strerror(mmdb_error));
         return NULL;
     }

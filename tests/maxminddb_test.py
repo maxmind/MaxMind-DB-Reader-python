@@ -66,8 +66,9 @@ class TestReader(unittest.TestCase):
     def test_ipv6_address_in_ipv4_database(self):
         reader = Reader('tests/data/test-data/MaxMind-DB-test-ipv4-24.mmdb')
         with self.assertRaisesRegex(ValueError,
-                                    'The value "2001::" is not a valid IP '
-                                    'address.'):
+                                    'Error looking up 2001::. '
+                                    'You attempted to look up an IPv6 address '
+                                    'in an IPv4-only database'):
             reader.get('2001::')
 
     def test_broken_database(self):
