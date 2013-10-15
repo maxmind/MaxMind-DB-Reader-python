@@ -17,10 +17,8 @@ IPv6).
 Installation
 ------------
 
-First you must install the `libmaxminddb
-<https://github.com/maxmind/libmaxminddb>`_ C library. At the moment, you must
-use the `dave/major-refactor` branch. (If this branch does not exist when you
-read this, it was likely merged into master.)
+You must have the `libmaxminddb <https://github.com/maxmind/libmaxminddb>`_ C
+library installed before installing this extension.
 
 To install the MaxMind DB extension, type:
 
@@ -38,18 +36,18 @@ source directory:
 Usage
 -----
 
-To use this module, you must first download or create a MaxMind DB file.
-We provide `free GeoLite2 databases
+To use this module, you must first download or create a MaxMind DB file. We
+provide `free GeoLite2 databases
 <http://dev.maxmind.com/geoip/geoip2/geolite2>`_. These files must be
 decompressed with ``gunzip``.
 
-After you have obtained a database and importing the module, you must create
-a ``Reader`` object, providing the path to the file as the first argument to
-the constructor. After doing this, you may call the ``get`` method with an IP
+After you have obtained a database and importing the module, you must create a
+``Reader`` object, providing the path to the file as the first argument to the
+constructor. After doing this, you may call the ``get`` method with an IP
 address on the object. This method will return the corresponding values for
 the IP address from the database (e.g., a dictionary for GeoIP2/GeoLite2
-databases). If the database does not contain a record for that IP address,
-the method will return ``None``.
+databases). If the database does not contain a record for that IP address, the
+method will return ``None``.
 
 Example
 -------
@@ -90,6 +88,6 @@ Support
 Please report all issues with this code using the `GitHub issue tracker
 <https://github.com/maxmind/MaxMind-DB-Reader-python/issues>`_
 
-If you are having an issue with a MaxMind service that is not specific to
-this API, please contact `MaxMind support
-<http://www.maxmind.com/en/support>`_ for assistance.
+If you are having an issue with a MaxMind service that is not specific to this
+API, please contact `MaxMind support <http://www.maxmind.com/en/support>`_ for
+assistance.
