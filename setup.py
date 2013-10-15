@@ -17,7 +17,7 @@ module = Extension(
 
 setup(
     name='maxminddb',
-    version='0.1.1',
+    version='0.2.0',
     description='Python extension for reading the MaxMind DB format',
     ext_modules=[module],
     long_description=open('README.rst').read(),
