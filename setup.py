@@ -12,7 +12,7 @@ module = Extension(
     libraries=['maxminddb'],
     sources=['maxminddb.c'],
     extra_compile_args=[
-        '-Wall', '-Werror', '-Wextra'],
+        '-Wall', '-Wextra'],
 )
 
 setup(

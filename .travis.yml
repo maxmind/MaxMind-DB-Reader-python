@@ -18,7 +18,7 @@ before_install:
   - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install unittest2; fi
 
 script:
-  - python setup.py test
+  - CFLAGS="-Werror -Wall -Wextra" python setup.py test
 
 notifications:
   email:
