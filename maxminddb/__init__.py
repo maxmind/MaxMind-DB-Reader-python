@@ -1,7 +1,10 @@
 # pylint:disable=C0111
 
-from .decoder import InvalidDatabaseError
-from .reader import Reader
+try:
+    from maxminddb.extension import Reader, InvalidDatabaseError
+except ImportError:
+    from maxminddb.decoder import InvalidDatabaseError
+    from maxminddb.reader import Reader
 
 
 __title__ = 'maxminddb'

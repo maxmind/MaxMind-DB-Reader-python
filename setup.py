@@ -22,7 +22,7 @@ jython = sys.platform.startswith('java')
 
 ext_module = [
     Extension(
-        'maxminddb',
+        'maxminddb.extension',
         libraries=['maxminddb'],
         sources=['maxminddb/extension/maxminddb.c'],
         extra_compile_args=[
@@ -82,6 +82,24 @@ with open(os.path.join(ROOT, 'maxminddb', '__init__.py'), 'rb') as fd:
         r".*__version__ = '(.*?)'", re.S).match(fd.read().decode('utf8')).group(1)
 
 
+def status_msgs(*msgs):
+    print('*' * 75)
+    for msg in msgs:
+        print(msg)
+    print('*' * 75)
+
+
+def find_packages(location):
+    packages = []
+    for pkg in ['maxminddb']:
+        for _dir, subdirectories, files in (
+                os.walk(os.path.join(location, pkg))):
+            if '__init__.py' in files:
+                tokens = _dir.split(os.sep)[len(location.split(os.sep)):]
+                packages.append(".".join(tokens))
+    return packages
+
+
 def run_setup(with_cext):
     kwargs = extra.copy()
     if with_cext:
@@ -101,7 +119,7 @@ def run_setup(with_cext):
         long_description=README,
         url='http://www.maxmind.com/',
         bugtrack_url='https://github.com/maxmind/MaxMind-DB-Reader-python/issues',
-        packages=['maxminddb'],
+        packages=find_packages('lib'),
         package_data={'': ['LICENSE']},
         package_dir={'maxminddb': 'maxminddb'},
         include_package_data=True,
