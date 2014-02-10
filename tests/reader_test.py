@@ -163,16 +163,22 @@ class TestReader(unittest.TestCase):
     #       extension and the pure Python reader. If we do, the pure Python
     #       reader will need to throw an exception or the extension will need
     #       to keep the metadata in memory.
-    #
-    # def test_closed_metadata(self):
-    #     reader = Reader(
-    #         'tests/data/test-data/MaxMind-DB-test-decoder.mmdb'
-    #     )
-    #     reader.close()
+    def test_closed_metadata(self):
+        reader = Reader(
+            'tests/data/test-data/MaxMind-DB-test-decoder.mmdb'
+        )
+        reader.close()
 
-    #     self.assertRaisesRegex(IOError,
-    #                            'Attempt to read from a closed MaxMind DB.',
-    #                            reader.metadata)
+        # The primary purpose of this is to ensure the extension doesn't
+        # segfault
+        try:
+            metadata = reader.metadata()
+        except IOError as ex:
+            self.assertEqual('Attempt to read from a closed MaxMind DB.',
+                             str(ex), 'extension throws exception')
+        else:
+            self.assertIsNotNone(
+                metadata, 'pure Python implementation returns value')
 
     def _check_metadata(self, reader, ip_version, record_size):
         metadata = reader.metadata()
