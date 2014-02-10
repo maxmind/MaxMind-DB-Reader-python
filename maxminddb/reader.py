@@ -19,7 +19,7 @@ class Reader(object):
 
     """
     Instances of this class provide a reader for the MaxMind DB format. IP
-    addresses can be looked up using the <code>get</code> method.
+    addresses can be looked up using the ``get`` method.
     """
 
     _DATA_SECTION_SEPARATOR_SIZE = 16
@@ -54,12 +54,10 @@ class Reader(object):
         self._decoder = Decoder(self._buffer, self._metadata.search_tree_size
                                 + self._DATA_SECTION_SEPARATOR_SIZE)
 
-    # XXX - consider making a property
     def metadata(self):
         """Return the metadata associated with the MaxMind DB file"""
         return self._metadata
 
-    # XXX - change to lookup?
     def get(self, ip_address):
         """Return the record for the ip_address in the MaxMind DB
 

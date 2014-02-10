@@ -97,7 +97,7 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
         new_offset = offset + size
         return self._buffer[offset:new_offset].decode('utf-8'), new_offset
 
-    _type_dispatch = {
+    _type_decoder = {
         1: _decode_pointer,
         2: _decode_utf8_string,
         3: _decode_packed_type(b'!d', 8),  # double,
@@ -128,7 +128,7 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
 
         (size, new_offset) = self._size_from_ctrl_byte(
             ctrl_byte, new_offset, type_num)
-        return self._type_dispatch[type_num](self, size, new_offset)
+        return self._type_decoder[type_num](self, size, new_offset)
 
     def _read_extended(self, offset):
         (next_byte,) = struct.unpack(b'!B', self._buffer[offset:offset + 1])
