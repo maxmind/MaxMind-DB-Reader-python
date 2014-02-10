@@ -1,6 +1,9 @@
 # pylint:disable=C0111
+import os
 
 try:
+    if os.environ.get('MAXMINDDB_PURE_PYTHON'):
+        raise ImportError()
     from maxminddb.extension import Reader, InvalidDatabaseError
 except ImportError:
     from maxminddb.decoder import InvalidDatabaseError
