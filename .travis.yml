@@ -21,6 +21,7 @@ before_install:
 script:
   - CFLAGS="-Werror -Wall -Wextra" python setup.py test
   - MAXMINDDB_PURE_PYTHON=1 python setup.py test
+  - if [[ $TRAVIS_PYTHON_VERSION != '3.3' ]]; then pylint maxminddb; fi
 
 notifications:
   email:
