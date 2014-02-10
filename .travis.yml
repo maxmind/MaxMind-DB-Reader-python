@@ -16,13 +16,13 @@ before_install:
   - sudo make install
   - sudo ldconfig
   - cd ..
-#  - pip install pylint
+  - pip install pylint
   - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install unittest2; fi
 
 script:
   - CFLAGS="-Werror -Wall -Wextra" python setup.py test
   - MAXMINDDB_PURE_PYTHON=1 python setup.py test
-#  - if [[ $TRAVIS_PYTHON_VERSION != '3.3' ]]; then pylint maxminddb; fi
+  - if [[ $TRAVIS_PYTHON_VERSION != '3.3' ]]; then pylint --rcfile .pylintrc maxminddb/*.py; fi
 
 notifications:
   email:
