@@ -19,6 +19,11 @@ cmdclass = {}
 extra = {}
 pypy = hasattr(sys, 'pypy_version_info')
 jython = sys.platform.startswith('java')
+requirements = []
+
+if sys.version_info[0] == 2 or (sys.version_info[0] == 3
+                                and sys.version_info[1] < 3):
+    requirements.append('ipaddr')
 
 ext_module = [
     Extension(
