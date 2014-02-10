@@ -20,7 +20,7 @@ before_install:
 
 script:
   - CFLAGS="-Werror -Wall -Wextra" python setup.py test
-  - MAXMINDDB_PURE_PYTHON=1 python3 setup.py test
+  - MAXMINDDB_PURE_PYTHON=1 python setup.py test
 
 notifications:
   email:
