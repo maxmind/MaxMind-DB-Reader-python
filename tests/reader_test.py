@@ -142,15 +142,12 @@ class TestReader(unittest.TestCase):
         )
         reader.close()
 
-    @unittest.skip('XXX - not compatible with pure Python reader')
     def test_double_close(self):
         reader = Reader(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb'
         )
-        reader.close()
-        self.assertRaisesRegex(IOError,
-                               'Attempt to close a closed MaxMind DB.',
-                               reader.close)
+        self.assertIsNone(
+            reader.close(), 'Double close does not throw an exception')
 
     def test_closed_get(self):
         reader = Reader(
@@ -162,15 +159,20 @@ class TestReader(unittest.TestCase):
                                '|closed or invalid',
                                reader.get, ('1.1.1.1'))
 
-    @unittest.skip('XXX - not compatible with pure Python reader')
-    def test_closed_metadata(self):
-        reader = Reader(
-            'tests/data/test-data/MaxMind-DB-test-decoder.mmdb'
-        )
-        reader.close()
-        self.assertRaisesRegex(IOError,
-                               'Attempt to read from a closed MaxMind DB.',
-                               reader.metadata)
+    # XXX - Figure out whether we want to have the same behavior on both the
+    #       extension and the pure Python reader. If we do, the pure Python
+    #       reader will need to throw an exception or the extension will need
+    #       to keep the metadata in memory.
+    #
+    # def test_closed_metadata(self):
+    #     reader = Reader(
+    #         'tests/data/test-data/MaxMind-DB-test-decoder.mmdb'
+    #     )
+    #     reader.close()
+
+    #     self.assertRaisesRegex(IOError,
+    #                            'Attempt to read from a closed MaxMind DB.',
+    #                            reader.metadata)
 
     def _check_metadata(self, reader, ip_version, record_size):
         metadata = reader.metadata()

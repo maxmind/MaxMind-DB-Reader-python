@@ -234,14 +234,11 @@ static PyObject *Reader_close(PyObject *self, PyObject *UNUSED(args))
 {
     Reader_obj *mmdb_obj = (Reader_obj *)self;
 
-    if (NULL == mmdb_obj->mmdb) {
-        PyErr_SetString(PyExc_IOError,
-                        "Attempt to close a closed MaxMind DB.");
-        return NULL;
+    if (NULL != mmdb_obj->mmdb) {
+        MMDB_close(mmdb_obj->mmdb);
+        free(mmdb_obj->mmdb);
+        mmdb_obj->mmdb = NULL;
     }
-    MMDB_close(mmdb_obj->mmdb);
-    free(mmdb_obj->mmdb);
-    mmdb_obj->mmdb = NULL;
 
     Py_RETURN_NONE;
 }
