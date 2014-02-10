@@ -16,9 +16,8 @@ except ImportError:
     Feature = None
 
 cmdclass = {}
-extra = {}
-pypy = hasattr(sys, 'pypy_version_info')
-jython = sys.platform.startswith('java')
+PYPY = hasattr(sys, 'pypy_version_info')
+JYTHON = sys.platform.startswith('java')
 requirements = []
 
 if sys.version_info[0] == 2 or (sys.version_info[0] == 3
@@ -106,7 +105,7 @@ def find_packages(location):
 
 
 def run_setup(with_cext):
-    kwargs = extra.copy()
+    kwargs = {}
     if with_cext:
         if Feature:
             kwargs['features'] = {'extension': Feature(
@@ -128,6 +127,7 @@ def run_setup(with_cext):
         package_data={'': ['LICENSE']},
         package_dir={'maxminddb': 'maxminddb'},
         include_package_data=True,
+        install_requires=requirements,
         tests_require=['nose'],
         test_suite='nose.collector',
         license=LICENSE,
@@ -149,10 +149,10 @@ def run_setup(with_cext):
         **kwargs
     )
 
-if pypy or jython:
+if PYPY or JYTHON:
     run_setup(False)
     status_msgs(
-        "WARNING: Disabling C extension due ot Python platform.",
+        "WARNING: Disabling C extension due to Python platform.",
         "Plain-Python build succeeded."
     )
 else:
