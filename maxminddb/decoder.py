@@ -1,16 +1,30 @@
+"""
+maxminddb.decoder
+~~~~~~~~~~~~~~~~~
+
+This package contains code for decoding the MaxMind DB data section.
+
+"""
 from __future__ import unicode_literals
 
-from struct import pack, unpack
+import struct
 
-from .compat import byte_from_int, int_from_bytes
-from .errors import InvalidDatabaseError
+from maxminddb.compat import byte_from_int, int_from_bytes
+from maxminddb.errors import InvalidDatabaseError
 
 
-class Decoder(object):
+class Decoder(object):  # pylint: disable=too-few-public-methods
 
-    """Decodes the data section of the MaxMind DB"""
+    """Decoder for the data section of the MaxMind DB"""
 
     def __init__(self, database_buffer, pointer_base=0, pointer_test=False):
+        """Created a Decoder for a MaxMind DB
+
+        Arguments:
+        database_buffer -- an mmap'd MaxMind DB file.
+        pointer_base -- the base number to use when decoding a pointer
+        pointer_test -- used for internal unit testing of pointer code
+        """
         self._pointer_test = pointer_test
         self._buffer = database_buffer
         self._pointer_base = pointer_base
@@ -29,7 +43,11 @@ class Decoder(object):
         new_offset = offset + size
         return self._buffer[offset:new_offset], new_offset
 
+    # pylint: disable=no-self-argument
+    # |-> I am open to better ways of doing this as long as it doesn't involve
+    #     lots of code duplication.
     def _decode_packed_type(type_code, type_size, pad=False):
+        # pylint: disable=protected-access, missing-docstring
         def unpack_type(self, size, offset):
             if not pad:
                 self._verify_size(size, type_size)
@@ -37,7 +55,7 @@ class Decoder(object):
             packed_bytes = self._buffer[offset:new_offset]
             if pad:
                 packed_bytes = packed_bytes.rjust(type_size, b'\x00')
-            (value,) = unpack(type_code, packed_bytes)
+            (value,) = struct.unpack(type_code, packed_bytes)
             return value, new_offset
         return unpack_type
 
@@ -59,9 +77,9 @@ class Decoder(object):
     def _decode_pointer(self, size, offset):
         pointer_size = ((size >> 3) & 0x3) + 1
         new_offset = offset + pointer_size
-        b = self._buffer[offset:new_offset]
-        packed = b if pointer_size == 4 else pack(
-            b'!c', byte_from_int(size & 0x7)) + b
+        pointer_bytes = self._buffer[offset:new_offset]
+        packed = pointer_bytes if pointer_size == 4 else struct.pack(
+            b'!c', byte_from_int(size & 0x7)) + pointer_bytes
         unpacked = int_from_bytes(packed)
         pointer = unpacked + self._pointer_base + \
             self._pointer_value_offset[pointer_size]
@@ -72,8 +90,8 @@ class Decoder(object):
 
     def _decode_uint(self, size, offset):
         new_offset = offset + size
-        b = self._buffer[offset:new_offset]
-        return int_from_bytes(b), new_offset
+        uint_bytes = self._buffer[offset:new_offset]
+        return int_from_bytes(uint_bytes), new_offset
 
     def _decode_utf8_string(self, size, offset):
         new_offset = offset + size
@@ -96,8 +114,13 @@ class Decoder(object):
     }
 
     def decode(self, offset):
+        """Decode a section of the data section starting at offset
+
+        Arguments:
+        offset -- the location of the data structure to decode
+        """
         new_offset = offset + 1
-        (ctrl_byte,) = unpack(b'!B', self._buffer[offset:new_offset])
+        (ctrl_byte,) = struct.unpack(b'!B', self._buffer[offset:new_offset])
         type_num = ctrl_byte >> 5
         # Extended type
         if not type_num:
@@ -108,7 +131,7 @@ class Decoder(object):
         return self._type_dispatch[type_num](self, size, new_offset)
 
     def _read_extended(self, offset):
-        (next_byte,) = unpack(b'!B', self._buffer[offset:offset + 1])
+        (next_byte,) = struct.unpack(b'!B', self._buffer[offset:offset + 1])
         type_num = next_byte + 7
         if type_num < 7:
             raise InvalidDatabaseError(
@@ -134,10 +157,11 @@ class Decoder(object):
         # Using unpack rather than int_from_bytes as it is about 200 lookups
         # per second faster here.
         if size == 29:
-            size = 29 + unpack(b'!B', size_bytes)[0]
+            size = 29 + struct.unpack(b'!B', size_bytes)[0]
         elif size == 30:
-            size = 285 + unpack(b'!H', size_bytes)[0]
+            size = 285 + struct.unpack(b'!H', size_bytes)[0]
         elif size > 30:
-            size = unpack(b'!I', size_bytes.rjust(4, b'\x00'))[0] + 65821
+            size = struct.unpack(
+                b'!I', size_bytes.rjust(4, b'\x00'))[0] + 65821
 
         return size, offset + bytes_to_read

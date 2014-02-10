@@ -1,5 +1,7 @@
 import sys
 
+# pylint: skip-file
+
 is_py2 = sys.version_info[0] == 2
 
 is_py3_3_or_better = (
@@ -25,12 +27,10 @@ if is_py2:
     byte_from_int = chr
 
 else:
-    # XXX -This does apparently slows down the reader by 25 lookups per second
-    # during the search tree lookup. Figure out alternative
     int_from_byte = lambda x: x
 
     FileNotFoundError = FileNotFoundError
 
     int_from_bytes = lambda x: int.from_bytes(x, 'big')
 
-    byte_from_int = lambda x:  bytes([x])
+    byte_from_int = lambda x: bytes([x])

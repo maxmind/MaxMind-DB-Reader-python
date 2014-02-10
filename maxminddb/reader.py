@@ -1,11 +1,18 @@
+"""
+maxminddb.reader
+~~~~~~~~~~~~~~~~
+
+This module contains the pure Python database reader and related classes.
+
+"""
 from __future__ import unicode_literals
 
 import mmap
-from struct import unpack
+import struct
 
-from .compat import byte_from_int, int_from_byte, ipaddress
-from .decoder import Decoder
-from .errors import InvalidDatabaseError
+from maxminddb.compat import byte_from_int, int_from_byte, ipaddress
+from maxminddb.decoder import Decoder
+from maxminddb.errors import InvalidDatabaseError
 
 
 class Reader(object):
@@ -23,8 +30,9 @@ class Reader(object):
     def __init__(self, database):
         """Reader for the MaxMind DB file format
 
-        The file passed to it must be a valid MaxMind DB file such as a GeoIP2
-        database file.
+        Arguments:
+        database -- A path to a valid MaxMind DB file such as a GeoIP2
+                    database file.
         """
         with open(database, 'r+b') as db_file:
             self._buffer = mmap.mmap(
@@ -41,25 +49,31 @@ class Reader(object):
         metadata_start += len(self._METADATA_START_MARKER)
         metadata_decoder = Decoder(self._buffer, metadata_start)
         (metadata, _) = metadata_decoder.decode(metadata_start)
-        self._metadata = Metadata(**metadata)
+        self._metadata = Metadata(**metadata)  # pylint: disable=star-args
 
         self._decoder = Decoder(self._buffer, self._metadata.search_tree_size
                                 + self._DATA_SECTION_SEPARATOR_SIZE)
 
     # XXX - consider making a property
     def metadata(self):
+        """Return the metadata associated with the MaxMind DB file"""
         return self._metadata
 
     # XXX - change to lookup?
     def get(self, ip_address):
-        """Look up ip_address in the MaxMind DB"""
-        ip = ipaddress.ip_address(ip_address)
+        """Return the record for the ip_address in the MaxMind DB
 
-        if ip.version == 6 and self._metadata.ip_version == 4:
+
+        Arguments:
+        ip_address -- an IP address in the standard string notation
+        """
+        address = ipaddress.ip_address(ip_address)
+
+        if address.version == 6 and self._metadata.ip_version == 4:
             raise ValueError('Error looking up {0}. You attempted to look up '
                              'an IPv6 address in an IPv4-only database.'.format(
                                  ip_address))
-        pointer = self._find_address_in_tree(ip)
+        pointer = self._find_address_in_tree(address)
 
         return self._resolve_data_pointer(pointer) if pointer else None
 
@@ -93,7 +107,7 @@ class Reader(object):
             return self._ipv4_start
 
         node = 0
-        for i in range(96):
+        for _ in range(96):
             if node >= self._metadata.node_count:
                 break
             node = self._read_node(node, 0)
@@ -108,7 +122,7 @@ class Reader(object):
             offset = base_offset + index * 3
             node_bytes = b'\x00' + self._buffer[offset:offset + 3]
         elif record_size == 28:
-            (middle,) = unpack(
+            (middle,) = struct.unpack(
                 b'!B', self._buffer[base_offset + 3:base_offset + 4])
             if index:
                 middle &= 0x0F
@@ -123,7 +137,7 @@ class Reader(object):
         else:
             raise InvalidDatabaseError(
                 'Unknown record size: {0}'.format(record_size))
-        return unpack(b'!I', node_bytes)[0]
+        return struct.unpack(b'!I', node_bytes)[0]
 
     def _resolve_data_pointer(self, pointer):
         resolved = pointer - self._metadata.node_count + \
@@ -137,18 +151,37 @@ class Reader(object):
         return data
 
     def close(self):
+        """Closes the MaxMind DB file and returns the resources to the system"""
         self._buffer.close()
 
 
 class Metadata(object):
 
+    """Metadata for the MaxMind DB reader"""
+
+    # pylint: disable=too-many-instance-attributes
     def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
+        """Creates new Metadata object. kwargs are key/value pairs from spec"""
+        # Although I could just update __dict__, that is less obvious and it
+        # doesn't work well with static analysis tools and some IDEs
+        self.node_count = kwargs['node_count']
+        self.record_size = kwargs['record_size']
+        self.ip_version = kwargs['ip_version']
+        self.database_type = kwargs['database_type']
+        self.languages = kwargs['languages']
+        self.binary_format_major_version = kwargs[
+            'binary_format_major_version']
+        self.binary_format_minor_version = kwargs[
+            'binary_format_minor_version']
+        self.build_epoch = kwargs['build_epoch']
+        self.description = kwargs['description']
 
     @property
     def node_byte_size(self):
+        """The size of a node in bytes"""
         return self.record_size // 4
 
     @property
     def search_tree_size(self):
+        """The size of the search tree"""
         return self.node_count * self.node_byte_size
