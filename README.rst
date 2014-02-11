@@ -1,6 +1,6 @@
-===========================
-MaxMind DB Python Extension
-===========================
+========================
+MaxMind DB Python Module
+========================
 
 Beta Note
 ---------
@@ -10,17 +10,21 @@ release.
 Description
 -----------
 
-This is a Python extension for reading MaxMind DB files. MaxMind DB is a
-binary file format that stores data indexed by IP address subnets (IPv4 or
-IPv6).
+This is a Python module for reading MaxMind DB files. The module includes both
+a pure Python reader and an optional C extension.
+
+MaxMind DB is a binary file format that stores data indexed by IP address
+subnets (IPv4 or IPv6).
 
 Installation
 ------------
 
-You must have the `libmaxminddb <https://github.com/maxmind/libmaxminddb>`_ C
-library installed before installing this extension.
+If you want to use the C extension, you must first install `libmaxminddb
+<https://github.com/maxmind/libmaxminddb>`_ C library installed before
+installing this extension. If the library is not available, the module will
+fall-back to a pure Python implementation.
 
-To install the MaxMind DB extension, type:
+To install maxminddb, type:
 
 .. code-block:: bash
 
@@ -74,13 +78,16 @@ invalid IP address or an IPv6 address in an IPv4 database.
 Requirements
 ------------
 
-This code requires CPython 2.6+ or 3.3+. Older versions are not supported.
+This code requires Python 2.6+ or 3.3+. The C extension requires CPython. The
+pure Python implementation has been tested with PyPy.
+
+On Python 2, the `ipaddr module <https://code.google.com/p/ipaddr-py/>`_ is
+required.
 
 Versioning
 ----------
 
-The MaxMind DB Python extension uses
-`Semantic Versioning <http://semver.org/>`_.
+The MaxMind DB Python module uses `Semantic Versioning <http://semver.org/>`_.
 
 Support
 -------

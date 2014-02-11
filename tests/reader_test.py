@@ -4,6 +4,10 @@
 from __future__ import unicode_literals
 
 import sys
+
+from maxminddb import Reader, InvalidDatabaseError
+from maxminddb.compat import FileNotFoundError
+
 if sys.version_info[:2] == (2, 6):
     import unittest2 as unittest
 else:
@@ -12,8 +16,6 @@ else:
 if sys.version_info[0] == 2:
     unittest.TestCase.assertRaisesRegex = unittest.TestCase.assertRaisesRegexp
     unittest.TestCase.assertRegex = unittest.TestCase.assertRegexpMatches
-
-from maxminddb import Reader, InvalidDatabaseError
 
 
 class TestReader(unittest.TestCase):
@@ -75,8 +77,7 @@ class TestReader(unittest.TestCase):
         reader = Reader('tests/data/test-data/'
                         'GeoIP2-City-Test-Broken-Double-Format.mmdb')
         with self.assertRaisesRegex(InvalidDatabaseError,
-                                    "Error while looking up data for "
-                                    "2001:220::. The MaxMind DB file's data "
+                                    "The MaxMind DB file's data "
                                     "section contains bad data \(unknown data "
                                     "type or corrupt data\)"
                                     ):
@@ -85,14 +86,14 @@ class TestReader(unittest.TestCase):
     def test_ip_validation(self):
         reader = Reader('tests/data/test-data/MaxMind-DB-test-decoder.mmdb')
         self.assertRaisesRegex(ValueError,
-                               'The value "not_ip" is not a valid IP '
-                               'address.',
+                               "'not_ip' does not appear to be an IPv4 or "
+                               "IPv6 address",
                                reader.get, ('not_ip'))
 
     def test_missing_database(self):
-        self.assertRaisesRegex(ValueError,
-                               'The file "file-does-not-exist.mmdb" does '
-                               'not exist or is not readable.',
+        self.assertRaisesRegex(FileNotFoundError,
+                               "No such file or directory: "
+                               "u?'file-does-not-exist.mmdb'",
                                Reader, ('file-does-not-exist.mmdb'))
 
     def test_nondatabase(self):
@@ -131,7 +132,7 @@ class TestReader(unittest.TestCase):
         )
         metadata = reader.metadata()
         with self.assertRaisesRegex(AttributeError,
-                                    "'maxminddb.Metadata' object has no "
+                                    "'Metadata' object has no "
                                     "attribute 'blah'"):
             metadata.blah
 
@@ -145,28 +146,39 @@ class TestReader(unittest.TestCase):
         reader = Reader(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb'
         )
-        reader.close()
-        self.assertRaisesRegex(IOError,
-                               'Attempt to close a closed MaxMind DB.',
-                               reader.close)
+        self.assertIsNone(
+            reader.close(), 'Double close does not throw an exception')
 
     def test_closed_get(self):
         reader = Reader(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb'
         )
         reader.close()
-        self.assertRaisesRegex(IOError,
-                               'Attempt to read from a closed MaxMind DB.',
+        self.assertRaisesRegex(ValueError,
+                               'Attempt to read from a closed MaxMind DB.'
+                               '|closed or invalid',
                                reader.get, ('1.1.1.1'))
 
+    # XXX - Figure out whether we want to have the same behavior on both the
+    #       extension and the pure Python reader. If we do, the pure Python
+    #       reader will need to throw an exception or the extension will need
+    #       to keep the metadata in memory.
     def test_closed_metadata(self):
         reader = Reader(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb'
         )
         reader.close()
-        self.assertRaisesRegex(IOError,
-                               'Attempt to read from a closed MaxMind DB.',
-                               reader.metadata)
+
+        # The primary purpose of this is to ensure the extension doesn't
+        # segfault
+        try:
+            metadata = reader.metadata()
+        except IOError as ex:
+            self.assertEqual('Attempt to read from a closed MaxMind DB.',
+                             str(ex), 'extension throws exception')
+        else:
+            self.assertIsNotNone(
+                metadata, 'pure Python implementation returns value')
 
     def _check_metadata(self, reader, ip_version, record_size):
         metadata = reader.metadata()

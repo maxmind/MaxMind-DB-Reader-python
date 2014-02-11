@@ -35,10 +35,12 @@ static PyObject *from_uint128(const MMDB_entry_data_list_s *entry_data_list);
 #if PY_MAJOR_VERSION >= 3
     #define MOD_INIT(name) PyMODINIT_FUNC PyInit_ ## name(void)
     #define RETURN_MOD_INIT(m) return (m)
+    #define FILE_NOT_FOUND_ERROR PyExc_FileNotFoundError
 #else
     #define MOD_INIT(name) PyMODINIT_FUNC init ## name(void)
     #define RETURN_MOD_INIT(m) return
     #define PyInt_FromLong PyLong_FromLong
+    #define FILE_NOT_FOUND_ERROR PyExc_IOError
 #endif
 
 #ifdef __GNUC__
@@ -56,8 +58,8 @@ static PyObject *Reader_constructor(PyObject *UNUSED(self), PyObject *args)
     }
 
     if (0 != access(filename, R_OK)) {
-        PyErr_Format(PyExc_ValueError,
-                     "The file \"%s\" does not exist or is not readable.",
+        PyErr_Format(FILE_NOT_FOUND_ERROR,
+                     "No such file or directory: '%s'",
                      filename);
         return NULL;
     }
@@ -102,7 +104,7 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
     MMDB_s *mmdb = mmdb_obj->mmdb;
 
     if (NULL == mmdb) {
-        PyErr_SetString(PyExc_IOError,
+        PyErr_SetString(PyExc_ValueError,
                         "Attempt to read from a closed MaxMind DB.");
         return NULL;
     }
@@ -115,7 +117,7 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
 
     if (0 != gai_error) {
         PyErr_Format(PyExc_ValueError,
-                     "The value \"%s\" is not a valid IP address.",
+                     "'%s' does not appear to be an IPv4 or IPv6 address.",
                      ip_address);
         return NULL;
     }
@@ -232,14 +234,11 @@ static PyObject *Reader_close(PyObject *self, PyObject *UNUSED(args))
 {
     Reader_obj *mmdb_obj = (Reader_obj *)self;
 
-    if (NULL == mmdb_obj->mmdb) {
-        PyErr_SetString(PyExc_IOError,
-                        "Attempt to close a closed MaxMind DB.");
-        return NULL;
+    if (NULL != mmdb_obj->mmdb) {
+        MMDB_close(mmdb_obj->mmdb);
+        free(mmdb_obj->mmdb);
+        mmdb_obj->mmdb = NULL;
     }
-    MMDB_close(mmdb_obj->mmdb);
-    free(mmdb_obj->mmdb);
-    mmdb_obj->mmdb = NULL;
 
     Py_RETURN_NONE;
 }
@@ -415,10 +414,10 @@ static PyTypeObject Reader_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_basicsize = sizeof(Reader_obj),
     .tp_dealloc = Reader_dealloc,
-    .tp_doc = "maxminddb.Reader object",
+    .tp_doc = "Reader object",
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_methods = Reader_methods,
-    .tp_name = "maxminddb.Reader",
+    .tp_name = "Reader",
 };
 
 static PyMethodDef Metadata_methods[] = {
@@ -453,24 +452,24 @@ static PyTypeObject Metadata_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_basicsize = sizeof(Metadata_obj),
     .tp_dealloc = Metadata_dealloc,
-    .tp_doc = "maxminddb.Metadata object",
+    .tp_doc = "Metadata object",
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_members = Metadata_members,
     .tp_methods = Metadata_methods,
-    .tp_name = "maxminddb.Metadata",
+    .tp_name = "Metadata",
 };
 
 static PyMethodDef MaxMindDB_methods[] = {
     { "Reader", Reader_constructor, METH_VARARGS,
-      "Creates a new maxminddb.Reader object" },
+      "Creates a new maxminddb.extension.Reader object" },
     { NULL,     NULL,               0,           NULL}
 };
 
 #if PY_MAJOR_VERSION >= 3
 static struct PyModuleDef MaxMindDB_module = {
     PyModuleDef_HEAD_INIT,
-    .m_name = "maxminddb",
-    .m_doc = "This is a module to read MaxMind DB file format",
+    .m_name = "extension",
+    .m_doc = "This is a C extension to read MaxMind DB file format",
     .m_methods = MaxMindDB_methods,
 };
 #endif
@@ -481,17 +480,17 @@ static void init_type(PyObject *m, PyTypeObject *type)
 
     if (PyType_Ready(type) == 0) {
         Py_INCREF(type);
-        PyModule_AddObject(m, "maxminddb", (PyObject *)type);
+        PyModule_AddObject(m, "extension", (PyObject *)type);
     }
 }
 
-MOD_INIT(maxminddb){
+MOD_INIT(extension){
     PyObject *m;
 
 #if PY_MAJOR_VERSION >= 3
     m = PyModule_Create(&MaxMindDB_module);
 #else
-    m = Py_InitModule("maxminddb", MaxMindDB_methods);
+    m = Py_InitModule("extension", MaxMindDB_methods);
 #endif
 
     if (!m) {
@@ -501,7 +500,7 @@ MOD_INIT(maxminddb){
     init_type(m, &Reader_Type);
     init_type(m, &Metadata_Type);
 
-    MaxMindDB_error = PyErr_NewException("maxminddb.InvalidDatabaseError", NULL,
+    MaxMindDB_error = PyErr_NewException("extension.InvalidDatabaseError", NULL,
                                          NULL);
     if (MaxMindDB_error == NULL) {
         RETURN_MOD_INIT(NULL);

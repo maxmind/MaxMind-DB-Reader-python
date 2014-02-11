@@ -4,6 +4,7 @@ python:
   - 2.6
   - 2.7
   - 3.3
+  - pypy
 
 before_install:
   - git submodule update --init --recursive
@@ -15,10 +16,13 @@ before_install:
   - sudo make install
   - sudo ldconfig
   - cd ..
+  - pip install pylint
   - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install unittest2; fi
 
 script:
   - CFLAGS="-Werror -Wall -Wextra" python setup.py test
+  - MAXMINDDB_PURE_PYTHON=1 python setup.py test
+  - if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]]; then pylint --rcfile .pylintrc maxminddb/*.py; fi
 
 notifications:
   email:
