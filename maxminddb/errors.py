@@ -1,4 +1,9 @@
-"""This module contains custom errors for the MaxMind DB reader"""
+"""
+maxminddb.errors
+~~~~~~~~~~~~~~~~
+
+This module contains custom errors for the MaxMind DB reader
+"""
 
 
 class InvalidDatabaseError(RuntimeError):
