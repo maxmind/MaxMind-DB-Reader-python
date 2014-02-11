@@ -3,6 +3,15 @@
 History
 -------
 
+0.3.0 (2014-02-11)
+++++++++++++++++++
+
+* This release includes a pure Python implementation of the database reader.
+  If ``libmaxminddb`` is not available or there are compilation issues, the
+  module will fall-back to the pure Python implementation.
+* Minor changes were made to the exceptions of the C extension make them
+  consistent with the pure Python implementation.
+
 0.2.1 (2013-12-18)
 ++++++++++++++++++
 
