@@ -1,2 +1,2 @@
-include HISTORY.rst README.rst LICENSE requirements.txt tests/maxminddb_test.py
+include HISTORY.rst README.rst LICENSE requirements.txt tests/decoder_test.py tests/reader_test.py
 graft docs/html
