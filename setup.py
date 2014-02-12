@@ -123,7 +123,7 @@ def run_setup(with_cext):
         long_description=README,
         url='http://www.maxmind.com/',
         bugtrack_url='https://github.com/maxmind/MaxMind-DB-Reader-python/issues',
-        packages=find_packages('lib'),
+        packages=find_packages('.'),
         package_data={'': ['LICENSE']},
         package_dir={'maxminddb': 'maxminddb'},
         include_package_data=True,

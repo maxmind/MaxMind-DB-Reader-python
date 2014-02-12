@@ -3,6 +3,11 @@
 History
 -------
 
+0.3.1 (2014-02-11)
+++++++++++++++++++
+
+* Fixed packaging problem that caused ``import`` to fail.
+
 0.3.0 (2014-02-11)
 ++++++++++++++++++
 
