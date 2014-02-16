@@ -152,7 +152,9 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
         if type_num == 1:
             return size, offset
         bytes_to_read = 0 if size < 29 else size - 28
-        size_bytes = self._buffer[offset:offset + bytes_to_read]
+
+        new_offset = offset + bytes_to_read
+        size_bytes = self._buffer[offset:new_offset]
 
         # Using unpack rather than int_from_bytes as it is about 200 lookups
         # per second faster here.
@@ -164,4 +166,4 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
             size = struct.unpack(
                 b'!I', size_bytes.rjust(4, b'\x00'))[0] + 65821
 
-        return size, offset + bytes_to_read
+        return size, new_offset
