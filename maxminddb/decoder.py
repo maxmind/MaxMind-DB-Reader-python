@@ -138,7 +138,7 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
                 'Something went horribly wrong in the decoder. An '
                 'extended type resolved to a type number < 8 '
                 '({type})'.format(type=type_num))
-        return next_byte + 7, offset + 1
+        return type_num, offset + 1
 
     def _verify_size(self, expected, actual):
         if expected != actual:
