@@ -34,7 +34,7 @@ class Reader(object):
         database -- A path to a valid MaxMind DB file such as a GeoIP2
                     database file.
         """
-        with open(database, 'r+b') as db_file:
+        with open(database, 'rb') as db_file:
             self._buffer = mmap.mmap(
                 db_file.fileno(), 0, access=mmap.ACCESS_READ)
 
@@ -86,7 +86,6 @@ class Reader(object):
                 break
             bit = 1 & (int_from_byte(packed[i >> 3]) >> 7 - (i % 8))
             node = self._read_node(node, bit)
-
         if node == self._metadata.node_count:
             # Record is empty
             return 0
