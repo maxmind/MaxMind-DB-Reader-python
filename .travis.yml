@@ -18,6 +18,7 @@ before_install:
   - cd ..
   - pip install pylint coveralls
   - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install unittest2; fi
+  - if [[ $TRAVIS_PYTHON_VERSION != '3.3' ]]; then pip install ipaddr; fi
 
 script:
   - CFLAGS="-Werror -Wall -Wextra" python setup.py test
