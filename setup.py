@@ -80,6 +80,13 @@ ROOT = os.path.dirname(__file__)
 with open(os.path.join(ROOT, 'README.rst'), 'rb') as fd:
     README = fd.read().decode('utf8')
 
+with open(os.path.join(ROOT, 'maxminddb', '__init__.py'), 'rb') as fd:
+    maxminddb_text = fd.read().decode('utf8')
+    LICENSE = re.compile(
+        r".*__license__ = '(.*?)'", re.S).match(maxminddb_text).group(1)
+    VERSION = re.compile(
+        r".*__version__ = '(.*?)'", re.S).match(maxminddb_text).group(1)
+
 
 def status_msgs(*msgs):
     print('*' * 75)
@@ -113,7 +120,7 @@ def run_setup(with_cext):
 
     setup(
         name='maxminddb',
-        version=maxminddb.__version__,
+        version=VERSION,
         description='Python extension for reading the MaxMind DB format',
         long_description=README,
         url='http://www.maxmind.com/',
@@ -125,7 +132,7 @@ def run_setup(with_cext):
         install_requires=requirements,
         tests_require=['nose'],
         test_suite='nose.collector',
-        license=maxminddb.__license__,
+        license=LICENSE,
         cmdclass=cmdclass,
         classifiers=(
             'Development Status :: 3 - Alpha',
