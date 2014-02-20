@@ -15,6 +15,8 @@ except ImportError:
     from distutils.core import setup, Extension
     Feature = None
 
+import maxminddb
+
 cmdclass = {}
 PYPY = hasattr(sys, 'pypy_version_info')
 JYTHON = sys.platform.startswith('java')
@@ -78,13 +80,6 @@ ROOT = os.path.dirname(__file__)
 with open(os.path.join(ROOT, 'README.rst'), 'rb') as fd:
     README = fd.read().decode('utf8')
 
-with open(os.path.join(ROOT, 'LICENSE'), 'rb') as fd:
-    LICENSE = fd.read().decode('utf8')
-
-with open(os.path.join(ROOT, 'maxminddb', '__init__.py'), 'rb') as fd:
-    VERSION = re.compile(
-        r".*__version__ = '(.*?)'", re.S).match(fd.read().decode('utf8')).group(1)
-
 
 def status_msgs(*msgs):
     print('*' * 75)
@@ -118,7 +113,7 @@ def run_setup(with_cext):
 
     setup(
         name='maxminddb',
-        version=VERSION,
+        version=maxminddb.__version__,
         description='Python extension for reading the MaxMind DB format',
         long_description=README,
         url='http://www.maxmind.com/',
@@ -130,14 +125,13 @@ def run_setup(with_cext):
         install_requires=requirements,
         tests_require=['nose'],
         test_suite='nose.collector',
-        license=LICENSE,
+        license=maxminddb.__license__,
         cmdclass=cmdclass,
         classifiers=(
             'Development Status :: 3 - Alpha',
             'Environment :: Web Environment',
             'Intended Audience :: Developers',
             'Intended Audience :: System Administrators',
-            'License :: OSI Approved :: GNU Lesser General Public License v2 or later (LGPLv2+)',
             'Programming Language :: Python :: 2.6',
             'Programming Language :: Python :: 2.7',
             'Programming Language :: Python :: 3',
