@@ -15,8 +15,6 @@ except ImportError:
     from distutils.core import setup, Extension
     Feature = None
 
-import maxminddb
-
 cmdclass = {}
 PYPY = hasattr(sys, 'pypy_version_info')
 JYTHON = sys.platform.startswith('java')
