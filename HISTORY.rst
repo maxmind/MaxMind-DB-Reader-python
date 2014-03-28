@@ -3,6 +3,13 @@
 History
 -------
 
+0.3.2 (2014-03-28)
+++++++++++++++++++
+
+* Switched to Apache 2.0 license.
+* We now open the database file in read-only mode.
+* Minor code clean-up.
+
 0.3.1 (2014-02-11)
 ++++++++++++++++++
 

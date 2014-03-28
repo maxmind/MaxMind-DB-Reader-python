@@ -137,6 +137,7 @@ def run_setup(with_cext):
             'Environment :: Web Environment',
             'Intended Audience :: Developers',
             'Intended Audience :: System Administrators',
+            'License :: OSI Approved :: Apache Software License',
             'Programming Language :: Python :: 2.6',
             'Programming Language :: Python :: 2.7',
             'Programming Language :: Python :: 3',
