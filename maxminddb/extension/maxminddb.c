@@ -49,47 +49,47 @@ static PyObject *from_uint128(const MMDB_entry_data_list_s *entry_data_list);
     #  define UNUSED(x) UNUSED_ ## x
 #endif
 
-static PyObject *Reader_constructor(PyObject *UNUSED(self), PyObject *args)
+static int Reader_constructor(PyObject *self, PyObject *args, PyObject *UNUSED(kwds))
 {
     char *filename;
 
     if (!PyArg_ParseTuple(args, "s", &filename)) {
-        return NULL;
+        return -1;
     }
 
     if (0 != access(filename, R_OK)) {
         PyErr_Format(FILE_NOT_FOUND_ERROR,
                      "No such file or directory: '%s'",
                      filename);
-        return NULL;
+        return -1;
     }
 
     MMDB_s *mmdb = (MMDB_s *)malloc(sizeof(MMDB_s));
     if (NULL == mmdb) {
         PyErr_NoMemory();
-        return NULL;
+        return -1;
     }
 
-    Reader_obj *obj = PyObject_New(Reader_obj, &Reader_Type);
-    if (!obj) {
+    Reader_obj *mmdb_obj = (Reader_obj *)self;
+    if (!mmdb_obj) {
         PyErr_NoMemory();
-        return NULL;
+        return -1;
     }
 
     uint16_t status = MMDB_open(filename, MMDB_MODE_MMAP, mmdb);
 
     if (MMDB_SUCCESS != status) {
         free(mmdb);
-        PyObject_Del(obj);
-        return PyErr_Format(
+        PyErr_Format(
                    MaxMindDB_error,
                    "Error opening database file (%s). Is this a valid MaxMind DB file?",
                    filename
                    );
+        return -1;
     }
 
-    obj->mmdb = mmdb;
-    return (PyObject *)obj;
+    mmdb_obj->mmdb = mmdb;
+    return 0;
 }
 
 static PyObject *Reader_get(PyObject *self, PyObject *args)
@@ -418,6 +418,7 @@ static PyTypeObject Reader_Type = {
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_methods = Reader_methods,
     .tp_name = "Reader",
+    .tp_init = Reader_constructor,
 };
 
 static PyMethodDef Metadata_methods[] = {
@@ -460,10 +461,9 @@ static PyTypeObject Metadata_Type = {
 };
 
 static PyMethodDef MaxMindDB_methods[] = {
-    { "Reader", Reader_constructor, METH_VARARGS,
-      "Creates a new maxminddb.extension.Reader object" },
     { NULL,     NULL,               0,           NULL}
 };
+
 
 #if PY_MAJOR_VERSION >= 3
 static struct PyModuleDef MaxMindDB_module = {
@@ -505,6 +505,13 @@ MOD_INIT(extension){
     if (MaxMindDB_error == NULL) {
         RETURN_MOD_INIT(NULL);
     }
+
+    Reader_Type.tp_new = PyType_GenericNew;
+    if (PyType_Ready(&Reader_Type)) {
+        RETURN_MOD_INIT(NULL);
+    }
+    Py_INCREF(&Reader_Type);
+    PyModule_AddObject(m, "Reader", (PyObject *)&Reader_Type);
 
     Py_INCREF(MaxMindDB_error);
     PyModule_AddObject(m, "InvalidDatabaseError", MaxMindDB_error);

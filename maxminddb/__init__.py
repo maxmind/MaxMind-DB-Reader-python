@@ -2,10 +2,12 @@
 import os
 
 try:
-    if os.environ.get('MAXMINDDB_PURE_PYTHON'):
+    if os.environ.get('MAXMINDDB_PURE_PYTHON') == '1':
         raise ImportError()
     from maxminddb.extension import Reader, InvalidDatabaseError
-except ImportError:
+except ImportError as e:
+    if os.environ.get('MAXMINDDB_PURE_PYTHON') == '0':
+        raise e
     from maxminddb.decoder import InvalidDatabaseError
     from maxminddb.reader import Reader
 
