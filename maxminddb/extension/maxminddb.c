@@ -419,7 +419,6 @@ static PyTypeObject Reader_Type = {
     .tp_methods = Reader_methods,
     .tp_name = "Reader",
     .tp_init = Reader_constructor,
-    .tp_new = PyType_GenericNew,
 };
 
 static PyMethodDef Metadata_methods[] = {
@@ -507,6 +506,10 @@ MOD_INIT(extension){
         RETURN_MOD_INIT(NULL);
     }
 
+    Reader_Type.tp_new = PyType_GenericNew;
+    if (PyType_Ready(&Reader_Type)) {
+        RETURN_MOD_INIT(NULL);
+    }
     Py_INCREF(&Reader_Type);
     PyModule_AddObject(m, "Reader", (PyObject *)&Reader_Type);
 
