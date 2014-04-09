@@ -49,47 +49,47 @@ static PyObject *from_uint128(const MMDB_entry_data_list_s *entry_data_list);
     #  define UNUSED(x) UNUSED_ ## x
 #endif
 
-static PyObject *Reader_constructor(PyObject *UNUSED(self), PyObject *args)
+static int Reader_init(PyObject *self, PyObject *args, PyObject *UNUSED(kwds))
 {
     char *filename;
 
     if (!PyArg_ParseTuple(args, "s", &filename)) {
-        return NULL;
+        return -1;
     }
 
     if (0 != access(filename, R_OK)) {
         PyErr_Format(FILE_NOT_FOUND_ERROR,
                      "No such file or directory: '%s'",
                      filename);
-        return NULL;
+        return -1;
     }
 
     MMDB_s *mmdb = (MMDB_s *)malloc(sizeof(MMDB_s));
     if (NULL == mmdb) {
         PyErr_NoMemory();
-        return NULL;
+        return -1;
     }
 
-    Reader_obj *obj = PyObject_New(Reader_obj, &Reader_Type);
-    if (!obj) {
+    Reader_obj *mmdb_obj = (Reader_obj *)self;
+    if (!mmdb_obj) {
         PyErr_NoMemory();
-        return NULL;
+        return -1;
     }
 
     uint16_t status = MMDB_open(filename, MMDB_MODE_MMAP, mmdb);
 
     if (MMDB_SUCCESS != status) {
         free(mmdb);
-        PyObject_Del(obj);
-        return PyErr_Format(
-                   MaxMindDB_error,
-                   "Error opening database file (%s). Is this a valid MaxMind DB file?",
-                   filename
-                   );
+        PyErr_Format(
+            MaxMindDB_error,
+            "Error opening database file (%s). Is this a valid MaxMind DB file?",
+            filename
+            );
+        return -1;
     }
 
-    obj->mmdb = mmdb;
-    return (PyObject *)obj;
+    mmdb_obj->mmdb = mmdb;
+    return 0;
 }
 
 static PyObject *Reader_get(PyObject *self, PyObject *args)
@@ -170,11 +170,6 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args))
         return NULL;
     }
 
-    Metadata_obj *obj = PyObject_New(Metadata_obj, &Metadata_Type);
-    if (!obj) {
-        return NULL;
-    }
-
     MMDB_entry_data_list_s *entry_data_list;
     MMDB_get_metadata_as_entry_data_list(mmdb_obj->mmdb, &entry_data_list);
     MMDB_entry_data_list_s *original_entry_data_list = entry_data_list;
@@ -184,50 +179,20 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args))
     if (NULL == metadata_dict || !PyDict_Check(metadata_dict)) {
         PyErr_SetString(MaxMindDB_error,
                         "Error decoding metadata.");
-        PyObject_Del(obj);
         return NULL;
     }
 
-    obj->binary_format_major_version = PyDict_GetItemString(
-        metadata_dict, "binary_format_major_version");
-    obj->binary_format_minor_version = PyDict_GetItemString(
-        metadata_dict, "binary_format_minor_version");
-    obj->build_epoch = PyDict_GetItemString(metadata_dict, "build_epoch");
-    obj->database_type = PyDict_GetItemString(metadata_dict, "database_type");
-    obj->description = PyDict_GetItemString(metadata_dict, "description");
-    obj->ip_version = PyDict_GetItemString(metadata_dict, "ip_version");
-    obj->languages = PyDict_GetItemString(metadata_dict, "languages");
-    obj->node_count = PyDict_GetItemString(metadata_dict, "node_count");
-    obj->record_size = PyDict_GetItemString(metadata_dict, "record_size");
-
-    if (NULL == obj->binary_format_major_version ||
-        NULL == obj->binary_format_minor_version ||
-        NULL == obj->build_epoch ||
-        NULL == obj->database_type ||
-        NULL == obj->description ||
-        NULL == obj->ip_version ||
-        NULL == obj->languages ||
-        NULL == obj->node_count ||
-        NULL == obj->record_size) {
-        PyErr_SetString(MaxMindDB_error,
-                        "Error decoding metadata.");
-        PyObject_Del(obj);
+    PyObject *args = PyTuple_New(0);
+    if (NULL == args) {
+        Py_DECREF(metadata_dict);
         return NULL;
     }
 
-    Py_INCREF(obj->binary_format_major_version);
-    Py_INCREF(obj->binary_format_minor_version);
-    Py_INCREF(obj->build_epoch);
-    Py_INCREF(obj->database_type);
-    Py_INCREF(obj->description);
-    Py_INCREF(obj->ip_version);
-    Py_INCREF(obj->languages);
-    Py_INCREF(obj->node_count);
-    Py_INCREF(obj->record_size);
+    PyObject *metadata = PyObject_Call((PyObject *)&Metadata_Type, args,
+                                       metadata_dict);
 
     Py_DECREF(metadata_dict);
-
-    return (PyObject *)obj;
+    return metadata;
 }
 
 static PyObject *Reader_close(PyObject *self, PyObject *UNUSED(args))
@@ -251,6 +216,71 @@ static void Reader_dealloc(PyObject *self)
     }
 
     PyObject_Del(self);
+}
+
+static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds)
+{
+
+    PyObject
+    *binary_format_major_version,
+    *binary_format_minor_version,
+    *build_epoch,
+    *database_type,
+    *description,
+    *ip_version,
+    *languages,
+    *node_count,
+    *record_size;
+
+    static char *kwlist[] = {
+        "binary_format_major_version",
+        "binary_format_minor_version",
+        "build_epoch",
+        "database_type",
+        "description",
+        "ip_version",
+        "languages",
+        "node_count",
+        "record_size",
+        NULL
+    };
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOOOOOO", kwlist,
+                                     &binary_format_major_version,
+                                     &binary_format_minor_version,
+                                     &build_epoch,
+                                     &database_type,
+                                     &description,
+                                     &ip_version,
+                                     &languages,
+                                     &node_count,
+                                     &record_size)) {
+        return -1;
+    }
+
+    Metadata_obj *obj = (Metadata_obj *)self;
+
+    obj->binary_format_major_version = binary_format_major_version;
+    obj->binary_format_minor_version = binary_format_minor_version;
+    obj->build_epoch = build_epoch;
+    obj->database_type = database_type;
+    obj->description = description;
+    obj->ip_version = ip_version;
+    obj->languages = languages;
+    obj->node_count = node_count;
+    obj->record_size = record_size;
+
+    Py_INCREF(obj->binary_format_major_version);
+    Py_INCREF(obj->binary_format_minor_version);
+    Py_INCREF(obj->build_epoch);
+    Py_INCREF(obj->database_type);
+    Py_INCREF(obj->description);
+    Py_INCREF(obj->ip_version);
+    Py_INCREF(obj->languages);
+    Py_INCREF(obj->node_count);
+    Py_INCREF(obj->record_size);
+
+    return 0;
 }
 
 static void Metadata_dealloc(PyObject *self)
@@ -406,8 +436,8 @@ static PyMethodDef Reader_methods[] = {
       "Get record for IP address" },
     { "metadata", Reader_metadata, METH_NOARGS,
       "Returns metadata object for database" },
-    { "close",    Reader_close,    METH_NOARGS, "Closes database"},
-    { NULL,       NULL,            0,           NULL        }
+    { "close",    Reader_close,    METH_NOARGS,      "Closes database"      },
+    { NULL,       NULL,            0,                NULL                   }
 };
 
 static PyTypeObject Reader_Type = {
@@ -418,6 +448,7 @@ static PyTypeObject Reader_Type = {
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_methods = Reader_methods,
     .tp_name = "Reader",
+    .tp_init = Reader_init,
 };
 
 static PyMethodDef Metadata_methods[] = {
@@ -457,13 +488,13 @@ static PyTypeObject Metadata_Type = {
     .tp_members = Metadata_members,
     .tp_methods = Metadata_methods,
     .tp_name = "Metadata",
+    .tp_init = Metadata_init
 };
 
 static PyMethodDef MaxMindDB_methods[] = {
-    { "Reader", Reader_constructor, METH_VARARGS,
-      "Creates a new maxminddb.extension.Reader object" },
-    { NULL,     NULL,               0,           NULL}
+    { NULL, NULL, 0, NULL }
 };
+
 
 #if PY_MAJOR_VERSION >= 3
 static struct PyModuleDef MaxMindDB_module = {
@@ -473,16 +504,6 @@ static struct PyModuleDef MaxMindDB_module = {
     .m_methods = MaxMindDB_methods,
 };
 #endif
-
-static void init_type(PyObject *m, PyTypeObject *type)
-{
-    Metadata_Type.tp_new = PyType_GenericNew;
-
-    if (PyType_Ready(type) == 0) {
-        Py_INCREF(type);
-        PyModule_AddObject(m, "extension", (PyObject *)type);
-    }
-}
 
 MOD_INIT(extension){
     PyObject *m;
@@ -497,8 +518,18 @@ MOD_INIT(extension){
         RETURN_MOD_INIT(NULL);
     }
 
-    init_type(m, &Reader_Type);
-    init_type(m, &Metadata_Type);
+    Reader_Type.tp_new = PyType_GenericNew;
+    if (PyType_Ready(&Reader_Type)) {
+        RETURN_MOD_INIT(NULL);
+    }
+    Py_INCREF(&Reader_Type);
+    PyModule_AddObject(m, "Reader", (PyObject *)&Reader_Type);
+
+    Metadata_Type.tp_new = PyType_GenericNew;
+    if (PyType_Ready(&Metadata_Type)) {
+        RETURN_MOD_INIT(NULL);
+    }
+    PyModule_AddObject(m, "extension", (PyObject *)&Metadata_Type);
 
     MaxMindDB_error = PyErr_NewException("extension.InvalidDatabaseError", NULL,
                                          NULL);
