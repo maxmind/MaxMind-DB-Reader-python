@@ -3,6 +3,12 @@
 History
 -------
 
+0.3.3 (2014-04-09)
+++++++++++++++++++
+
+* Corrected initialization of objects in C extension and made the objects
+  behave more similarly to their pure Python counterparts.
+
 0.3.2 (2014-03-28)
 ++++++++++++++++++
 
