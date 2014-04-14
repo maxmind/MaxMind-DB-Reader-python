@@ -65,6 +65,13 @@ class TestReader(unittest.TestCase):
             record['uint128']
         )
 
+    def test_no_ipv4_search_tree(self):
+        reader = Reader(
+            'tests/data/test-data/MaxMind-DB-no-ipv4-search-tree.mmdb')
+
+        self.assertEqual(reader.get('1.1.1.1'), '::0/64')
+        self.assertEqual(reader.get('192.1.1.1'), '::0/64')
+
     def test_ipv6_address_in_ipv4_database(self):
         reader = Reader('tests/data/test-data/MaxMind-DB-test-ipv4-24.mmdb')
         with self.assertRaisesRegex(ValueError,
@@ -189,7 +196,7 @@ class TestReader(unittest.TestCase):
             'major version'
         )
         self.assertEqual(metadata.binary_format_minor_version, 0)
-        self.assertEqual(metadata.build_epoch, 1373571901)
+        self.assertGreater(metadata.build_epoch, 1373571901)
         self.assertEqual(metadata.database_type, 'Test')
 
         self.assertEqual(
