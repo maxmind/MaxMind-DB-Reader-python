@@ -24,13 +24,18 @@ if sys.version_info[0] == 2 or (sys.version_info[0] == 3
                                 and sys.version_info[1] < 3):
     requirements.append('ipaddr')
 
+compile_args = ['-Wall', '-Wextra']
+
+if sys.version_info[0] == 2:
+    compile_args.append('-fno-strict-aliasing')
+
+
 ext_module = [
     Extension(
         'maxminddb.extension',
         libraries=['maxminddb'],
         sources=['maxminddb/extension/maxminddb.c'],
-        extra_compile_args=[
-            '-Wall', '-Wextra'],
+        extra_compile_args=compile_args,
     )
 ]
 
