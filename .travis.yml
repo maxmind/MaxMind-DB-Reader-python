@@ -21,7 +21,7 @@ before_install:
   - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install unittest2; fi
 
 script:
-  - if [[ $TRAVIS_PYTHON_VERSION != 'pypy' ]]; then MAXMINDDB_PURE_PYTHON=0 CFLAGS="-Werror -Wall -Wextra -Wno-strict-aliasing" python setup.py test; fi
+  - if [[ $TRAVIS_PYTHON_VERSION != 'pypy' ]]; then MAXMINDDB_PURE_PYTHON=0 CFLAGS="-Werror -Wall -Wextra" python setup.py test; fi
   - MAXMINDDB_PURE_PYTHON=1 coverage run --source=maxminddb setup.py test
   - if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]]; then pylint --rcfile .pylintrc maxminddb/*.py; fi
 
