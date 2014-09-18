@@ -296,7 +296,7 @@ static void Metadata_dealloc(PyObject *self)
 static PyObject *from_entry_data_list(MMDB_entry_data_list_s **entry_data_list)
 {
     if (NULL == entry_data_list || NULL == *entry_data_list) {
-        PyErr_Format(
+        PyErr_SetString(
             MaxMindDB_error,
             "Error while looking up data. Your database may be corrupt or you have found a bug in libmaxminddb."
             );
@@ -439,8 +439,8 @@ static PyMethodDef Reader_methods[] = {
       "Get record for IP address" },
     { "metadata", Reader_metadata, METH_NOARGS,
       "Returns metadata object for database" },
-    { "close",    Reader_close,    METH_NOARGS,      "Closes database"      },
-    { NULL,       NULL,            0,                NULL                   }
+    { "close",    Reader_close,    METH_NOARGS, "Closes database"},
+    { NULL,       NULL,            0,           NULL        }
 };
 
 static PyTypeObject Reader_Type = {
