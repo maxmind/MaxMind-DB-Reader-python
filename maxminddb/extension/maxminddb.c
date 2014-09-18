@@ -72,6 +72,7 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *UNUSED(kwds))
 
     Reader_obj *mmdb_obj = (Reader_obj *)self;
     if (!mmdb_obj) {
+        free(mmdb);
         PyErr_NoMemory();
         return -1;
     }
@@ -145,12 +146,6 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
                      "Error while looking up data for %s. %s",
                      ip_address, MMDB_strerror(status));
         MMDB_free_entry_data_list(entry_data_list);
-        return NULL;
-    } else if (NULL == entry_data_list) {
-        PyErr_Format(
-            MaxMindDB_error,
-            "Error while looking up data for %s. Your database may be corrupt or you have found a bug in libmaxminddb.",
-            ip_address);
         return NULL;
     }
 
@@ -300,6 +295,14 @@ static void Metadata_dealloc(PyObject *self)
 
 static PyObject *from_entry_data_list(MMDB_entry_data_list_s **entry_data_list)
 {
+    if (NULL == entry_data_list || NULL == *entry_data_list) {
+        PyErr_Format(
+            MaxMindDB_error,
+            "Error while looking up data. Your database may be corrupt or you have found a bug in libmaxminddb."
+            );
+        return NULL;
+    }
+
     switch ((*entry_data_list)->entry_data.type) {
     case MMDB_DATA_TYPE_MAP:
         return from_map(entry_data_list);
