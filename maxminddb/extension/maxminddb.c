@@ -354,6 +354,9 @@ static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list)
     const uint32_t map_size = (*entry_data_list)->entry_data.data_size;
 
     uint i;
+    // entry_data_list cannot start out NULL (see from_entry_data_list). We
+    // check it in the loop because it may become NULL.
+    // coverity[check_after_deref]
     for (i = 0; i < map_size && entry_data_list; i++) {
         *entry_data_list = (*entry_data_list)->next;
 
@@ -389,6 +392,9 @@ static PyObject *from_array(MMDB_entry_data_list_s **entry_data_list)
     }
 
     uint i;
+    // entry_data_list cannot start out NULL (see from_entry_data_list). We
+    // check it in the loop because it may become NULL.
+    // coverity[check_after_deref]
     for (i = 0; i < size && entry_data_list; i++) {
         *entry_data_list = (*entry_data_list)->next;
         PyObject *value = from_entry_data_list(entry_data_list);
