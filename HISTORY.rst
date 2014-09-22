@@ -3,6 +3,16 @@
 History
 -------
 
+1.0.0 (2014-09-22)
+++++++++++++++++++
+
+* First production release.
+* Two potential C extension issues discovered by Coverity were fixed:
+  - There was a small resource leak that occurred when the system ran out of
+    memory.
+  - There was a theoretical null pointer issue that would occur only if
+    libmaxminddb returned invalid data.
+
 0.3.3 (2014-04-09)
 ++++++++++++++++++
 

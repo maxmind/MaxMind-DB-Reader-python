@@ -2,11 +2,6 @@
 MaxMind DB Python Module
 ========================
 
-Beta Note
----------
-This is a beta release. The API may change before the first production
-release.
-
 Description
 -----------
 
