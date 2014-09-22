@@ -34,3 +34,17 @@ notifications:
       - dev@maxmind.com
     on_success: change
     on_failure: always
+
+env:
+  global:
+   - secure: "pVcpV/al5Q607TbRzl/sbkdsx5hUjxehaJm6t5tgWrFn45icwdZrPw3JWcpt0R57NhPvXHxcJdm4WBtcGElWoDtR52QOW3yYh+gRw23y1MJg+5qHIbh5R1sOC/fLJ9TzQzvvRH5QQ5bKIe1hRQW9Cpqm7nX5Zhq6SqnAzcG1emE="
+
+addons:
+  coverity_scan:
+    project:
+      name: "maxmind/MaxMind-DB-Reader-python"
+      description: "Build submitted via Travis CI"
+    notification_email: dev@maxmind.com
+    build_command_prepend: "python setup.py clean"
+    build_command:   "python setup.py build"
+    branch_pattern: .*coverity.*

@@ -72,6 +72,7 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *UNUSED(kwds))
 
     Reader_obj *mmdb_obj = (Reader_obj *)self;
     if (!mmdb_obj) {
+        free(mmdb);
         PyErr_NoMemory();
         return -1;
     }
@@ -145,12 +146,6 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
                      "Error while looking up data for %s. %s",
                      ip_address, MMDB_strerror(status));
         MMDB_free_entry_data_list(entry_data_list);
-        return NULL;
-    } else if (NULL == entry_data_list) {
-        PyErr_Format(
-            MaxMindDB_error,
-            "Error while looking up data for %s. Your database may be corrupt or you have found a bug in libmaxminddb.",
-            ip_address);
         return NULL;
     }
 
@@ -300,6 +295,14 @@ static void Metadata_dealloc(PyObject *self)
 
 static PyObject *from_entry_data_list(MMDB_entry_data_list_s **entry_data_list)
 {
+    if (NULL == entry_data_list || NULL == *entry_data_list) {
+        PyErr_SetString(
+            MaxMindDB_error,
+            "Error while looking up data. Your database may be corrupt or you have found a bug in libmaxminddb."
+            );
+        return NULL;
+    }
+
     switch ((*entry_data_list)->entry_data.type) {
     case MMDB_DATA_TYPE_MAP:
         return from_map(entry_data_list);
@@ -351,6 +354,9 @@ static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list)
     const uint32_t map_size = (*entry_data_list)->entry_data.data_size;
 
     uint i;
+    // entry_data_list cannot start out NULL (see from_entry_data_list). We
+    // check it in the loop because it may become NULL.
+    // coverity[check_after_deref]
     for (i = 0; i < map_size && entry_data_list; i++) {
         *entry_data_list = (*entry_data_list)->next;
 
@@ -386,6 +392,9 @@ static PyObject *from_array(MMDB_entry_data_list_s **entry_data_list)
     }
 
     uint i;
+    // entry_data_list cannot start out NULL (see from_entry_data_list). We
+    // check it in the loop because it may become NULL.
+    // coverity[check_after_deref]
     for (i = 0; i < size && entry_data_list; i++) {
         *entry_data_list = (*entry_data_list)->next;
         PyObject *value = from_entry_data_list(entry_data_list);
@@ -436,8 +445,8 @@ static PyMethodDef Reader_methods[] = {
       "Get record for IP address" },
     { "metadata", Reader_metadata, METH_NOARGS,
       "Returns metadata object for database" },
-    { "close",    Reader_close,    METH_NOARGS,      "Closes database"      },
-    { NULL,       NULL,            0,                NULL                   }
+    { "close",    Reader_close,    METH_NOARGS, "Closes database"},
+    { NULL,       NULL,            0,           NULL        }
 };
 
 static PyTypeObject Reader_Type = {
