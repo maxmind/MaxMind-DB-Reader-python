@@ -15,7 +15,11 @@
 import sys
 import os
 
-__version__ = '0.2.1'
+sys.path.insert(0, os.path.abspath('..'))
+import maxminddb
+
+
+__version__ = maxminddb.__version__
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
