@@ -9,7 +9,8 @@ from __future__ import unicode_literals
 
 try:
     import mmap
-except:
+except ImportError:
+    # pylint: disable=invalid-name
     mmap = None
 
 import struct
