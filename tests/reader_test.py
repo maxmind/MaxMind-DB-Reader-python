@@ -163,7 +163,7 @@ class TestReader(unittest.TestCase):
         reader.close()
         self.assertRaisesRegex(ValueError,
                                'Attempt to read from a closed MaxMind DB.'
-                               '|closed or invalid',
+                               '|closed',
                                reader.get, ('1.1.1.1'))
 
     # XXX - Figure out whether we want to have the same behavior on both the

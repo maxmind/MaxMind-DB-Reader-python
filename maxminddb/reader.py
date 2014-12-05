@@ -7,12 +7,17 @@ This module contains the pure Python database reader and related classes.
 """
 from __future__ import unicode_literals
 
-import mmap
+try:
+    import mmap
+except:
+    mmap = None
+
 import struct
 
 from maxminddb.compat import byte_from_int, int_from_byte, ipaddress
 from maxminddb.decoder import Decoder
 from maxminddb.errors import InvalidDatabaseError
+from maxminddb.file import FileBuffer
 
 
 class Reader(object):
@@ -34,9 +39,12 @@ class Reader(object):
         database -- A path to a valid MaxMind DB file such as a GeoIP2
                     database file.
         """
-        with open(database, 'rb') as db_file:
-            self._buffer = mmap.mmap(
-                db_file.fileno(), 0, access=mmap.ACCESS_READ)
+        if mmap:
+            with open(database, 'rb') as db_file:
+                self._buffer = mmap.mmap(
+                    db_file.fileno(), 0, access=mmap.ACCESS_READ)
+        else:
+            self._buffer = FileBuffer(database)
 
         metadata_start = self._buffer.rfind(self._METADATA_START_MARKER,
                                             self._buffer.size() - 128 * 1024)
