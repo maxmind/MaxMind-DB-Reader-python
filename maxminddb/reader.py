@@ -6,8 +6,6 @@ This module contains the pure Python database reader and related classes.
 
 """
 from __future__ import unicode_literals
-
-import mmap
 import struct
 
 from maxminddb.compat import byte_from_int, int_from_byte, ipaddress
@@ -27,19 +25,27 @@ class Reader(object):
 
     _ipv4_start = None
 
-    def __init__(self, database):
+    def __init__(self, database, use_mmap=True):
         """Reader for the MaxMind DB file format
 
         Arguments:
         database -- A path to a valid MaxMind DB file such as a GeoIP2
                     database file.
+        use_mmap -- If True, uses mmap to load the database. If False,
+                    reads the entire database into memory
         """
         with open(database, 'rb') as db_file:
-            self._buffer = mmap.mmap(
-                db_file.fileno(), 0, access=mmap.ACCESS_READ)
+            if use_mmap:
+                import mmap
+                self._buffer = mmap.mmap(
+                    db_file.fileno(), 0, access=mmap.ACCESS_READ)
+                self._buffer_size = self._buffer.size()
+            else:
+                self._buffer = db_file.read()
+                self._buffer_size = len(self._buffer)
 
         metadata_start = self._buffer.rfind(self._METADATA_START_MARKER,
-                                            self._buffer.size() - 128 * 1024)
+                                            self._buffer_size - 128 * 1024)
 
         if metadata_start == -1:
             raise InvalidDatabaseError('Error opening database file ({0}). '
@@ -140,7 +146,7 @@ class Reader(object):
         resolved = pointer - self._metadata.node_count + \
             self._metadata.search_tree_size
 
-        if resolved > self._buffer.size():
+        if resolved > self._buffer_size:
             raise InvalidDatabaseError(
                 "The MaxMind DB file's search tree is corrupt")
 
