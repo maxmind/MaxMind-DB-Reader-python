@@ -4,6 +4,7 @@ import os
 try:
     if os.environ.get('MAXMINDDB_PURE_PYTHON') == '1':
         raise ImportError()
+    # pylint: disable=no-name-in-module
     from maxminddb.extension import Reader, InvalidDatabaseError
 except ImportError as import_error:
     if os.environ.get('MAXMINDDB_PURE_PYTHON') == '0':
