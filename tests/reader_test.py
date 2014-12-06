@@ -7,6 +7,11 @@ import sys
 
 import maxminddb
 
+try:
+    import maxminddb.extension
+except ImportError:
+    maxminddb.extension = None
+
 from maxminddb import open_database, InvalidDatabaseError
 from maxminddb.compat import FileNotFoundError
 from maxminddb.const import MODE_MMAP_EXT, MODE_MMAP, MODE_FILE, MODE_MEMORY
@@ -315,14 +320,12 @@ class BaseTestReader(object):
             self.assertIsNone(reader.get(ip))
 
 
-try:
-    import maxminddb.extension
+@unittest.skipUnless(maxminddb.extension, 'No C extension module found. Skipping tests')
+class TestExtensionReader(BaseTestReader, unittest.TestCase):
+    mode = MODE_MMAP_EXT
 
-    class TestExtensionReader(BaseTestReader, unittest.TestCase):
-        mode = MODE_MMAP_EXT
+    if maxminddb.extension:
         readerClass = [maxminddb.extension.Reader]
-except:
-    unittest.skip('No C extension module found. Skipping tests')
 
 
 class TestMMAPReader(BaseTestReader, unittest.TestCase):
