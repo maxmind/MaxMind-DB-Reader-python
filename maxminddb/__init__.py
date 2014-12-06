@@ -31,7 +31,7 @@ def open_database(database, mode=MODE_AUTO):
         return maxminddb.extension.Reader(database)
     elif mode in (MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY):
         return maxminddb.reader.Reader(database, mode)
-    raise ValueError('Unsupported open mode: {}', mode)
+    raise ValueError('Unsupported open mode: {0}'.format(mode))
 
 
 def Reader(database):  # pylint: disable=invalid-name
