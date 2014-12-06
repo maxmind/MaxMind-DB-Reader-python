@@ -5,6 +5,8 @@ from __future__ import unicode_literals
 
 import sys
 
+import maxminddb
+
 from maxminddb import open_database, InvalidDatabaseError
 from maxminddb.compat import FileNotFoundError
 from maxminddb.const import MODE_MMAP_EXT, MODE_MMAP, MODE_FILE, MODE_MEMORY

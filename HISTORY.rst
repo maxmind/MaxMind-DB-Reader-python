@@ -10,8 +10,10 @@ History
   addition to the existing memory-map mode. If your Python does not provide
   the ``mmap`` module, the file mode will be used by default.
 * The preferred method for opening a database is now the ``open_database``
-  function in ``maxminddb``. This function now takes an optional file
+  function in ``maxminddb``. This function now takes an optional read
   ``mode``.
+* The C extension no longer creates its own ``InvalidDatabaseError`` class
+  and instead uses the one defined in ``maxminddb.errors``.
 
 1.0.0 (2014-09-22)
 ++++++++++++++++++
