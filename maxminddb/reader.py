@@ -16,6 +16,7 @@ except ImportError:
 import struct
 
 from maxminddb.compat import byte_from_int, int_from_byte, ipaddress
+from maxminddb.const import MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY
 from maxminddb.decoder import Decoder
 from maxminddb.errors import InvalidDatabaseError
 from maxminddb.file import FileBuffer
@@ -33,24 +34,41 @@ class Reader(object):
 
     _ipv4_start = None
 
-    def __init__(self, database):
+    def __init__(self, database, mode=MODE_AUTO):
         """Reader for the MaxMind DB file format
 
         Arguments:
         database -- A path to a valid MaxMind DB file such as a GeoIP2
                     database file.
+        mode -- mode to open the database with. Valid mode are:
+            * MODE_MMAP - read from memory map.
+            * MODE_FILE - read database as standard file.
+            * MODE_MEMORY - load database into memory.
+            * MODE_AUTO - tries MODE_MMAP and then MODE_FILE. Default.
         """
-        if mmap:
+        if (mode == MODE_AUTO and mmap) or mode == MODE_MMAP:
             with open(database, 'rb') as db_file:
                 self._buffer = mmap.mmap(
                     db_file.fileno(), 0, access=mmap.ACCESS_READ)
-        else:
+                self._buffer_size = self._buffer.size()
+        elif mode in (MODE_AUTO, MODE_FILE):
             self._buffer = FileBuffer(database)
+            self._buffer_size = self._buffer.size()
+        elif mode == MODE_MEMORY:
+            with open(database, 'rb') as db_file:
+                self._buffer = db_file.read()
+                self._buffer_size = len(self._buffer)
+        else:
+            raise ValueError('Unsupported open mode ({0}). Only MODE_AUTO, '
+                             ' MODE_FILE, and MODE_MEMORY are support by the pure Python '
+                             'Reader'.format(mode))
 
         metadata_start = self._buffer.rfind(self._METADATA_START_MARKER,
-                                            self._buffer.size() - 128 * 1024)
+                                            max(0, self._buffer_size
+                                                - 128 * 1024))
 
         if metadata_start == -1:
+            self.close()
             raise InvalidDatabaseError('Error opening database file ({0}). '
                                        'Is this a valid MaxMind DB file?'
                                        ''.format(database))
@@ -149,7 +167,7 @@ class Reader(object):
         resolved = pointer - self._metadata.node_count + \
             self._metadata.search_tree_size
 
-        if resolved > self._buffer.size():
+        if resolved > self._buffer_size:
             raise InvalidDatabaseError(
                 "The MaxMind DB file's search tree is corrupt")
 
@@ -158,7 +176,8 @@ class Reader(object):
 
     def close(self):
         """Closes the MaxMind DB file and returns the resources to the system"""
-        self._buffer.close()
+        if type(self._buffer) not in (str, bytes):
+            self._buffer.close()
 
 
 class Metadata(object):

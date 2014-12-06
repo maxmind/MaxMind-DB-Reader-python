@@ -49,11 +49,20 @@ static PyObject *from_uint128(const MMDB_entry_data_list_s *entry_data_list);
     #  define UNUSED(x) UNUSED_ ## x
 #endif
 
-static int Reader_init(PyObject *self, PyObject *args, PyObject *UNUSED(kwds))
+static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds)
 {
     char *filename;
+    int mode = 0;
 
-    if (!PyArg_ParseTuple(args, "s", &filename)) {
+    static char *kwlist[] = {"database", "mode", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "s|i", kwlist, &filename, &mode)) {
+        return -1;
+    }
+
+    if (mode != 0 && mode != 1) {
+        PyErr_Format(PyExc_ValueError, "Unsupported open mode (%i). Only "
+            "MODE_AUTO and MODE_MMAP_EXT are supported by this extension.",
+            mode);
         return -1;
     }
 
@@ -540,13 +549,21 @@ MOD_INIT(extension){
     }
     PyModule_AddObject(m, "extension", (PyObject *)&Metadata_Type);
 
-    MaxMindDB_error = PyErr_NewException("extension.InvalidDatabaseError", NULL,
-                                         NULL);
+    PyObject* error_mod = PyImport_ImportModule("maxminddb.errors");
+    if (error_mod == NULL) {
+        RETURN_MOD_INIT(NULL);
+    }
+
+    MaxMindDB_error = PyObject_GetAttrString(error_mod, "InvalidDatabaseError");
+    Py_DECREF(error_mod);
+
     if (MaxMindDB_error == NULL) {
         RETURN_MOD_INIT(NULL);
     }
 
     Py_INCREF(MaxMindDB_error);
+
+    /* We primarily add it to the module for backwards compatibility */
     PyModule_AddObject(m, "InvalidDatabaseError", MaxMindDB_error);
 
     RETURN_MOD_INIT(m);

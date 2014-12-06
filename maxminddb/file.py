@@ -21,9 +21,8 @@ class FileBuffer(object):
         else:
             raise TypeError("Invalid argument type.")
 
-    def rfind(self, needle, beg):
-        """Reverse find needle from beg"""
-        start = max(0, beg)
+    def rfind(self, needle, start):
+        """Reverse find needle from start"""
         self._handle.seek(start)
         pos = self._handle.read(self._size - start - 1).rfind(needle)
         if pos == -1:
