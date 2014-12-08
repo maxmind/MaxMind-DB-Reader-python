@@ -36,7 +36,7 @@ def open_database(database, mode=MODE_AUTO):
 
 def Reader(database):  # pylint: disable=invalid-name
     """This exists for backwards compatibility. Use open_database instead"""
-    open_database(database)
+    return open_database(database)
 
 __title__ = 'maxminddb'
 __version__ = '1.0.0'

@@ -351,3 +351,14 @@ class TestFileReader(BaseTestReader, unittest.TestCase):
 class TestMemoryReader(BaseTestReader, unittest.TestCase):
     mode = MODE_MEMORY
     readerClass = [maxminddb.reader.Reader]
+
+
+class TestOldReader(unittest.TestCase):
+
+    def test_old_reader(self):
+        reader = maxminddb.Reader(
+            'tests/data/test-data/MaxMind-DB-test-decoder.mmdb')
+        record = reader.get('::1.1.1.0')
+
+        self.assertEqual(record['array'], [1, 2, 3])
+        reader.close()
