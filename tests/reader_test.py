@@ -14,7 +14,8 @@ except ImportError:
 
 from maxminddb import open_database, InvalidDatabaseError
 from maxminddb.compat import FileNotFoundError
-from maxminddb.const import MODE_MMAP_EXT, MODE_MMAP, MODE_FILE, MODE_MEMORY
+from maxminddb.const import (MODE_AUTO, MODE_MMAP_EXT, MODE_MMAP, MODE_FILE,
+                             MODE_MEMORY)
 
 if sys.version_info[:2] == (2, 6):
     import unittest2 as unittest
@@ -326,6 +327,15 @@ class TestExtensionReader(BaseTestReader, unittest.TestCase):
 
     if maxminddb.extension:
         readerClass = [maxminddb.extension.Reader]
+
+
+class TestMemoryReader(BaseTestReader, unittest.TestCase):
+    mode = MODE_AUTO
+
+    if maxminddb.extension:
+        readerClass = [maxminddb.extension.Reader]
+    else:
+        readerClass = [maxminddb.reader.Reader]
 
 
 class TestMMAPReader(BaseTestReader, unittest.TestCase):
