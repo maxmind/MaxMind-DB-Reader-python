@@ -40,13 +40,22 @@ provide `free GeoLite2 databases
 <http://dev.maxmind.com/geoip/geoip2/geolite2>`_. These files must be
 decompressed with ``gunzip``.
 
-After you have obtained a database and importing the module, you must create a
-``Reader`` object, providing the path to the file as the first argument to the
-constructor. After doing this, you may call the ``get`` method with an IP
-address on the object. This method will return the corresponding values for
-the IP address from the database (e.g., a dictionary for GeoIP2/GeoLite2
-databases). If the database does not contain a record for that IP address, the
-method will return ``None``.
+After you have obtained a database and importing the module, call
+``open_database`` with a path to the database as the first argument.
+Optionally, you may pass a mode as the second arguments. The modes are
+exported from ``maxminddb``. Valid modes are:
+
+* MODE_MMAP_EXT - use the C extension with memory map.
+* MODE_MMAP - read from memory map. Pure Python.
+* MODE_FILE - read database as standard file. Pure Python.
+* MODE_MEMORY - load database into memory. Pure Python.
+* MODE_AUTO - try MODE_MMAP_EXT, MODE_MMAP, MODE_FILE in that order. Default.
+
+The ``open_database`` function returns a ``Reader`` object. To look up an IP
+address, use the ``get`` method on this object. The method will return the
+corresponding values for the IP address from the database (e.g., a dictionary
+for GeoIP2/GeoLite2 databases). If the database does not contain a record for
+that IP address, the method will return ``None``.
 
 Example
 -------
@@ -55,12 +64,10 @@ Example
 
     >>> import maxminddb
     >>>
-    >>> reader = maxminddb.Reader('GeoLite2-City.mmdb')
+    >>> reader = maxminddb.open_database('GeoLite2-City.mmdb')
     >>> reader.get('1.1.1.1')
     {'country': ... }
     >>>
-    >>> # The optional 'close' method will release the resources to the
-    >>> # system immediately.
     >>> reader.close()
 
 Exceptions
