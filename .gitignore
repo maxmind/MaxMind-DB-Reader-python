@@ -1,8 +1,11 @@
+*.egg
 *.pyc
 *.so
 *.sw?
 *~
 .coverage
+.eggs
+.idea
 build
 core
 dist

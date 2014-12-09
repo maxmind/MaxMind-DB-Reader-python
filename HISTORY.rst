@@ -3,7 +3,7 @@
 History
 -------
 
-1.1.0 (2014-12-XX)
+1.1.0 (2014-12-09)
 ++++++++++++++++++
 
 * The pure Python reader now supports an optional file and memory mode in
