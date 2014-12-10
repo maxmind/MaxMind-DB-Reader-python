@@ -3,6 +3,14 @@
 History
 -------
 
+1.1.1 (2014-12-10)
+++++++++++++++++++
+
+* On Python 3 there was a potential issue where ``open_database`` with
+  ``MODE_AUTO`` would try to use the C extension when it was not available.
+  This could cause the function to fail rather than falling back to a pure
+  Python mode.
+
 1.1.0 (2014-12-09)
 ++++++++++++++++++
 
