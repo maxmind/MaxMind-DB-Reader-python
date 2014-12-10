@@ -3,6 +3,7 @@
 
 from __future__ import unicode_literals
 
+import os
 import sys
 
 import maxminddb
@@ -321,18 +322,24 @@ class BaseTestReader(object):
             self.assertIsNone(reader.get(ip))
 
 
-@unittest.skipUnless(maxminddb.extension, 'No C extension module found. Skipping tests')
+def has_maxminddb_extension():
+    return maxminddb.extension and hasattr(maxminddb.extension, 'Reader')
+
+
+@unittest.skipIf(not has_maxminddb_extension()
+                 and not os.environ.get('MM_FORCE_EXT_TESTS'),
+                 'No C extension module found. Skipping tests')
 class TestExtensionReader(BaseTestReader, unittest.TestCase):
     mode = MODE_MMAP_EXT
 
-    if maxminddb.extension:
+    if has_maxminddb_extension():
         readerClass = [maxminddb.extension.Reader]
 
 
-class TestMemoryReader(BaseTestReader, unittest.TestCase):
+class TestAutoReader(BaseTestReader, unittest.TestCase):
     mode = MODE_AUTO
 
-    if maxminddb.extension:
+    if has_maxminddb_extension():
         readerClass = [maxminddb.extension.Reader]
     else:
         readerClass = [maxminddb.reader.Reader]
