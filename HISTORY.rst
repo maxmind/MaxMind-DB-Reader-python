@@ -3,6 +3,12 @@
 History
 -------
 
+1.2.0 (2015-04-XX)
+++++++++++++++++++
+
+* An ``InvalidDatabaseError`` will now be thrown if the data type read from
+  the database is invalid. Previously a ``KeyError`` was thrown.
+
 1.1.1 (2014-12-10)
 ++++++++++++++++++
 
