@@ -6,6 +6,8 @@ History
 1.2.0 (2015-04-XX)
 ++++++++++++++++++
 
+* The ``Metadata`` class now overloads ``__repr__`` to provide a useful
+  representation of the contents when debugging.
 * An ``InvalidDatabaseError`` will now be thrown if the data type read from
   the database is invalid. Previously a ``KeyError`` was thrown.
 
