@@ -3,8 +3,12 @@
 
 from __future__ import unicode_literals
 
+import logging
 import os
 import sys
+import threading
+
+from multiprocessing import Process, Pipe
 
 import maxminddb
 
@@ -232,6 +236,43 @@ class BaseTestReader(object):
         else:
             self.assertIsNotNone(
                 metadata, 'pure Python implementation returns value')
+
+    def test_multiprocessing(self):
+        self._check_concurrency(Process)
+
+    def test_threading(self):
+        self._check_concurrency(threading.Thread)
+
+    def _check_concurrency(self, worker_class):
+        reader = open_database(
+            'tests/data/test-data/GeoIP2-Domain-Test.mmdb',
+            self.mode
+        )
+
+        def lookup(pipe):
+            try:
+                for i in range(32):
+                    reader.get('65.115.240.{i}'.format(i=i))
+                pipe.send(1)
+            except:
+                pipe.send(0)
+            finally:
+                if worker_class is Process:
+                    reader.close()
+                pipe.close()
+
+        pipes = [Pipe() for _ in range(32)]
+        procs = [worker_class(target=lookup, args=(c,)) for (p, c) in pipes]
+        for proc in procs:
+            proc.start()
+        for proc in procs:
+            proc.join()
+
+        reader.close()
+
+        count = sum([p.recv() for (p, c) in pipes])
+
+        self.assertEqual(count, 32, 'expected number of successful lookups')
 
     def _check_metadata(self, reader, ip_version, record_size):
         metadata = reader.metadata()
