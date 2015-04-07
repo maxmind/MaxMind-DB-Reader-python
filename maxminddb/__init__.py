@@ -29,7 +29,7 @@ def open_database(database, mode=MODE_AUTO):
     """
     if (mode == MODE_AUTO and maxminddb.extension and
             hasattr(maxminddb.extension, 'Reader')) or mode == MODE_MMAP_EXT:
-        return maxminddb.extension.Reader(database)
+        return maxminddb.extension.Reader(database, mode)
     elif mode in (MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY):
         return maxminddb.reader.Reader(database, mode)
     raise ValueError('Unsupported open mode: {0}'.format(mode))
