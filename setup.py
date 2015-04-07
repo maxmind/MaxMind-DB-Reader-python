@@ -137,7 +137,7 @@ def run_setup(with_cext):
         license=LICENSE,
         cmdclass=cmdclass,
         classifiers=(
-            'Development Status :: 3 - Alpha',
+            'Development Status :: 5 - Production/Stable',
             'Environment :: Web Environment',
             'Intended Audience :: Developers',
             'Intended Audience :: System Administrators',
@@ -146,6 +146,7 @@ def run_setup(with_cext):
             'Programming Language :: Python :: 2.7',
             'Programming Language :: Python :: 3',
             'Programming Language :: Python :: 3.3',
+            'Programming Language :: Python :: 3.4',
             'Programming Language :: Python',
             'Topic :: Internet :: Proxy Servers',
             'Topic :: Internet',

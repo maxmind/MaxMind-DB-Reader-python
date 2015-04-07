@@ -3,7 +3,7 @@
 History
 -------
 
-1.2.0 (2015-04-XX)
+1.2.0 (2015-04-07)
 ++++++++++++++++++
 
 * Previously if ``MODE_FILE`` was used and the database was loaded before
