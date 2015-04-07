@@ -12,6 +12,7 @@ static PyObject *MaxMindDB_error;
 typedef struct {
     PyObject_HEAD               /* no semicolon */
     MMDB_s *mmdb;
+    PyObject *mode;
 } Reader_obj;
 
 typedef struct {
@@ -25,6 +26,8 @@ typedef struct {
     PyObject *languages;
     PyObject *node_count;
     PyObject *record_size;
+    PyObject *mode_auto;
+    PyObject *mode;
 } Metadata_obj;
 
 static PyObject *from_entry_data_list(MMDB_entry_data_list_s **entry_data_list);
@@ -99,6 +102,7 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds)
     }
 
     mmdb_obj->mmdb = mmdb;
+    mmdb_obj->mode = PyInt_FromLong((long)mode);
     return 0;
 }
 
@@ -192,10 +196,14 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args))
         return NULL;
     }
 
+    Py_INCREF(mmdb_obj->mode);
+    PyDict_SetItemString(metadata_dict, "mode", mmdb_obj->mode);
+
     PyObject *metadata = PyObject_Call((PyObject *)&Metadata_Type, args,
                                        metadata_dict);
 
     Py_DECREF(metadata_dict);
+    Py_DECREF(mmdb_obj->mode);
     return metadata;
 }
 
@@ -225,6 +233,7 @@ static void Reader_dealloc(PyObject *self)
 static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds)
 {
 
+    int mode = 0;
     PyObject
     *binary_format_major_version,
     *binary_format_minor_version,
@@ -246,10 +255,11 @@ static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds)
         "languages",
         "node_count",
         "record_size",
+        "mode",
         NULL
     };
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOOOOOO", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOOOOOOi", kwlist,
                                      &binary_format_major_version,
                                      &binary_format_minor_version,
                                      &build_epoch,
@@ -258,7 +268,8 @@ static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds)
                                      &ip_version,
                                      &languages,
                                      &node_count,
-                                     &record_size)) {
+                                     &record_size,
+                                     &mode)) {
         return -1;
     }
 
@@ -273,6 +284,12 @@ static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds)
     obj->languages = languages;
     obj->node_count = node_count;
     obj->record_size = record_size;
+    if (mode == 0) {
+        obj->mode_auto = PyBool_FromLong(1);
+    } else {
+        obj->mode_auto = PyBool_FromLong(0);
+    }
+    obj->mode = PyString_FromString("MODE_MMAP_EXT");
 
     Py_INCREF(obj->binary_format_major_version);
     Py_INCREF(obj->binary_format_minor_version);
@@ -299,6 +316,8 @@ static void Metadata_dealloc(PyObject *self)
     Py_DECREF(obj->languages);
     Py_DECREF(obj->node_count);
     Py_DECREF(obj->record_size);
+    Py_DECREF(obj->mode_auto);
+    Py_DECREF(obj->mode);
     PyObject_Del(self);
 }
 
@@ -492,6 +511,10 @@ static PyMemberDef Metadata_members[] = {
     { "node_count", T_OBJECT, offsetof(Metadata_obj, node_count),
           READONLY, NULL },
     { "record_size", T_OBJECT, offsetof(Metadata_obj, record_size),
+          READONLY, NULL },
+    { "mode_auto", T_OBJECT, offsetof(Metadata_obj, mode_auto),
+          READONLY, NULL },
+    { "mode", T_OBJECT, offsetof(Metadata_obj, mode),
           READONLY, NULL },
     { NULL, 0, 0, 0, NULL }
 };
