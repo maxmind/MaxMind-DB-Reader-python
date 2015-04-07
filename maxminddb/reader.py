@@ -76,7 +76,8 @@ class Reader(object):
         metadata_start += len(self._METADATA_START_MARKER)
         metadata_decoder = Decoder(self._buffer, metadata_start)
         (metadata, _) = metadata_decoder.decode(metadata_start)
-        self._metadata = Metadata(**metadata)  # pylint: disable=star-args
+        self._metadata = Metadata(
+            **metadata)  # pylint: disable=bad-option-value
 
         self._decoder = Decoder(self._buffer, self._metadata.search_tree_size
                                 + self._DATA_SECTION_SEPARATOR_SIZE)
@@ -176,6 +177,7 @@ class Reader(object):
 
     def close(self):
         """Closes the MaxMind DB file and returns the resources to the system"""
+        # pylint: disable=unidiomatic-typecheck
         if type(self._buffer) not in (str, bytes):
             self._buffer.close()
 
@@ -210,3 +212,10 @@ class Metadata(object):
     def search_tree_size(self):
         """The size of the search tree"""
         return self.node_count * self.node_byte_size
+
+    def __repr__(self):
+        args = ', '.join('%s=%r' % x for x in self.__dict__.items())
+        return '{module}.{class_name}({data})'.format(
+            module=self.__module__,
+            class_name=self.__class__.__name__,
+            data=args)

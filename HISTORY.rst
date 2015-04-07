@@ -3,6 +3,22 @@
 History
 -------
 
+1.2.0 (2015-04-XX)
+++++++++++++++++++
+
+* Previously if ``MODE_FILE`` was used and the database was loaded before
+  forking, the parent and children would use the same file table entry without
+  locking causing errors reading the database due to the offset being changed
+  by other processes. In ``MODE_FILE``, the reader will now use ``os.pread``
+  when available and a lock when ``os.pread`` is not available (e.g., Python
+  2). If you are using ``MODE_FILE`` on a Python without ``os.pread``, it is
+  recommended that you open the database after forking to reduce resource
+  contention.
+* The ``Metadata`` class now overloads ``__repr__`` to provide a useful
+  representation of the contents when debugging.
+* An ``InvalidDatabaseError`` will now be thrown if the data type read from
+  the database is invalid. Previously a ``KeyError`` was thrown.
+
 1.1.1 (2014-12-10)
 ++++++++++++++++++
 
