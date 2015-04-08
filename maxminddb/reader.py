@@ -46,22 +46,22 @@ class Reader(object):
             * MODE_MEMORY - load database into memory.
             * MODE_AUTO - tries MODE_MMAP and then MODE_FILE. Default.
         """
-        metadata_mode_auto = mode == MODE_AUTO
+        self.mode_auto = mode == MODE_AUTO
         if (mode == MODE_AUTO and mmap) or mode == MODE_MMAP:
             with open(database, 'rb') as db_file:
                 self._buffer = mmap.mmap(
                     db_file.fileno(), 0, access=mmap.ACCESS_READ)
                 self._buffer_size = self._buffer.size()
-            metadata_mode = 'MODE_MMAP'
+            self.mode = 'MODE_MMAP'
         elif mode in (MODE_AUTO, MODE_FILE):
             self._buffer = FileBuffer(database)
             self._buffer_size = self._buffer.size()
-            metadata_mode = 'MODE_FILE'
+            self.mode = 'MODE_FILE'
         elif mode == MODE_MEMORY:
             with open(database, 'rb') as db_file:
                 self._buffer = db_file.read()
                 self._buffer_size = len(self._buffer)
-            metadata_mode = 'MODE_MEMORY'
+            self.mode = 'MODE_MEMORY'
         else:
             raise ValueError('Unsupported open mode ({0}). Only MODE_AUTO, '
                              ' MODE_FILE, and MODE_MEMORY are support by the pure Python '
@@ -80,8 +80,6 @@ class Reader(object):
         metadata_start += len(self._METADATA_START_MARKER)
         metadata_decoder = Decoder(self._buffer, metadata_start)
         (metadata, _) = metadata_decoder.decode(metadata_start)
-        metadata['mode_auto'] = metadata_mode_auto
-        metadata['mode'] = metadata_mode
         self._metadata = Metadata(**metadata)  # pylint: disable=star-args
 
         self._decoder = Decoder(self._buffer, self._metadata.search_tree_size
@@ -206,8 +204,6 @@ class Metadata(object):
             'binary_format_minor_version']
         self.build_epoch = kwargs['build_epoch']
         self.description = kwargs['description']
-        self.mode_auto = kwargs.get('mode_auto', None)
-        self.mode = kwargs.get('mode', None)
 
     @property
     def node_byte_size(self):
