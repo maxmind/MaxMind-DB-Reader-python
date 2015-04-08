@@ -12,6 +12,7 @@ static PyObject *MaxMindDB_error;
 typedef struct {
     PyObject_HEAD               /* no semicolon */
     MMDB_s *mmdb;
+    PyObject *mode_auto;
     PyObject *mode;
 } Reader_obj;
 
@@ -26,8 +27,6 @@ typedef struct {
     PyObject *languages;
     PyObject *node_count;
     PyObject *record_size;
-    PyObject *mode_auto;
-    PyObject *mode;
 } Metadata_obj;
 
 static PyObject *from_entry_data_list(MMDB_entry_data_list_s **entry_data_list);
@@ -102,7 +101,12 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds)
     }
 
     mmdb_obj->mmdb = mmdb;
-    mmdb_obj->mode = PyInt_FromLong((long)mode);
+    if (mode == 0) {
+        mmdb_obj->mode_auto = PyBool_FromLong(1);
+    } else {
+        mmdb_obj->mode_auto = PyBool_FromLong(0);
+    }
+    mmdb_obj->mode = PyString_FromString("MODE_MMAP_EXT");
     return 0;
 }
 
@@ -196,14 +200,10 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args))
         return NULL;
     }
 
-    Py_INCREF(mmdb_obj->mode);
-    PyDict_SetItemString(metadata_dict, "mode", mmdb_obj->mode);
-
     PyObject *metadata = PyObject_Call((PyObject *)&Metadata_Type, args,
                                        metadata_dict);
 
     Py_DECREF(metadata_dict);
-    Py_DECREF(mmdb_obj->mode);
     return metadata;
 }
 
@@ -227,13 +227,14 @@ static void Reader_dealloc(PyObject *self)
         Reader_close(self, NULL);
     }
 
+    Py_DECREF(obj->mode_auto);
+    Py_DECREF(obj->mode);
     PyObject_Del(self);
 }
 
 static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds)
 {
 
-    int mode = 0;
     PyObject
     *binary_format_major_version,
     *binary_format_minor_version,
@@ -255,11 +256,10 @@ static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds)
         "languages",
         "node_count",
         "record_size",
-        "mode",
         NULL
     };
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOOOOOOi", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOOOOOO", kwlist,
                                      &binary_format_major_version,
                                      &binary_format_minor_version,
                                      &build_epoch,
@@ -268,8 +268,7 @@ static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds)
                                      &ip_version,
                                      &languages,
                                      &node_count,
-                                     &record_size,
-                                     &mode)) {
+                                     &record_size)) {
         return -1;
     }
 
@@ -284,12 +283,6 @@ static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds)
     obj->languages = languages;
     obj->node_count = node_count;
     obj->record_size = record_size;
-    if (mode == 0) {
-        obj->mode_auto = PyBool_FromLong(1);
-    } else {
-        obj->mode_auto = PyBool_FromLong(0);
-    }
-    obj->mode = PyString_FromString("MODE_MMAP_EXT");
 
     Py_INCREF(obj->binary_format_major_version);
     Py_INCREF(obj->binary_format_minor_version);
@@ -316,8 +309,6 @@ static void Metadata_dealloc(PyObject *self)
     Py_DECREF(obj->languages);
     Py_DECREF(obj->node_count);
     Py_DECREF(obj->record_size);
-    Py_DECREF(obj->mode_auto);
-    Py_DECREF(obj->mode);
     PyObject_Del(self);
 }
 
@@ -477,12 +468,23 @@ static PyMethodDef Reader_methods[] = {
     { NULL,       NULL,            0,           NULL        }
 };
 
+/* *INDENT-OFF* */
+static PyMemberDef Reader_members[] = {
+    { "mode_auto", T_OBJECT, offsetof(Reader_obj, mode_auto),
+          READONLY, NULL },
+    { "mode", T_OBJECT, offsetof(Reader_obj, mode),
+          READONLY, NULL },
+    { NULL, 0, 0, 0, NULL }
+};
+/* *INDENT-ON* */
+
 static PyTypeObject Reader_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_basicsize = sizeof(Reader_obj),
     .tp_dealloc = Reader_dealloc,
     .tp_doc = "Reader object",
     .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_members = Reader_members,
     .tp_methods = Reader_methods,
     .tp_name = "Reader",
     .tp_init = Reader_init,
@@ -511,10 +513,6 @@ static PyMemberDef Metadata_members[] = {
     { "node_count", T_OBJECT, offsetof(Metadata_obj, node_count),
           READONLY, NULL },
     { "record_size", T_OBJECT, offsetof(Metadata_obj, record_size),
-          READONLY, NULL },
-    { "mode_auto", T_OBJECT, offsetof(Metadata_obj, mode_auto),
-          READONLY, NULL },
-    { "mode", T_OBJECT, offsetof(Metadata_obj, mode),
           READONLY, NULL },
     { NULL, 0, 0, 0, NULL }
 };
