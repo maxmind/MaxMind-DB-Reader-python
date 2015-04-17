@@ -126,7 +126,7 @@ def run_setup(with_cext):
         version=VERSION,
         author='Gregory Oschwald',
         author_email='goschwald@maxmind.com',
-        description='Python extension for reading the MaxMind DB format',
+        description='Reader for the MaxMind DB format',
         long_description=README,
         url='http://www.maxmind.com/',
         packages=find_packages('.'),
