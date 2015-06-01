@@ -12,6 +12,8 @@ static PyObject *MaxMindDB_error;
 typedef struct {
     PyObject_HEAD               /* no semicolon */
     MMDB_s *mmdb;
+    PyObject *mode_auto;
+    PyObject *mode;
 } Reader_obj;
 
 typedef struct {
@@ -99,6 +101,12 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds)
     }
 
     mmdb_obj->mmdb = mmdb;
+    if (mode == 0) {
+        mmdb_obj->mode_auto = PyBool_FromLong(1);
+    } else {
+        mmdb_obj->mode_auto = PyBool_FromLong(0);
+    }
+    mmdb_obj->mode = PyString_FromString("MODE_MMAP_EXT");
     return 0;
 }
 
@@ -219,6 +227,8 @@ static void Reader_dealloc(PyObject *self)
         Reader_close(self, NULL);
     }
 
+    Py_DECREF(obj->mode_auto);
+    Py_DECREF(obj->mode);
     PyObject_Del(self);
 }
 
@@ -458,12 +468,23 @@ static PyMethodDef Reader_methods[] = {
     { NULL,       NULL,            0,           NULL        }
 };
 
+/* *INDENT-OFF* */
+static PyMemberDef Reader_members[] = {
+    { "mode_auto", T_OBJECT, offsetof(Reader_obj, mode_auto),
+          READONLY, NULL },
+    { "mode", T_OBJECT, offsetof(Reader_obj, mode),
+          READONLY, NULL },
+    { NULL, 0, 0, 0, NULL }
+};
+/* *INDENT-ON* */
+
 static PyTypeObject Reader_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_basicsize = sizeof(Reader_obj),
     .tp_dealloc = Reader_dealloc,
     .tp_doc = "Reader object",
     .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_members = Reader_members,
     .tp_methods = Reader_methods,
     .tp_name = "Reader",
     .tp_init = Reader_init,
