@@ -3,6 +3,7 @@
 import os
 
 try:
+    # pylint: disable=no-name-in-module
     from multiprocessing import Lock
 except ImportError:
     from threading import Lock
