@@ -126,7 +126,7 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
         if not type_num:
             (type_num, new_offset) = self._read_extended(new_offset)
 
-        if not type_num in self._type_decoder:
+        if type_num not in self._type_decoder:
             raise InvalidDatabaseError('Unexpected type number ({type}) '
                                        'encountered'.format(type=type_num))
 
