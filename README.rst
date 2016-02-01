@@ -83,9 +83,6 @@ Requirements
 This code requires Python 2.6+ or 3.3+. The C extension requires CPython. The
 pure Python implementation has been tested with PyPy.
 
-On Python 2, the `ipaddr module <https://code.google.com/p/ipaddr-py/>`_ is
-required.
-
 Versioning
 ----------
 

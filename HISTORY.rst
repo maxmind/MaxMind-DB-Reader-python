@@ -3,6 +3,11 @@
 History
 -------
 
+1.2.1 (2016-XX-XX)
+++++++++++++++++++
+
+* The dependency on the ``ipaddr`` module for Python 2 has been removed.
+
 1.2.0 (2015-04-07)
 ++++++++++++++++++
 
