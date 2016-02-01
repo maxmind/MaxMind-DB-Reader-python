@@ -13,9 +13,10 @@ except ImportError:
     # pylint: disable=invalid-name
     mmap = None
 
+import socket
 import struct
 
-from maxminddb.compat import byte_from_int, int_from_byte, ipaddress
+from maxminddb.compat import byte_from_int, int_from_byte
 from maxminddb.const import MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY
 from maxminddb.decoder import Decoder
 from maxminddb.errors import InvalidDatabaseError
@@ -94,19 +95,26 @@ class Reader(object):
         Arguments:
         ip_address -- an IP address in the standard string notation
         """
-        address = ipaddress.ip_address(ip_address)
+        if ':' in ip_address:  # IPv6 address
+            family = socket.AF_INET6
+            if self._metadata.ip_version == 4:
+                raise ValueError('Error looking up {0}. You attempted to '
+                                 'look up an IPv6 address in an IPv4-only '
+                                 'database.'.format(ip_address))
+        else:  # IPv4 address
+            family = socket.AF_INET
 
-        if address.version == 6 and self._metadata.ip_version == 4:
-            raise ValueError('Error looking up {0}. You attempted to look up '
-                             'an IPv6 address in an IPv4-only database.'.format(
-                                 ip_address))
-        pointer = self._find_address_in_tree(address)
+        try:
+            packed = socket.inet_pton(family, ip_address)
+        except socket.error:
+            raise ValueError("'{0}' does not appear to be an IPv4 or IPv6 "
+                             'address'.format(ip_address))
+
+        pointer = self._find_address_in_tree(packed)
 
         return self._resolve_data_pointer(pointer) if pointer else None
 
-    def _find_address_in_tree(self, ip_address):
-        packed = ip_address.packed
-
+    def _find_address_in_tree(self, packed):
         bit_count = len(packed) * 8
         node = self._start_node(bit_count)
 

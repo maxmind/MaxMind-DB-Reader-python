@@ -18,11 +18,6 @@ except ImportError:
 cmdclass = {}
 PYPY = hasattr(sys, 'pypy_version_info')
 JYTHON = sys.platform.startswith('java')
-requirements = []
-
-if sys.version_info[0] == 2 or (sys.version_info[0] == 3
-                                and sys.version_info[1] < 3):
-    requirements.append('ipaddr')
 
 compile_args = ['-Wall', '-Wextra']
 
@@ -133,7 +128,6 @@ def run_setup(with_cext):
         package_data={'': ['LICENSE']},
         package_dir={'maxminddb': 'maxminddb'},
         include_package_data=True,
-        install_requires=requirements,
         tests_require=['nose'],
         test_suite='nose.collector',
         license=LICENSE,
@@ -149,6 +143,7 @@ def run_setup(with_cext):
             'Programming Language :: Python :: 3',
             'Programming Language :: Python :: 3.3',
             'Programming Language :: Python :: 3.4',
+            'Programming Language :: Python :: 3.5',
             'Programming Language :: Python',
             'Topic :: Internet :: Proxy Servers',
             'Topic :: Internet',
