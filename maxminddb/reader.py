@@ -15,7 +15,7 @@ except ImportError:
 
 import struct
 
-import ipaddress
+import ipaddress  # pylint:disable=F0401
 from maxminddb.compat import byte_from_int, int_from_byte
 from maxminddb.const import MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY
 from maxminddb.decoder import Decoder
