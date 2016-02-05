@@ -22,7 +22,7 @@ requirements = []
 
 if sys.version_info[0] == 2 or (sys.version_info[0] == 3
                                 and sys.version_info[1] < 3):
-    requirements.append('ipaddr')
+    requirements.append('ipaddress')
 
 compile_args = ['-Wall', '-Wextra']
 
