@@ -3,6 +3,12 @@
 History
 -------
 
+1.2.1 (2016-XX-XX)
+++++++++++++++++++
+
+* Removed ``requirements.txt` from `MANIFEST.in` in order to stop warning
+  during installation.
+
 1.2.0 (2015-04-07)
 ++++++++++++++++++
 
