@@ -14,9 +14,8 @@ except ImportError:
     mmap = None
 
 import struct
-import ipaddress
 
-from maxminddb.compat import byte_from_int, int_from_byte
+from maxminddb.compat import byte_from_int, int_from_byte, compat_ip_address
 from maxminddb.const import MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY
 from maxminddb.decoder import Decoder
 from maxminddb.errors import InvalidDatabaseError
@@ -47,7 +46,6 @@ class Reader(object):
             * MODE_MEMORY - load database into memory.
             * MODE_AUTO - tries MODE_MMAP and then MODE_FILE. Default.
         """
-        # pylint: disable=redefined-variable-type
         if (mode == MODE_AUTO and mmap) or mode == MODE_MMAP:
             with open(database, 'rb') as db_file:
                 self._buffer = mmap.mmap(
@@ -95,10 +93,8 @@ class Reader(object):
         Arguments:
         ip_address -- an IP address in the standard string notation
         """
-        if isinstance(ip_address, bytes):
-            ip_address = ip_address.decode()
 
-        address = ipaddress.ip_address(ip_address)
+        address = compat_ip_address(ip_address)
 
         if address.version == 6 and self._metadata.ip_version == 4:
             raise ValueError('Error looking up {0}. You attempted to look up '
