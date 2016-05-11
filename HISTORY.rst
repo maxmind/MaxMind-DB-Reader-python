@@ -6,6 +6,9 @@ History
 1.2.1 (2016-XX-XX)
 ++++++++++++++++++
 
+* This module now uses the ``ipaddress`` module for Python 2 rather than the
+  ``ipaddr`` module. Users should notice no behavior change beyond the change
+  in dependencies.
 * Removed ``requirements.txt` from `MANIFEST.in` in order to stop warning
   during installation.
 
