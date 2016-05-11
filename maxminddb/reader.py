@@ -95,6 +95,9 @@ class Reader(object):
         Arguments:
         ip_address -- an IP address in the standard string notation
         """
+        if isinstance(ip_address, bytes):
+            ip_address = ip_address.decode()
+
         address = ipaddress.ip_address(ip_address)
 
         if address.version == 6 and self._metadata.ip_version == 4:
