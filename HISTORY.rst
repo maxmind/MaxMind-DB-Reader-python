@@ -3,7 +3,7 @@
 History
 -------
 
-1.2.1 (2016-XX-XX)
+1.2.1 (2016-06-10)
 ++++++++++++++++++
 
 * This module now uses the ``ipaddress`` module for Python 2 rather than the
@@ -11,6 +11,7 @@ History
   in dependencies.
 * Removed ``requirements.txt` from `MANIFEST.in` in order to stop warning
   during installation.
+* Added missing test data.
 
 1.2.0 (2015-04-07)
 ++++++++++++++++++
