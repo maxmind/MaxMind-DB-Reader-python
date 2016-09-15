@@ -9,11 +9,7 @@ from distutils.command.build_ext import build_ext
 from distutils.errors import (CCompilerError, DistutilsExecError,
                               DistutilsPlatformError)
 
-try:
-    from setuptools import setup, Extension, Feature
-except ImportError:
-    from distutils.core import setup, Extension
-    Feature = None
+from setuptools import setup, Extension, Feature
 
 cmdclass = {}
 PYPY = hasattr(sys, 'pypy_version_info')
@@ -138,7 +134,7 @@ def run_setup(with_cext):
         test_suite='nose.collector',
         license=LICENSE,
         cmdclass=cmdclass,
-        classifiers=(
+        classifiers=[
             'Development Status :: 5 - Production/Stable',
             'Environment :: Web Environment',
             'Intended Audience :: Developers',
@@ -152,7 +148,7 @@ def run_setup(with_cext):
             'Programming Language :: Python',
             'Topic :: Internet :: Proxy Servers',
             'Topic :: Internet',
-        ),
+        ],
         **kwargs
     )
 
