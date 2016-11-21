@@ -3,6 +3,11 @@
 History
 -------
 
+1.2.2 (2016-11-21)
+++++++++++++++++++
+
+* Fix to the classifiers in ``setup.py``. No code changes.
+
 1.2.1 (2016-06-10)
 ++++++++++++++++++
 
