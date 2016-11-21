@@ -16,8 +16,8 @@ PYPY = hasattr(sys, 'pypy_version_info')
 JYTHON = sys.platform.startswith('java')
 requirements = []
 
-if sys.version_info[0] == 2 or (sys.version_info[0] == 3
-                                and sys.version_info[1] < 3):
+if sys.version_info[0] == 2 or (sys.version_info[0] == 3 and
+                                sys.version_info[1] < 3):
     requirements.append('ipaddress')
 
 compile_args = ['-Wall', '-Wextra']
@@ -25,14 +25,12 @@ compile_args = ['-Wall', '-Wextra']
 if sys.version_info[0] == 2:
     compile_args.append('-fno-strict-aliasing')
 
-
 ext_module = [
     Extension(
         'maxminddb.extension',
         libraries=['maxminddb'],
         sources=['maxminddb/extension/maxminddb.c'],
-        extra_compile_args=compile_args,
-    )
+        extra_compile_args=compile_args, )
 ]
 
 # Cargo cult code for installing extension with pure Python fallback.
@@ -41,11 +39,10 @@ ext_errors = (CCompilerError, DistutilsExecError, DistutilsPlatformError)
 if sys.platform == 'win32':
     # 2.6's distutils.msvc9compiler can raise an IOError when failing to
     # find the compiler
-    ext_errors += (IOError,)
+    ext_errors += (IOError, )
 
 
 class BuildFailed(Exception):
-
     def __init__(self):
         self.cause = sys.exc_info()[1]  # work around py 2/3 different syntax
 
@@ -70,6 +67,7 @@ class ve_build_ext(build_ext):
                 raise BuildFailed()
             raise
 
+
 cmdclass['build_ext'] = ve_build_ext
 
 #
@@ -81,10 +79,10 @@ with open(os.path.join(ROOT, 'README.rst'), 'rb') as fd:
 
 with open(os.path.join(ROOT, 'maxminddb', '__init__.py'), 'rb') as fd:
     maxminddb_text = fd.read().decode('utf8')
-    LICENSE = re.compile(
-        r".*__license__ = '(.*?)'", re.S).match(maxminddb_text).group(1)
-    VERSION = re.compile(
-        r".*__version__ = '(.*?)'", re.S).match(maxminddb_text).group(1)
+    LICENSE = re.compile(r".*__license__ = '(.*?)'",
+                         re.S).match(maxminddb_text).group(1)
+    VERSION = re.compile(r".*__version__ = '(.*?)'",
+                         re.S).match(maxminddb_text).group(1)
 
 
 def status_msgs(*msgs):
@@ -109,11 +107,12 @@ def run_setup(with_cext):
     kwargs = {}
     if with_cext:
         if Feature:
-            kwargs['features'] = {'extension': Feature(
-                "optional C implementation",
-                standard=True,
-                ext_modules=ext_module
-            )}
+            kwargs['features'] = {
+                'extension': Feature(
+                    "optional C implementation",
+                    standard=True,
+                    ext_modules=ext_module)
+            }
         else:
             kwargs['ext_modules'] = ext_module
 
@@ -145,35 +144,30 @@ def run_setup(with_cext):
             'Programming Language :: Python :: 3',
             'Programming Language :: Python :: 3.3',
             'Programming Language :: Python :: 3.4',
+            'Programming Language :: Python :: 3.5',
             'Programming Language :: Python',
             'Topic :: Internet :: Proxy Servers',
             'Topic :: Internet',
         ],
-        **kwargs
-    )
+        **kwargs)
+
 
 if PYPY or JYTHON:
     run_setup(False)
-    status_msgs(
-        "WARNING: Disabling C extension due to Python platform.",
-        "Plain-Python build succeeded."
-    )
+    status_msgs("WARNING: Disabling C extension due to Python platform.",
+                "Plain-Python build succeeded.")
 else:
     try:
         run_setup(True)
     except BuildFailed as exc:
-        status_msgs(
-            exc.cause,
-            "WARNING: The C extension could not be compiled, " +
-            "speedups are not enabled.",
-            "Failure information, if any, is above.",
-            "Retrying the build without the C extension now."
-        )
+        status_msgs(exc.cause,
+                    "WARNING: The C extension could not be compiled, " +
+                    "speedups are not enabled.",
+                    "Failure information, if any, is above.",
+                    "Retrying the build without the C extension now.")
 
         run_setup(False)
 
-        status_msgs(
-            "WARNING: The C extension could not be compiled, " +
-            "speedups are not enabled.",
-            "Plain-Python build succeeded."
-        )
+        status_msgs("WARNING: The C extension could not be compiled, " +
+                    "speedups are not enabled.",
+                    "Plain-Python build succeeded.")
