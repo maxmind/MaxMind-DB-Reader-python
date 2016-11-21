@@ -1,4 +1,5 @@
 *.egg
+*.iml
 *.pyc
 *.so
 *.sw?
