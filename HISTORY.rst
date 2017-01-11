@@ -3,13 +3,13 @@
 History
 -------
 
-1.2.3
+1.2.3 (2017-01-11)
 ++++++++++++++++++
 
 * Improve compatibility with other Python 2 ``ipaddress`` backports. Although
-  ```ipaddress`` <https://pypi.python.org/pypi/ipaddress/1.0.18>`_ is highly
-  recommended, ``py2-ipaddress`` should now work. Incompatibility reported by
-  John Zadroga. ``geoip2`` GitHub issue #41.
+  ``ipaddress`` is highly recommended, ``py2-ipaddress`` and
+  ``backport_ipaddress`` should now work. Incompatibility reported by
+  John Zadroga on ``geoip2`` GitHub issue #41.
 
 1.2.2 (2016-11-21)
 ++++++++++++++++++
