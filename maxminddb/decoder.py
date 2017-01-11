@@ -14,7 +14,6 @@ from maxminddb.errors import InvalidDatabaseError
 
 
 class Decoder(object):  # pylint: disable=too-few-public-methods
-
     """Decoder for the data section of the MaxMind DB"""
 
     def __init__(self, database_buffer, pointer_base=0, pointer_test=False):
@@ -55,8 +54,9 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
             packed_bytes = self._buffer[offset:new_offset]
             if pad:
                 packed_bytes = packed_bytes.rjust(type_size, b'\x00')
-            (value,) = struct.unpack(type_code, packed_bytes)
+            (value, ) = struct.unpack(type_code, packed_bytes)
             return value, new_offset
+
         return unpack_type
 
     def _decode_map(self, size, offset):
@@ -105,7 +105,8 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
         5: _decode_uint,  # uint16
         6: _decode_uint,  # uint32
         7: _decode_map,
-        8: _decode_packed_type(b'!i', 4, pad=True),  # int32
+        8: _decode_packed_type(
+            b'!i', 4, pad=True),  # int32
         9: _decode_uint,  # uint64
         10: _decode_uint,  # uint128
         11: _decode_array,
@@ -120,7 +121,7 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
         offset -- the location of the data structure to decode
         """
         new_offset = offset + 1
-        (ctrl_byte,) = struct.unpack(b'!B', self._buffer[offset:new_offset])
+        (ctrl_byte, ) = struct.unpack(b'!B', self._buffer[offset:new_offset])
         type_num = ctrl_byte >> 5
         # Extended type
         if not type_num:
@@ -130,12 +131,12 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
             raise InvalidDatabaseError('Unexpected type number ({type}) '
                                        'encountered'.format(type=type_num))
 
-        (size, new_offset) = self._size_from_ctrl_byte(
-            ctrl_byte, new_offset, type_num)
+        (size, new_offset) = self._size_from_ctrl_byte(ctrl_byte, new_offset,
+                                                       type_num)
         return self._type_decoder[type_num](self, size, new_offset)
 
     def _read_extended(self, offset):
-        (next_byte,) = struct.unpack(b'!B', self._buffer[offset:offset + 1])
+        (next_byte, ) = struct.unpack(b'!B', self._buffer[offset:offset + 1])
         type_num = next_byte + 7
         if type_num < 7:
             raise InvalidDatabaseError(
@@ -148,8 +149,7 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
         if expected != actual:
             raise InvalidDatabaseError(
                 'The MaxMind DB file\'s data section contains bad data '
-                '(unknown data type or corrupt data)'
-            )
+                '(unknown data type or corrupt data)')
 
     def _size_from_ctrl_byte(self, ctrl_byte, offset, type_num):
         size = ctrl_byte & 0x1f
@@ -167,7 +167,7 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
         elif size == 30:
             size = 285 + struct.unpack(b'!H', size_bytes)[0]
         elif size > 30:
-            size = struct.unpack(
-                b'!I', size_bytes.rjust(4, b'\x00'))[0] + 65821
+            size = struct.unpack(b'!I', size_bytes.rjust(4,
+                                                         b'\x00'))[0] + 65821
 
         return size, new_offset

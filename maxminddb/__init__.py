@@ -39,6 +39,7 @@ def Reader(database):  # pylint: disable=invalid-name
     """This exists for backwards compatibility. Use open_database instead"""
     return open_database(database)
 
+
 __title__ = 'maxminddb'
 __version__ = '1.2.2'
 __author__ = 'Gregory Oschwald'
