@@ -15,7 +15,7 @@ except ImportError:
 
 import struct
 
-from maxminddb.compat import byte_from_int, int_from_byte, compat_ip_address
+from maxminddb.compat import byte_from_int, compat_ip_address
 from maxminddb.const import MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY
 from maxminddb.decoder import Decoder
 from maxminddb.errors import InvalidDatabaseError
@@ -105,7 +105,7 @@ class Reader(object):
         return self._resolve_data_pointer(pointer) if pointer else None
 
     def _find_address_in_tree(self, ip_address):
-        packed = ip_address.packed
+        packed = bytearray(ip_address.packed)
 
         bit_count = len(packed) * 8
         node = self._start_node(bit_count)
@@ -113,7 +113,7 @@ class Reader(object):
         for i in range(bit_count):
             if node >= self._metadata.node_count:
                 break
-            bit = 1 & (int_from_byte(packed[i >> 3]) >> 7 - (i % 8))
+            bit = 1 & (packed[i >> 3] >> 7 - (i % 8))
             node = self._read_node(node, bit)
         if node == self._metadata.node_count:
             # Record is empty
