@@ -10,7 +10,6 @@ except ImportError:
 
 
 class FileBuffer(object):
-
     """A slice-able file reader"""
 
     def __init__(self, database):

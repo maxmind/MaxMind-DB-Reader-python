@@ -20,13 +20,11 @@ if sys.version_info[0] == 2:
 
 
 class TestDecoder(unittest.TestCase):
-
     def test_arrays(self):
         arrays = {
             b'\x00\x04': [],
             b'\x01\x04\x43\x46\x6f\x6f': ['Foo'],
-            b'\x02\x04\x43\x46\x6f\x6f\x43\xe4\xba\xba':
-            ['Foo', '人'],
+            b'\x02\x04\x43\x46\x6f\x6f\x43\xe4\xba\xba': ['Foo', '人'],
         }
         self.validate_type_decoding('arrays', arrays)
 
@@ -60,7 +58,8 @@ class TestDecoder(unittest.TestCase):
             b"\x04\x08\xBF\x80\x00\x00": -1.0,
             b"\x04\x08\xBF\x8C\xCC\xCD": -1.1,
             b"\x04\x08\xC0\x48\xF5\xC3": -3.14,
-            b"\x04\x08\xC6\x1C\x3F\xF6": -9999.99}
+            b"\x04\x08\xC6\x1C\x3F\xF6": -9999.99
+        }
         self.validate_type_decoding('float', floats)
 
     def test_int32(self):
@@ -83,15 +82,24 @@ class TestDecoder(unittest.TestCase):
     def test_map(self):
         maps = {
             b'\xe0': {},
-            b'\xe1\x42\x65\x6e\x43\x46\x6f\x6f': {'en': 'Foo'},
-            b'\xe2\x42\x65\x6e\x43\x46\x6f\x6f\x42\x7a\x68\x43\xe4\xba\xba':
-            {'en': 'Foo', 'zh': '人'},
+            b'\xe1\x42\x65\x6e\x43\x46\x6f\x6f': {
+                'en': 'Foo'
+            },
+            b'\xe2\x42\x65\x6e\x43\x46\x6f\x6f\x42\x7a\x68\x43\xe4\xba\xba': {
+                'en': 'Foo',
+                'zh': '人'
+            },
             (b'\xe1\x44\x6e\x61\x6d\x65\xe2\x42\x65\x6e'
-                b'\x43\x46\x6f\x6f\x42\x7a\x68\x43\xe4\xba\xba'):
-            {'name': {'en': 'Foo', 'zh': '人'}},
+             b'\x43\x46\x6f\x6f\x42\x7a\x68\x43\xe4\xba\xba'): {
+                 'name': {
+                     'en': 'Foo',
+                     'zh': '人'
+                 }
+             },
             (b'\xe1\x49\x6c\x61\x6e\x67\x75\x61\x67\x65\x73'
-                b'\x02\x04\x42\x65\x6e\x42\x7a\x68'):
-            {'languages': ['en', 'zh']},
+             b'\x02\x04\x42\x65\x6e\x42\x7a\x68'): {
+                 'languages': ['en', 'zh']
+             },
         }
         self.validate_type_decoding('maps', maps)
 
@@ -116,21 +124,21 @@ class TestDecoder(unittest.TestCase):
         b"\x41\x31": '1',
         b"\x43\xE4\xBA\xBA": '人',
         (b"\x5b\x31\x32\x33\x34"
-            b"\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35"
-            b"\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37"):
+         b"\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35"
+         b"\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37"):
         '123456789012345678901234567',
         (b"\x5c\x31\x32\x33\x34"
-            b"\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35"
-            b"\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36"
-            b"\x37\x38"): '1234567890123456789012345678',
+         b"\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35"
+         b"\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36"
+         b"\x37\x38"): '1234567890123456789012345678',
         (b"\x5d\x00\x31\x32\x33"
-            b"\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34"
-            b"\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35"
-            b"\x36\x37\x38\x39"): '12345678901234567890123456789',
+         b"\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34"
+         b"\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35"
+         b"\x36\x37\x38\x39"): '12345678901234567890123456789',
         (b"\x5d\x01\x31\x32\x33"
-            b"\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34"
-            b"\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35"
-            b"\x36\x37\x38\x39\x30"): '123456789012345678901234567890',
+         b"\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34"
+         b"\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35"
+         b"\x36\x37\x38\x39\x30"): '123456789012345678901234567890',
         b'\x5e\x00\xd7' + 500 * b'\x78': 'x' * 500,
         b'\x5e\x06\xb3' + 2000 * b'\x78': 'x' * 2000,
         b'\x5f\x00\x10\x53' + 70000 * b'\x78': 'x' * 70000,
@@ -142,8 +150,7 @@ class TestDecoder(unittest.TestCase):
     def test_byte(self):
         # Python 2.6 doesn't support dictionary comprehension
         b = dict((byte_from_int(0xc0 ^ int_from_byte(k[0])) + k[1:],
-                  v.encode('utf-8'))
-                 for k, v in self.strings.items())
+                  v.encode('utf-8')) for k, v in self.strings.items())
         self.validate_type_decoding('byte', b)
 
     def test_uint16(self):
@@ -176,7 +183,7 @@ class TestDecoder(unittest.TestCase):
             b'\x02' + ctrl_byte + b'\x2a\x78': 10872,
         }
         for power in range(bits // 8 + 1):
-            expected = 2 ** (8 * power) - 1
+            expected = 2**(8 * power) - 1
             input = byte_from_int(power) + ctrl_byte + (b'\xff' * power)
             uints[input] = expected
         return uints
@@ -198,7 +205,9 @@ class TestDecoder(unittest.TestCase):
         db.write(input)
 
         decoder = Decoder(db, pointer_test=True)
-        (actual, _,) = decoder.decode(0)
+        (
+            actual,
+            _, ) = decoder.decode(0)
 
         if type in ('float', 'double'):
             self.assertAlmostEqual(expected, actual, places=3, msg=type)
@@ -206,26 +215,33 @@ class TestDecoder(unittest.TestCase):
             self.assertEqual(expected, actual, type)
 
     def test_real_pointers(self):
-        with open('tests/data/test-data/maps-with-pointers.raw', 'r+b') as db_file:
+        with open('tests/data/test-data/maps-with-pointers.raw',
+                  'r+b') as db_file:
             mm = mmap.mmap(db_file.fileno(), 0)
             decoder = Decoder(mm, 0)
 
-            self.assertEqual(({'long_key': 'long_value1'}, 22),
-                             decoder.decode(0))
+            self.assertEqual(({
+                'long_key': 'long_value1'
+            }, 22), decoder.decode(0))
 
-            self.assertEqual(({'long_key': 'long_value2'}, 37),
-                             decoder.decode(22))
+            self.assertEqual(({
+                'long_key': 'long_value2'
+            }, 37), decoder.decode(22))
 
-            self.assertEqual(({'long_key2': 'long_value1'}, 50),
-                             decoder.decode(37))
+            self.assertEqual(({
+                'long_key2': 'long_value1'
+            }, 50), decoder.decode(37))
 
-            self.assertEqual(({'long_key2': 'long_value2'}, 55),
-                             decoder.decode(50))
+            self.assertEqual(({
+                'long_key2': 'long_value2'
+            }, 55), decoder.decode(50))
 
-            self.assertEqual(({'long_key': 'long_value1'}, 57),
-                             decoder.decode(55))
+            self.assertEqual(({
+                'long_key': 'long_value1'
+            }, 57), decoder.decode(55))
 
-            self.assertEqual(({'long_key2': 'long_value2'}, 59),
-                             decoder.decode(57))
+            self.assertEqual(({
+                'long_key2': 'long_value2'
+            }, 59), decoder.decode(57))
 
             mm.close()

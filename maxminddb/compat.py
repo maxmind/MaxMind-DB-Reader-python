@@ -5,6 +5,7 @@ import ipaddress
 # pylint: skip-file
 
 if sys.version_info[0] == 2:
+
     def compat_ip_address(address):
         if isinstance(address, bytes):
             address = address.decode()
@@ -21,6 +22,7 @@ if sys.version_info[0] == 2:
 
     byte_from_int = chr
 else:
+
     def compat_ip_address(address):
         return ipaddress.ip_address(address)
 
