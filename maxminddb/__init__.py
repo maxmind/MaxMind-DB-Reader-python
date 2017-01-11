@@ -41,7 +41,7 @@ def Reader(database):  # pylint: disable=invalid-name
 
 
 __title__ = 'maxminddb'
-__version__ = '1.2.2'
+__version__ = '1.2.3'
 __author__ = 'Gregory Oschwald'
 __license__ = 'Apache License, Version 2.0'
 __copyright__ = 'Copyright 2014 Maxmind, Inc.'
