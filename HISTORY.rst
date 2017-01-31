@@ -3,6 +3,9 @@
 History
 -------
 
+* Provide a more useful error message when ``MODE_MMAP_EXT`` is requested but
+  the C extension is not available.
+
 1.2.3 (2017-01-11)
 ++++++++++++++++++
 
