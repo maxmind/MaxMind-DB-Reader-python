@@ -94,6 +94,14 @@ class BaseTestReader(object):
             reader.get('2001::')
         reader.close()
 
+    def test_no_extension_exception(self):
+        real_extension = maxminddb.extension
+        maxminddb.extension = None
+        with self.assertRaisesRegex(ImportError, 'MODE_MMAP_EXT requires the maxminddb.extension module to be available'):
+            open_database(
+            'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', MODE_MMAP_EXT)
+        maxminddb.extension = real_extension
+
     def test_broken_database(self):
         reader = open_database('tests/data/test-data/'
                                'GeoIP2-City-Test-Broken-Double-Format.mmdb',
