@@ -97,7 +97,7 @@ class BaseTestReader(object):
     def test_no_extension_exception(self):
         real_extension = maxminddb.extension
         maxminddb.extension = None
-        with self.assertRaisesRegex(ImportError, 'MODE_MMAP_EXT requires the maxminddb.extension module to be available'):
+        with self.assertRaisesRegex(ValueError, 'MODE_MMAP_EXT requires the maxminddb.extension module to be available'):
             open_database(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', MODE_MMAP_EXT)
         maxminddb.extension = real_extension

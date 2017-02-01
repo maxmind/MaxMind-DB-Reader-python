@@ -30,7 +30,7 @@ def open_database(database, mode=MODE_AUTO):
     has_extension = maxminddb.extension and hasattr(maxminddb.extension, 'Reader')
     if (mode == MODE_AUTO and has_extension) or mode == MODE_MMAP_EXT:
         if not has_extension:
-            raise ImportError(
+            raise ValueError(
                 "MODE_MMAP_EXT requires the maxminddb.extension module to be available")
         return maxminddb.extension.Reader(database)
     elif mode in (MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY):
