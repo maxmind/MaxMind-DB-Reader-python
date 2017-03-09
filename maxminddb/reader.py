@@ -45,24 +45,29 @@ class Reader(object):
             * MODE_MEMORY - load database into memory.
             * MODE_AUTO - tries MODE_MMAP and then MODE_FILE. Default.
         """
-        # pylint: disable=redefined-variable-type
-        if (mode == MODE_AUTO and mmap) or mode == MODE_MMAP:
-            with open(database, 'rb') as db_file:
+        self.database = database
+        self.mode = mode
+        self.closed = False
+        self.open()
+
+    def open(self):
+        if (self.mode == MODE_AUTO and mmap) or self.mode == MODE_MMAP:
+            with open(self.database, 'rb') as db_file:
                 self._buffer = mmap.mmap(
                     db_file.fileno(), 0, access=mmap.ACCESS_READ)
                 self._buffer_size = self._buffer.size()
-        elif mode in (MODE_AUTO, MODE_FILE):
-            self._buffer = FileBuffer(database)
+        elif self.mode in (MODE_AUTO, MODE_FILE):
+            self._buffer = FileBuffer(self.database)
             self._buffer_size = self._buffer.size()
-        elif mode == MODE_MEMORY:
-            with open(database, 'rb') as db_file:
+        elif self.mode == MODE_MEMORY:
+            with open(self.database, 'rb') as db_file:
                 self._buffer = db_file.read()
                 self._buffer_size = len(self._buffer)
         else:
             raise ValueError(
                 'Unsupported open mode ({0}). Only MODE_AUTO, '
                 ' MODE_FILE, and MODE_MEMORY are support by the pure Python '
-                'Reader'.format(mode))
+                'Reader'.format(self.mode))
 
         metadata_start = self._buffer.rfind(
             self._METADATA_START_MARKER, max(0,
@@ -72,7 +77,7 @@ class Reader(object):
             self.close()
             raise InvalidDatabaseError('Error opening database file ({0}). '
                                        'Is this a valid MaxMind DB file?'
-                                       ''.format(database))
+                                       ''.format(self.database))
 
         metadata_start += len(self._METADATA_START_MARKER)
         metadata_decoder = Decoder(self._buffer, metadata_start)
@@ -81,6 +86,7 @@ class Reader(object):
 
         self._decoder = Decoder(self._buffer, self._metadata.search_tree_size +
                                 self._DATA_SECTION_SEPARATOR_SIZE)
+        self.closed = False
 
     def metadata(self):
         """Return the metadata associated with the MaxMind DB file"""
@@ -181,6 +187,15 @@ class Reader(object):
         # pylint: disable=unidiomatic-typecheck
         if type(self._buffer) not in (str, bytes):
             self._buffer.close()
+        self.closed = True 
+
+    def __exit__(self, *args):
+        self.close()
+
+    def __enter__(self):
+        if self.closed:
+            self.open()
+        return self
 
 
 class Metadata(object):
