@@ -201,6 +201,33 @@ class BaseTestReader(object):
                                'Attempt to read from a closed MaxMind DB.'
                                '|closed', reader.get, ('1.1.1.1'))
 
+    def test_with_statement(self):
+        filename = 'tests/data/test-data/MaxMind-DB-test-ipv4-24.mmdb'
+        with open_database(filename, self.mode) as reader:
+            self._check_ip_v4(reader, filename)
+        self.assertEqual(reader.closed, True)
+
+    def test_with_statement_close(self):
+        filename = 'tests/data/test-data/MaxMind-DB-test-ipv4-24.mmdb'
+        reader = open_database(filename, self.mode)
+        reader.close()
+
+        def use_with(reader):
+            with reader:
+                pass
+
+        self.assertRaisesRegex(ValueError, 'Attempt to reopen a closed MaxMind DB',
+                               use_with, reader)
+
+
+    def test_closed(self):
+        reader = open_database(
+            'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', self.mode)
+        self.assertEqual(reader.closed, False)
+        reader.close()
+        self.assertEqual(reader.closed, True)
+
+
     # XXX - Figure out whether we want to have the same behavior on both the
     #       extension and the pure Python reader. If we do, the pure Python
     #       reader will need to throw an exception or the extension will need

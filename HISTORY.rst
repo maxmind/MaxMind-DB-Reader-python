@@ -3,6 +3,11 @@
 History
 -------
 
+1.3.0
++++++++++++++++++
+
+* ``maxminddb.Reader`` and the C extension now support being used in a context
+  manager. Pull request by Joakim Uddholm. GitHub #21 & #28.
 * Provide a more useful error message when ``MODE_MMAP_EXT`` is requested but
   the C extension is not available.
 

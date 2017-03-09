@@ -12,6 +12,7 @@ static PyObject *MaxMindDB_error;
 typedef struct {
     PyObject_HEAD               /* no semicolon */
     MMDB_s *mmdb;
+    PyObject *closed;
 } Reader_obj;
 
 typedef struct {
@@ -99,6 +100,7 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds)
     }
 
     mmdb_obj->mmdb = mmdb;
+    mmdb_obj->closed = Py_False;
     return 0;
 }
 
@@ -209,6 +211,28 @@ static PyObject *Reader_close(PyObject *self, PyObject *UNUSED(args))
         mmdb_obj->mmdb = NULL;
     }
 
+    mmdb_obj->closed = Py_True;
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *Reader__enter__(PyObject *self, PyObject *UNUSED(args))
+{
+    Reader_obj *mmdb_obj = (Reader_obj *)self;
+
+    if(mmdb_obj->closed == Py_True) {
+        PyErr_SetString(PyExc_ValueError,
+                        "Attempt to reopen a closed MaxMind DB.");
+        return NULL;
+    }
+
+    Py_INCREF(self);
+    return (PyObject *)self;
+}
+
+static PyObject *Reader__exit__(PyObject *self, PyObject *UNUSED(args))
+{
+    Reader_close(self, NULL);
     Py_RETURN_NONE;
 }
 
@@ -455,7 +479,14 @@ static PyMethodDef Reader_methods[] = {
     { "metadata", Reader_metadata, METH_NOARGS,
       "Returns metadata object for database" },
     { "close",    Reader_close,    METH_NOARGS, "Closes database"},
+    { "__exit__", Reader__exit__, METH_VARARGS, "Called when exiting a with-context. Calls close"},
+    { "__enter__", Reader__enter__, METH_NOARGS, "Called when entering a with-context."},
     { NULL,       NULL,            0,           NULL        }
+};
+
+static PyMemberDef Reader_members[] = {
+    { "closed", T_OBJECT, offsetof(Reader_obj, closed), READONLY, NULL },
+    { NULL, 0, 0, 0, NULL }
 };
 
 static PyTypeObject Reader_Type = {
@@ -465,6 +496,7 @@ static PyTypeObject Reader_Type = {
     .tp_doc = "Reader object",
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_methods = Reader_methods,
+    .tp_members = Reader_members,
     .tp_name = "Reader",
     .tp_init = Reader_init,
 };
