@@ -181,7 +181,7 @@ class Reader(object):
         # pylint: disable=unidiomatic-typecheck
         if type(self._buffer) not in (str, bytes):
             self._buffer.close()
-        self.closed = True 
+        self.closed = True
 
     def __exit__(self, *args):
         self.close()
