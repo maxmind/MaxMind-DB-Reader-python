@@ -211,10 +211,13 @@ class BaseTestReader(object):
         filename = 'tests/data/test-data/MaxMind-DB-test-ipv4-24.mmdb'
         reader = open_database(filename, self.mode)
         reader.close()
-        with reader:
-            self.assertEqual(reader.closed, False)
-            self._check_ip_v4(reader, filename)
-        self.assertEqual(reader.closed, True)
+
+        def use_with(reader):
+            with reader:
+                pass
+        
+        self.assertRaisesRegex(ValueError, 'Attempt to reopen a closed MaxMind DB',
+                               use_with, reader)
             
 
     def test_closed(self):
