@@ -45,7 +45,6 @@ class Reader(object):
             * MODE_MEMORY - load database into memory.
             * MODE_AUTO - tries MODE_MMAP and then MODE_FILE. Default.
         """
-        # pylint: disable=redefined-variable-type
         if (mode == MODE_AUTO and mmap) or mode == MODE_MMAP:
             with open(database, 'rb') as db_file:
                 self._buffer = mmap.mmap(
@@ -81,6 +80,7 @@ class Reader(object):
 
         self._decoder = Decoder(self._buffer, self._metadata.search_tree_size +
                                 self._DATA_SECTION_SEPARATOR_SIZE)
+        self.closed = False
 
     def metadata(self):
         """Return the metadata associated with the MaxMind DB file"""
@@ -181,6 +181,15 @@ class Reader(object):
         # pylint: disable=unidiomatic-typecheck
         if type(self._buffer) not in (str, bytes):
             self._buffer.close()
+        self.closed = True
+
+    def __exit__(self, *args):
+        self.close()
+
+    def __enter__(self):
+        if self.closed:
+            raise ValueError('Attempt to reopen a closed MaxMind DB')
+        return self
 
 
 class Metadata(object):
