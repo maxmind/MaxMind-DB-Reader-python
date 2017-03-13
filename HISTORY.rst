@@ -3,8 +3,8 @@
 History
 -------
 
-1.3.0
-+++++++++++++++++
+1.3.0 (2017-03-13)
+++++++++++++++++++
 
 * ``maxminddb.Reader`` and the C extension now support being used in a context
   manager. Pull request by Joakim Uddholm. GitHub #21 & #28.
