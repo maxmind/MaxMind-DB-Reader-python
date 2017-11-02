@@ -50,7 +50,7 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
         def unpack_type(self, size, offset):
             if not pad:
                 self._verify_size(size, type_size)
-            new_offset = offset + type_size
+            new_offset = offset + size
             packed_bytes = self._buffer[offset:new_offset]
             if pad:
                 packed_bytes = packed_bytes.rjust(type_size, b'\x00')

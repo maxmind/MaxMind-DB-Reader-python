@@ -3,6 +3,10 @@
 History
 -------
 
+* Fix issue where incorrect size was used when unpacking some types with the
+  pure Python reader. Reported by Lee Symes. GitHub #30.
+
+
 1.3.0 (2017-03-13)
 ++++++++++++++++++
 
