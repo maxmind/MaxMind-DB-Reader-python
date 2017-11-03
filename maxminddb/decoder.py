@@ -50,7 +50,7 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
         def unpack_type(self, size, offset):
             if not pad:
                 self._verify_size(size, type_size)
-            new_offset = offset + type_size
+            new_offset = offset + size
             packed_bytes = self._buffer[offset:new_offset]
             if pad:
                 packed_bytes = packed_bytes.rjust(type_size, b'\x00')
@@ -105,8 +105,7 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
         5: _decode_uint,  # uint16
         6: _decode_uint,  # uint32
         7: _decode_map,
-        8: _decode_packed_type(
-            b'!i', 4, pad=True),  # int32
+        8: _decode_packed_type(b'!i', 4, pad=True),  # int32
         9: _decode_uint,  # uint64
         10: _decode_uint,  # uint128
         11: _decode_array,

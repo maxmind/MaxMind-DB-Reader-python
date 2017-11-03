@@ -16,8 +16,8 @@ PYPY = hasattr(sys, 'pypy_version_info')
 JYTHON = sys.platform.startswith('java')
 requirements = []
 
-if sys.version_info[0] == 2 or (sys.version_info[0] == 3 and
-                                sys.version_info[1] < 3):
+if sys.version_info[0] == 2 or (sys.version_info[0] == 3
+                                and sys.version_info[1] < 3):
     requirements.append('ipaddress')
 
 compile_args = ['-Wall', '-Wextra']
@@ -30,7 +30,8 @@ ext_module = [
         'maxminddb.extension',
         libraries=['maxminddb'],
         sources=['maxminddb/extension/maxminddb.c'],
-        extra_compile_args=compile_args, )
+        extra_compile_args=compile_args,
+    )
 ]
 
 # Cargo cult code for installing extension with pure Python fallback.
@@ -95,8 +96,8 @@ def status_msgs(*msgs):
 def find_packages(location):
     packages = []
     for pkg in ['maxminddb']:
-        for _dir, subdirectories, files in (
-                os.walk(os.path.join(location, pkg))):
+        for _dir, subdirectories, files in (os.walk(
+                os.path.join(location, pkg))):
             if '__init__.py' in files:
                 tokens = _dir.split(os.sep)[len(location.split(os.sep)):]
                 packages.append(".".join(tokens))
@@ -108,7 +109,8 @@ def run_setup(with_cext):
     if with_cext:
         if Feature:
             kwargs['features'] = {
-                'extension': Feature(
+                'extension':
+                Feature(
                     "optional C implementation",
                     standard=True,
                     ext_modules=ext_module)

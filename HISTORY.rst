@@ -3,6 +3,20 @@
 History
 -------
 
+1.4.0
+++++++++++++++++++
+
+* IMPORTANT: Previously, the pure Python reader would allow
+  `ipaddress.IPv4Address` and `ipaddress.IPv6Address` objects when calling
+  `.get()`. This would fail with the C extension. The fact that these objects
+  worked at all was an implementation detail and has varied with different
+  releases. This release makes the pure Python implementation consistent
+  with the extension. A `TypeError` will now be thrown if you attempt to
+  use these types with either the pure Python implementation or the
+  extension. The IP address passed to `.get()` should be a string type.
+* Fix issue where incorrect size was used when unpacking some types with the
+  pure Python reader. Reported by Lee Symes. GitHub #30.
+
 1.3.0 (2017-03-13)
 ++++++++++++++++++
 
