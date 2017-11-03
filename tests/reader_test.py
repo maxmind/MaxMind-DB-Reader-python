@@ -12,6 +12,8 @@ from multiprocessing import Process, Pipe
 
 import maxminddb
 
+from maxminddb.compat import compat_ip_address
+
 try:
     import maxminddb.extension
 except ImportError:
@@ -104,6 +106,14 @@ class BaseTestReader(object):
             open_database('tests/data/test-data/MaxMind-DB-test-decoder.mmdb',
                           MODE_MMAP_EXT)
         maxminddb.extension = real_extension
+
+    def test_ip_object_lookup(self):
+        reader = open_database('tests/data/test-data/GeoIP2-City-Test.mmdb',
+                               self.mode)
+        with self.assertRaisesRegex(
+                TypeError, "must be str(?:ing)?, not IPv6Address"):
+            reader.get(compat_ip_address('2001:220::'))
+        reader.close()
 
     def test_broken_database(self):
         reader = open_database('tests/data/test-data/'

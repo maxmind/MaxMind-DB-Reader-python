@@ -15,7 +15,8 @@ except ImportError:
 
 import struct
 
-from maxminddb.compat import byte_from_int, compat_ip_address
+from maxminddb.compat import (byte_from_int, compat_ip_address, string_type,
+                              string_type_name)
 from maxminddb.const import MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY
 from maxminddb.decoder import Decoder
 from maxminddb.errors import InvalidDatabaseError
@@ -93,6 +94,9 @@ class Reader(object):
         Arguments:
         ip_address -- an IP address in the standard string notation
         """
+        if not isinstance(ip_address, string_type):
+            raise TypeError('argument 1 must be %s, not %s' %
+                            (string_type_name, type(ip_address).__name__))
 
         address = compat_ip_address(ip_address)
 
