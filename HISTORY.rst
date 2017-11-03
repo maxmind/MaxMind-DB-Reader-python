@@ -9,7 +9,7 @@ History
 * IMPORTANT: Previously, the pure Python reader would allow
   `ipaddress.IPv4Address` and `ipaddress.IPv6Address` objects when calling
   `.get()`. This would fail with the C extension. The fact that these objects
-  worked at all was an implementation details and has varied with different
+  worked at all was an implementation detail and has varied with different
   releases. This release makes the pure Python implementation consistent
   with the extension. A `TypeError` will now be thrown if you attempt to
   use these types with either the pure Python implementation or the
