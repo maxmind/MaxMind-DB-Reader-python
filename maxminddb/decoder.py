@@ -105,8 +105,7 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
         5: _decode_uint,  # uint16
         6: _decode_uint,  # uint32
         7: _decode_map,
-        8: _decode_packed_type(
-            b'!i', 4, pad=True),  # int32
+        8: _decode_packed_type(b'!i', 4, pad=True),  # int32
         9: _decode_uint,  # uint64
         10: _decode_uint,  # uint128
         11: _decode_array,

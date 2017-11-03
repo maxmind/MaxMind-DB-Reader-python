@@ -91,15 +91,15 @@ class TestDecoder(unittest.TestCase):
             },
             (b'\xe1\x44\x6e\x61\x6d\x65\xe2\x42\x65\x6e'
              b'\x43\x46\x6f\x6f\x42\x7a\x68\x43\xe4\xba\xba'): {
-                 'name': {
-                     'en': 'Foo',
-                     'zh': '人'
-                 }
-             },
+                'name': {
+                    'en': 'Foo',
+                    'zh': '人'
+                }
+            },
             (b'\xe1\x49\x6c\x61\x6e\x67\x75\x61\x67\x65\x73'
              b'\x02\x04\x42\x65\x6e\x42\x7a\x68'): {
-                 'languages': ['en', 'zh']
-             },
+                'languages': ['en', 'zh']
+            },
         }
         self.validate_type_decoding('maps', maps)
 
@@ -120,9 +120,12 @@ class TestDecoder(unittest.TestCase):
         self.validate_type_decoding('pointers', pointers)
 
     strings = {
-        b"\x40": '',
-        b"\x41\x31": '1',
-        b"\x43\xE4\xBA\xBA": '人',
+        b"\x40":
+        '',
+        b"\x41\x31":
+        '1',
+        b"\x43\xE4\xBA\xBA":
+        '人',
         (b"\x5b\x31\x32\x33\x34"
          b"\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35"
          b"\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37"):
@@ -130,18 +133,24 @@ class TestDecoder(unittest.TestCase):
         (b"\x5c\x31\x32\x33\x34"
          b"\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35"
          b"\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36"
-         b"\x37\x38"): '1234567890123456789012345678',
+         b"\x37\x38"):
+        '1234567890123456789012345678',
         (b"\x5d\x00\x31\x32\x33"
          b"\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34"
          b"\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35"
-         b"\x36\x37\x38\x39"): '12345678901234567890123456789',
+         b"\x36\x37\x38\x39"):
+        '12345678901234567890123456789',
         (b"\x5d\x01\x31\x32\x33"
          b"\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34"
          b"\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35"
-         b"\x36\x37\x38\x39\x30"): '123456789012345678901234567890',
-        b'\x5e\x00\xd7' + 500 * b'\x78': 'x' * 500,
-        b'\x5e\x06\xb3' + 2000 * b'\x78': 'x' * 2000,
-        b'\x5f\x00\x10\x53' + 70000 * b'\x78': 'x' * 70000,
+         b"\x36\x37\x38\x39\x30"):
+        '123456789012345678901234567890',
+        b'\x5e\x00\xd7' + 500 * b'\x78':
+        'x' * 500,
+        b'\x5e\x06\xb3' + 2000 * b'\x78':
+        'x' * 2000,
+        b'\x5f\x00\x10\x53' + 70000 * b'\x78':
+        'x' * 70000,
     }
 
     def test_string(self):
@@ -149,8 +158,8 @@ class TestDecoder(unittest.TestCase):
 
     def test_byte(self):
         # Python 2.6 doesn't support dictionary comprehension
-        b = dict((byte_from_int(0xc0 ^ int_from_byte(k[0])) + k[1:],
-                  v.encode('utf-8')) for k, v in self.strings.items())
+        b = dict((byte_from_int(0xc0 ^ int_from_byte(k[0])) + k[1:], v.encode(
+            'utf-8')) for k, v in self.strings.items())
         self.validate_type_decoding('byte', b)
 
     def test_uint16(self):
@@ -207,7 +216,8 @@ class TestDecoder(unittest.TestCase):
         decoder = Decoder(db, pointer_test=True)
         (
             actual,
-            _, ) = decoder.decode(0)
+            _,
+        ) = decoder.decode(0)
 
         if type in ('float', 'double'):
             self.assertAlmostEqual(expected, actual, places=3, msg=type)

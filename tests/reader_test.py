@@ -97,9 +97,12 @@ class BaseTestReader(object):
     def test_no_extension_exception(self):
         real_extension = maxminddb.extension
         maxminddb.extension = None
-        with self.assertRaisesRegex(ValueError, 'MODE_MMAP_EXT requires the maxminddb.extension module to be available'):
-            open_database(
-            'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', MODE_MMAP_EXT)
+        with self.assertRaisesRegex(
+                ValueError,
+                'MODE_MMAP_EXT requires the maxminddb.extension module to be available'
+        ):
+            open_database('tests/data/test-data/MaxMind-DB-test-decoder.mmdb',
+                          MODE_MMAP_EXT)
         maxminddb.extension = real_extension
 
     def test_broken_database(self):
@@ -216,9 +219,9 @@ class BaseTestReader(object):
             with reader:
                 pass
 
-        self.assertRaisesRegex(ValueError, 'Attempt to reopen a closed MaxMind DB',
+        self.assertRaisesRegex(ValueError,
+                               'Attempt to reopen a closed MaxMind DB',
                                use_with, reader)
-
 
     def test_closed(self):
         reader = open_database(
@@ -226,7 +229,6 @@ class BaseTestReader(object):
         self.assertEqual(reader.closed, False)
         reader.close()
         self.assertEqual(reader.closed, True)
-
 
     # XXX - Figure out whether we want to have the same behavior on both the
     #       extension and the pure Python reader. If we do, the pure Python
@@ -379,8 +381,8 @@ def has_maxminddb_extension():
     return maxminddb.extension and hasattr(maxminddb.extension, 'Reader')
 
 
-@unittest.skipIf(not has_maxminddb_extension() and
-                 not os.environ.get('MM_FORCE_EXT_TESTS'),
+@unittest.skipIf(not has_maxminddb_extension()
+                 and not os.environ.get('MM_FORCE_EXT_TESTS'),
                  'No C extension module found. Skipping tests')
 class TestExtensionReader(BaseTestReader, unittest.TestCase):
     mode = MODE_MMAP_EXT

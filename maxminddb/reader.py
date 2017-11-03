@@ -155,14 +155,13 @@ class Reader(object):
             else:
                 middle = (0xF0 & middle) >> 4
             offset = base_offset + index * 4
-            node_bytes = byte_from_int(middle) + self._buffer[offset:offset +
-                                                              3]
+            node_bytes = byte_from_int(middle) + self._buffer[offset:offset + 3]
         elif record_size == 32:
             offset = base_offset + index * 4
             node_bytes = self._buffer[offset:offset + 4]
         else:
-            raise InvalidDatabaseError('Unknown record size: {0}'.format(
-                record_size))
+            raise InvalidDatabaseError(
+                'Unknown record size: {0}'.format(record_size))
         return struct.unpack(b'!I', node_bytes)[0]
 
     def _resolve_data_pointer(self, pointer):
