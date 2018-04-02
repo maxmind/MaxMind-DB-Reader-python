@@ -42,7 +42,7 @@ decompressed with ``gunzip``.
 
 After you have obtained a database and importing the module, call
 ``open_database`` with a path to the database as the first argument.
-Optionally, you may pass a mode as the second arguments. The modes are
+Optionally, you may pass a mode as the second argument. The modes are
 exported from ``maxminddb``. Valid modes are:
 
 * MODE_MMAP_EXT - use the C extension with memory map.
