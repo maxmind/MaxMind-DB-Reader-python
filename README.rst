@@ -53,8 +53,8 @@ second argument. The modes are exported from ``maxminddb``. Valid modes are:
 * MODE_AUTO - try MODE_MMAP_EXT, MODE_MMAP, MODE_FILE in that order. Default.
 
 **NOTE**: When using ``MODE_FD``, it is the *caller's* responsibility to be
-sure that the file descriptor gets closed properly, even though this module
-*may* close it after the ``Reader`` object is created.
+sure that the file descriptor gets closed properly. The caller may close the
+file descriptor immediately after the ``Reader`` object is created.
 
 The ``open_database`` function returns a ``Reader`` object. To look up an IP
 address, use the ``get`` method on this object. The method will return the
