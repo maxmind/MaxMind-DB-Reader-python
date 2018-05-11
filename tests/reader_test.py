@@ -38,7 +38,7 @@ if sys.version_info[0] == 2:
 def get_reader_from_file_descriptor(filepath, mode):
     """Patches open_database() for class TestFDReader()."""
     if mode == MODE_FD:
-        with open(filepath) as mmdb_fh:
+        with open(filepath, 'rb') as mmdb_fh:
             return maxminddb.open_database(mmdb_fh, mode)
     else:
         # There are a few cases where mode is statically defined in
