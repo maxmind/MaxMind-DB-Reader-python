@@ -40,16 +40,21 @@ provide `free GeoLite2 databases
 <http://dev.maxmind.com/geoip/geoip2/geolite2>`_. These files must be
 decompressed with ``gunzip``.
 
-After you have obtained a database and importing the module, call
-``open_database`` with a path to the database as the first argument.
-Optionally, you may pass a mode as the second argument. The modes are
-exported from ``maxminddb``. Valid modes are:
+After you have obtained a database and imported the module, call
+``open_database`` with a path, or file descriptor (in the case of MODE_FD),
+to the database as the first argument. Optionally, you may pass a mode as the
+second argument. The modes are exported from ``maxminddb``. Valid modes are:
 
 * MODE_MMAP_EXT - use the C extension with memory map.
 * MODE_MMAP - read from memory map. Pure Python.
 * MODE_FILE - read database as standard file. Pure Python.
 * MODE_MEMORY - load database into memory. Pure Python.
+* MODE_FD - load database into memory from a file descriptor. Pure Python.
 * MODE_AUTO - try MODE_MMAP_EXT, MODE_MMAP, MODE_FILE in that order. Default.
+
+**NOTE**: When using ``MODE_FD``, it is the *caller's* responsibility to be
+sure that the file descriptor gets closed properly, even though this module
+*may* close it after the ``Reader`` object is created.
 
 The ``open_database`` function returns a ``Reader`` object. To look up an IP
 address, use the ``get`` method on this object. The method will return the

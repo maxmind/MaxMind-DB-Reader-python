@@ -17,7 +17,7 @@ import struct
 
 from maxminddb.compat import (byte_from_int, compat_ip_address, string_type,
                               string_type_name)
-from maxminddb.const import MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY
+from maxminddb.const import MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY, MODE_FD
 from maxminddb.decoder import Decoder
 from maxminddb.errors import InvalidDatabaseError
 from maxminddb.file import FileBuffer
@@ -38,30 +38,39 @@ class Reader(object):
         """Reader for the MaxMind DB file format
 
         Arguments:
-        database -- A path to a valid MaxMind DB file such as a GeoIP2
-                    database file.
+        database -- A path to a valid MaxMind DB file such as a GeoIP2 database
+                    file, or a file descriptor in the case of MODE_FD.
         mode -- mode to open the database with. Valid mode are:
             * MODE_MMAP - read from memory map.
             * MODE_FILE - read database as standard file.
             * MODE_MEMORY - load database into memory.
             * MODE_AUTO - tries MODE_MMAP and then MODE_FILE. Default.
+            * MODE_FD - the param passed via database is a file descriptor, not
+                        a path. This mode implies MODE_MEMORY.
         """
         if (mode == MODE_AUTO and mmap) or mode == MODE_MMAP:
             with open(database, 'rb') as db_file:
                 self._buffer = mmap.mmap(
                     db_file.fileno(), 0, access=mmap.ACCESS_READ)
                 self._buffer_size = self._buffer.size()
+            filename = database
         elif mode in (MODE_AUTO, MODE_FILE):
             self._buffer = FileBuffer(database)
             self._buffer_size = self._buffer.size()
+            filename = database
         elif mode == MODE_MEMORY:
             with open(database, 'rb') as db_file:
                 self._buffer = db_file.read()
                 self._buffer_size = len(self._buffer)
+            filename = database
+        elif mode == MODE_FD:
+            self._buffer = database.read()
+            self._buffer_size = len(self._buffer)
+            filename = database.name
         else:
             raise ValueError(
-                'Unsupported open mode ({0}). Only MODE_AUTO, '
-                ' MODE_FILE, and MODE_MEMORY are support by the pure Python '
+                'Unsupported open mode ({0}). Only MODE_AUTO, MODE_FILE, '
+                'MODE_MEMORY and MODE_FD are supported by the pure Python '
                 'Reader'.format(mode))
 
         metadata_start = self._buffer.rfind(
@@ -72,7 +81,7 @@ class Reader(object):
             self.close()
             raise InvalidDatabaseError('Error opening database file ({0}). '
                                        'Is this a valid MaxMind DB file?'
-                                       ''.format(database))
+                                       ''.format(filename))
 
         metadata_start += len(self._METADATA_START_MARKER)
         metadata_decoder = Decoder(self._buffer, metadata_start)
