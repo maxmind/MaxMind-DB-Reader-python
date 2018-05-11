@@ -16,6 +16,10 @@ History
   extension. The IP address passed to `.get()` should be a string type.
 * Fix issue where incorrect size was used when unpacking some types with the
   pure Python reader. Reported by Lee Symes. GitHub #30.
+* You may now pass in the database via a file descriptor rather than a file
+  name when creating a new ``maxminddb.Reader`` object using ``MODE_FD``.
+  This will read the database from the file descriptor into memory. Pull
+  request by nkinkade. GitHub #33.
 
 1.3.0 (2017-03-13)
 ++++++++++++++++++
