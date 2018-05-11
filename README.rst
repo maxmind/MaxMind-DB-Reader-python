@@ -49,6 +49,7 @@ exported from ``maxminddb``. Valid modes are:
 * MODE_MMAP - read from memory map. Pure Python.
 * MODE_FILE - read database as standard file. Pure Python.
 * MODE_MEMORY - load database into memory. Pure Python.
+* MODE_FD - load database into memory from a file descriptor. Pure Python.
 * MODE_AUTO - try MODE_MMAP_EXT, MODE_MMAP, MODE_FILE in that order. Default.
 
 The ``open_database`` function returns a ``Reader`` object. To look up an IP

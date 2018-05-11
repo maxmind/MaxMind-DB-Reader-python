@@ -4,6 +4,7 @@
 from __future__ import unicode_literals
 
 import logging
+import mock
 import os
 import sys
 import threading
@@ -22,7 +23,7 @@ except ImportError:
 from maxminddb import open_database, InvalidDatabaseError
 from maxminddb.compat import FileNotFoundError
 from maxminddb.const import (MODE_AUTO, MODE_MMAP_EXT, MODE_MMAP, MODE_FILE,
-                             MODE_MEMORY)
+                             MODE_MEMORY, MODE_FD)
 
 if sys.version_info[:2] == (2, 6):
     import unittest2 as unittest
@@ -32,6 +33,18 @@ else:
 if sys.version_info[0] == 2:
     unittest.TestCase.assertRaisesRegex = unittest.TestCase.assertRaisesRegexp
     unittest.TestCase.assertRegex = unittest.TestCase.assertRegexpMatches
+
+
+def get_reader_from_file_descriptor(filepath, mode):
+    """Patches open_database() for class TestFDReader()."""
+    if mode == MODE_FD:
+        with open(filepath) as mmdb_fh:
+            return maxminddb.open_database(mmdb_fh, mode)
+    else:
+        # There are a few cases where mode is statically defined in
+        # BaseTestReader(). In those cases just call an unpatched
+        # open_database() with a string path.
+        return maxminddb.open_database(filepath, mode)
 
 
 class BaseTestReader(object):
@@ -205,7 +218,7 @@ class BaseTestReader(object):
                           'Double close does not throw an exception')
 
     def test_closed_get(self):
-        if self.mode == MODE_MEMORY:
+        if self.mode in [MODE_MEMORY, MODE_FD]:
             return
         reader = open_database(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', self.mode)
@@ -422,6 +435,17 @@ class TestFileReader(BaseTestReader, unittest.TestCase):
 
 class TestMemoryReader(BaseTestReader, unittest.TestCase):
     mode = MODE_MEMORY
+    readerClass = [maxminddb.reader.Reader]
+
+
+class TestFDReader(BaseTestReader, unittest.TestCase):
+    def setUp(self):
+        self.open_database_patcher = mock.patch('reader_test.open_database')
+        self.addCleanup(self.open_database_patcher.stop)
+        self.open_database = self.open_database_patcher.start()
+        self.open_database.side_effect = get_reader_from_file_descriptor
+
+    mode = MODE_FD
     readerClass = [maxminddb.reader.Reader]
 
 
