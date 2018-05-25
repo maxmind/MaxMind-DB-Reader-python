@@ -205,7 +205,68 @@ class Reader(object):
 
 
 class Metadata(object):
-    """Metadata for the MaxMind DB reader"""
+    """Metadata for the MaxMind DB reader
+
+
+    .. attribute:: binary_format_major_version
+
+      The major version number of the binary format used when creating the
+      database.
+
+      :type: int
+
+    .. attribute:: binary_format_minor_version
+
+      The minor version number of the binary format used when creating the
+      database.
+
+      :type: int
+
+    .. attribute:: build_epoch
+
+      The Unix epoch for the build time of the database.
+
+      :type: int
+
+    .. attribute:: database_type
+
+      A string identifying the database type, e.g., "GeoIP2-City".
+
+      :type: str
+
+    .. attribute:: description
+
+      A map from locales to text descriptions of the database.
+
+      :type: dict(str, str)
+
+    .. attribute:: ip_version
+
+      The IP version of the data in a database. A value of "4" means the
+      database only supports IPv4. A database with a value of "6" may support
+      both IPv4 and IPv6 lookups.
+
+      :type: int
+
+    .. attribute:: languages
+
+      A list of locale codes supported by the databse.
+
+      :type: list(str)
+
+    .. attribute:: node_count
+
+      The number of nodes in the database.
+
+      :type: int
+
+    .. attribute:: record_size
+
+      The bit size of a record in the search tree.
+
+      :type: int
+
+    """
 
     # pylint: disable=too-many-instance-attributes
     def __init__(self, **kwargs):
@@ -226,12 +287,18 @@ class Metadata(object):
 
     @property
     def node_byte_size(self):
-        """The size of a node in bytes"""
+        """The size of a node in bytes
+
+        :type: int
+        """
         return self.record_size // 4
 
     @property
     def search_tree_size(self):
-        """The size of the search tree"""
+        """The size of the search tree
+
+        :type: int
+        """
         return self.node_count * self.node_byte_size
 
     def __repr__(self):

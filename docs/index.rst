@@ -8,6 +8,25 @@
 
 .. include:: ../README.rst
 
+=======
+Modules
+=======
+
+.. automodule:: maxminddb
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+.. automodule:: maxminddb.errors
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+.. automodule:: maxminddb.reader
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 ==================
 Indices and tables
 ==================
@@ -16,6 +35,6 @@ Indices and tables
 * :ref:`modindex`
 * :ref:`search`
 
-:copyright: (c) 2014 by MaxMind, Inc.
+:copyright: (c) 2013-2018 by MaxMind, Inc.
 :license: Apache License, Version 2.0
 
