@@ -3,7 +3,7 @@
 History
 -------
 
-1.4.0
+1.4.0 (2018-05-25)
 ++++++++++++++++++
 
 * IMPORTANT: Previously, the pure Python reader would allow
