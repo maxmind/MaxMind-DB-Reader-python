@@ -3,7 +3,7 @@
 History
 -------
 
-1.4.1
+1.4.1 (2018-06-22)
 ++++++++++++++++++
 
 * Fix test failure on Python 3.7. Reported by Carl George. GitHub #35.
