@@ -175,7 +175,10 @@ class BaseTestReader(object):
         cls = self.readerClass[0]
         self.assertRaisesRegex(
             TypeError,
-            ' 1 required positional argument|\(pos 1\) not found|takes at least 2 arguments',
+            ' 1 required positional argument|'
+            '\(pos 1\) not found|'
+            'takes at least 2 arguments|'
+            'function missing required argument \'database\' \(pos 1\)',
             cls)
 
     def test_too_many_get_args(self):
