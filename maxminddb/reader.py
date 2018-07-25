@@ -88,8 +88,9 @@ class Reader(object):
         (metadata, _) = metadata_decoder.decode(metadata_start)
         self._metadata = Metadata(**metadata)  # pylint: disable=bad-option-value
 
-        self._decoder = Decoder(self._buffer, self._metadata.search_tree_size +
-                                self._DATA_SECTION_SEPARATOR_SIZE)
+        self._decoder = Decoder(
+            self._buffer, self._metadata.search_tree_size +
+            self._DATA_SECTION_SEPARATOR_SIZE)
         self.closed = False
 
     def metadata(self):
@@ -168,7 +169,8 @@ class Reader(object):
             else:
                 middle = (0xF0 & middle) >> 4
             offset = base_offset + index * 4
-            node_bytes = byte_from_int(middle) + self._buffer[offset:offset + 3]
+            node_bytes = byte_from_int(middle) + self._buffer[offset:offset +
+                                                              3]
         elif record_size == 32:
             offset = base_offset + index * 4
             node_bytes = self._buffer[offset:offset + 4]

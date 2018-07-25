@@ -158,8 +158,8 @@ class TestDecoder(unittest.TestCase):
 
     def test_byte(self):
         # Python 2.6 doesn't support dictionary comprehension
-        b = dict((byte_from_int(0xc0 ^ int_from_byte(k[0])) + k[1:], v.encode(
-            'utf-8')) for k, v in self.strings.items())
+        b = dict((byte_from_int(0xc0 ^ int_from_byte(k[0])) + k[1:],
+                  v.encode('utf-8')) for k, v in self.strings.items())
         self.validate_type_decoding('byte', b)
 
     def test_uint16(self):
