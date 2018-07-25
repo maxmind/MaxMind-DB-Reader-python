@@ -134,9 +134,9 @@ class BaseTestReader(object):
             'tests/data/test-data/'
             'GeoIP2-City-Test-Broken-Double-Format.mmdb', self.mode)
         with self.assertRaisesRegex(
-                InvalidDatabaseError, "The MaxMind DB file's data "
-                "section contains bad data \(unknown data "
-                "type or corrupt data\)"):
+                InvalidDatabaseError, r"The MaxMind DB file's data "
+                r"section contains bad data \(unknown data "
+                r"type or corrupt data\)"):
             reader.get('2001:220::')
         reader.close()
 
@@ -156,8 +156,8 @@ class BaseTestReader(object):
     def test_nondatabase(self):
         self.assertRaisesRegex(
             InvalidDatabaseError,
-            'Error opening database file \(README.rst\). '
-            'Is this a valid MaxMind DB file\?', open_database, 'README.rst',
+            r'Error opening database file \(README.rst\). '
+            r'Is this a valid MaxMind DB file\?', open_database, 'README.rst',
             self.mode)
 
     def test_too_many_constructor_args(self):
@@ -168,7 +168,7 @@ class BaseTestReader(object):
         cls = self.readerClass[0]
         self.assertRaisesRegex(
             ValueError,
-            'Unsupported open mode \(100\)',
+            r'Unsupported open mode \(100\)',
             cls,
             'README.md',
             mode=100)
@@ -176,10 +176,10 @@ class BaseTestReader(object):
     def test_no_constructor_args(self):
         cls = self.readerClass[0]
         self.assertRaisesRegex(
-            TypeError, ' 1 required positional argument|'
-            '\(pos 1\) not found|'
-            'takes at least 2 arguments|'
-            'function missing required argument \'database\' \(pos 1\)', cls)
+            TypeError, r' 1 required positional argument|'
+            r'\(pos 1\) not found|'
+            r'takes at least 2 arguments|'
+            r'function missing required argument \'database\' \(pos 1\)', cls)
 
     def test_too_many_get_args(self):
         reader = open_database(
