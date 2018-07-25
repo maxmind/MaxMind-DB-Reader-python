@@ -21,10 +21,9 @@ class FileBuffer(object):
     def __getitem__(self, key):
         if isinstance(key, slice):
             return self._read(key.stop - key.start, key.start)
-        elif isinstance(key, int):
+        if isinstance(key, int):
             return self._read(1, key)
-        else:
-            raise TypeError("Invalid argument type.")
+        raise TypeError("Invalid argument type.")
 
     def rfind(self, needle, start):
         """Reverse find needle from start"""

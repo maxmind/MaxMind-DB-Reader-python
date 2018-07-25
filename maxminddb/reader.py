@@ -132,7 +132,7 @@ class Reader(object):
         if node == self._metadata.node_count:
             # Record is empty
             return 0
-        elif node > self._metadata.node_count:
+        if node > self._metadata.node_count:
             return node
 
         raise InvalidDatabaseError('Invalid node in search tree')
