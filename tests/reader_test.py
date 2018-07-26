@@ -103,9 +103,10 @@ class BaseTestReader(object):
     def test_ipv6_address_in_ipv4_database(self):
         reader = open_database(
             'tests/data/test-data/MaxMind-DB-test-ipv4-24.mmdb', self.mode)
-        with self.assertRaisesRegex(ValueError, 'Error looking up 2001::. '
-                                    'You attempted to look up an IPv6 address '
-                                    'in an IPv4-only database'):
+        with self.assertRaisesRegex(
+                ValueError, 'Error looking up 2001::. '
+                'You attempted to look up an IPv6 address '
+                'in an IPv4-only database'):
             reader.get('2001::')
         reader.close()
 
@@ -123,28 +124,28 @@ class BaseTestReader(object):
     def test_ip_object_lookup(self):
         reader = open_database('tests/data/test-data/GeoIP2-City-Test.mmdb',
                                self.mode)
-        with self.assertRaisesRegex(
-                TypeError, "must be str(?:ing)?, not IPv6Address"):
+        with self.assertRaisesRegex(TypeError,
+                                    "must be str(?:ing)?, not IPv6Address"):
             reader.get(compat_ip_address('2001:220::'))
         reader.close()
 
     def test_broken_database(self):
-        reader = open_database('tests/data/test-data/'
-                               'GeoIP2-City-Test-Broken-Double-Format.mmdb',
-                               self.mode)
-        with self.assertRaisesRegex(InvalidDatabaseError,
-                                    "The MaxMind DB file's data "
-                                    "section contains bad data \(unknown data "
-                                    "type or corrupt data\)"):
+        reader = open_database(
+            'tests/data/test-data/'
+            'GeoIP2-City-Test-Broken-Double-Format.mmdb', self.mode)
+        with self.assertRaisesRegex(
+                InvalidDatabaseError, r"The MaxMind DB file's data "
+                r"section contains bad data \(unknown data "
+                r"type or corrupt data\)"):
             reader.get('2001:220::')
         reader.close()
 
     def test_ip_validation(self):
         reader = open_database(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', self.mode)
-        self.assertRaisesRegex(ValueError,
-                               "'not_ip' does not appear to be an IPv4 or "
-                               "IPv6 address", reader.get, ('not_ip'))
+        self.assertRaisesRegex(
+            ValueError, "'not_ip' does not appear to be an IPv4 or "
+            "IPv6 address", reader.get, ('not_ip'))
         reader.close()
 
     def test_missing_database(self):
@@ -153,10 +154,11 @@ class BaseTestReader(object):
                                self.mode)
 
     def test_nondatabase(self):
-        self.assertRaisesRegex(InvalidDatabaseError,
-                               'Error opening database file \(README.rst\). '
-                               'Is this a valid MaxMind DB file\?',
-                               open_database, 'README.rst', self.mode)
+        self.assertRaisesRegex(
+            InvalidDatabaseError,
+            r'Error opening database file \(README.rst\). '
+            r'Is this a valid MaxMind DB file\?', open_database, 'README.rst',
+            self.mode)
 
     def test_too_many_constructor_args(self):
         cls = self.readerClass[0]
@@ -166,7 +168,7 @@ class BaseTestReader(object):
         cls = self.readerClass[0]
         self.assertRaisesRegex(
             ValueError,
-            'Unsupported open mode \(100\)',
+            r'Unsupported open mode \(100\)',
             cls,
             'README.md',
             mode=100)
@@ -174,12 +176,10 @@ class BaseTestReader(object):
     def test_no_constructor_args(self):
         cls = self.readerClass[0]
         self.assertRaisesRegex(
-            TypeError,
-            ' 1 required positional argument|'
-            '\(pos 1\) not found|'
-            'takes at least 2 arguments|'
-            'function missing required argument \'database\' \(pos 1\)',
-            cls)
+            TypeError, r' 1 required positional argument|'
+            r'\(pos 1\) not found|'
+            r'takes at least 2 arguments|'
+            r'function missing required argument \'database\' \(pos 1\)', cls)
 
     def test_too_many_get_args(self):
         reader = open_database(
@@ -203,8 +203,9 @@ class BaseTestReader(object):
         reader = open_database(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', self.mode)
         metadata = reader.metadata()
-        with self.assertRaisesRegex(AttributeError, "'Metadata' object has no "
-                                    "attribute 'blah'"):
+        with self.assertRaisesRegex(
+                AttributeError, "'Metadata' object has no "
+                "attribute 'blah'"):
             metadata.blah
         reader.close()
 
@@ -226,9 +227,9 @@ class BaseTestReader(object):
         reader = open_database(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', self.mode)
         reader.close()
-        self.assertRaisesRegex(ValueError,
-                               'Attempt to read from a closed MaxMind DB.'
-                               '|closed', reader.get, ('1.1.1.1'))
+        self.assertRaisesRegex(
+            ValueError, 'Attempt to read from a closed MaxMind DB.'
+            '|closed', reader.get, ('1.1.1.1'))
 
     def test_with_statement(self):
         filename = 'tests/data/test-data/MaxMind-DB-test-ipv4-24.mmdb'
@@ -342,10 +343,8 @@ class BaseTestReader(object):
             address = '1.1.1.' + str(pow(2, i))
             self.assertEqual({
                 'ip': address
-            },
-                             reader.get(address),
-                             'found expected data record for ' + address +
-                             ' in ' + file_name)
+            }, reader.get(address), 'found expected data record for ' + address
+                             + ' in ' + file_name)
 
         pairs = {
             '1.1.1.3': '1.1.1.2',
@@ -359,10 +358,10 @@ class BaseTestReader(object):
         for key_address, value_address in pairs.items():
             data = {'ip': value_address}
 
-            self.assertEqual(data,
-                             reader.get(key_address),
-                             'found expected data record for ' + key_address +
-                             ' in ' + file_name)
+            self.assertEqual(
+                data, reader.get(key_address),
+                'found expected data record for ' + key_address + ' in ' +
+                file_name)
 
         for ip in ['1.1.1.33', '255.254.253.123']:
             self.assertIsNone(reader.get(ip))
@@ -375,10 +374,8 @@ class BaseTestReader(object):
         for address in subnets:
             self.assertEqual({
                 'ip': address
-            },
-                             reader.get(address),
-                             'found expected data record for ' + address +
-                             ' in ' + file_name)
+            }, reader.get(address), 'found expected data record for ' + address
+                             + ' in ' + file_name)
 
         pairs = {
             '::2:0:1': '::2:0:0',
@@ -394,10 +391,8 @@ class BaseTestReader(object):
         for key_address, value_address in pairs.items():
             self.assertEqual({
                 'ip': value_address
-            },
-                             reader.get(key_address),
-                             'found expected data record for ' + key_address +
-                             ' in ' + file_name)
+            }, reader.get(key_address), 'found expected data record for ' +
+                             key_address + ' in ' + file_name)
 
         for ip in ['1.1.1.33', '255.254.253.123', '89fa::']:
             self.assertIsNone(reader.get(ip))

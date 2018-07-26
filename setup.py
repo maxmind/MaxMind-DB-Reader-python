@@ -162,14 +162,14 @@ else:
     try:
         run_setup(True)
     except BuildFailed as exc:
-        status_msgs(exc.cause,
-                    "WARNING: The C extension could not be compiled, " +
-                    "speedups are not enabled.",
-                    "Failure information, if any, is above.",
-                    "Retrying the build without the C extension now.")
+        status_msgs(
+            exc.cause, "WARNING: The C extension could not be compiled, " +
+            "speedups are not enabled.",
+            "Failure information, if any, is above.",
+            "Retrying the build without the C extension now.")
 
         run_setup(False)
 
-        status_msgs("WARNING: The C extension could not be compiled, " +
-                    "speedups are not enabled.",
-                    "Plain-Python build succeeded.")
+        status_msgs(
+            "WARNING: The C extension could not be compiled, " +
+            "speedups are not enabled.", "Plain-Python build succeeded.")
