@@ -1,14 +1,24 @@
 language: python
-
-python:
-  - 2.6
-  - 2.7
-  - 3.3
-  - 3.4
-  - 3.5
-  - 3.6
-  - 3.7-dev
-  - pypy
+matrix:
+  include:
+    - python: 2.7
+      dist: trusty
+    - python: 3.3
+      dist: trusty
+    - python: 3.4
+      dist: trusty
+    - python: 3.5
+      dist: trusty
+    - python: 3.6
+      dist: trusty
+    - python: 3.7
+      dist: xenial
+    - python: nightly
+      dist: xenial
+    - python: pypy
+      dist: trusty
+  allow_failures:
+    - python: nightly
 
 before_install:
   - git submodule update --init --recursive
@@ -21,7 +31,7 @@ before_install:
   - sudo ldconfig
   - cd ..
   - pip install coverage coveralls
-  - if [[ $TRAVIS_PYTHON_VERSION == '3.6' ]]; then pip install pylint yapf; fi
+  - if [[ $TRAVIS_PYTHON_VERSION == '3.7' ]]; then pip install pylint yapf; fi
   - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install unittest2; fi
   - |
     if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]]; then
@@ -36,8 +46,8 @@ install:
 script:
   - if [[ $TRAVIS_PYTHON_VERSION != 'pypy' ]]; then export MM_FORCE_EXT_TESTS=1; fi
   - CFLAGS="-Werror -Wall -Wextra" coverage run --source maxminddb setup.py test
-  - if [[ $TRAVIS_PYTHON_VERSION == '3.6' ]]; then pylint --rcfile .pylintrc maxminddb/*.py; fi
-  - if [[ $TRAVIS_PYTHON_VERSION == '3.6' ]]; then ./.travis-yapf.sh; fi
+  - if [[ $TRAVIS_PYTHON_VERSION == '3.7' ]]; then pylint --rcfile .pylintrc maxminddb/*.py; fi
+  - if [[ $TRAVIS_PYTHON_VERSION == '3.7' ]]; then ./.travis-yapf.sh; fi
 
 after_success:
   - coveralls
