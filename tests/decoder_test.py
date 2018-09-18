@@ -9,10 +9,7 @@ import sys
 from maxminddb.compat import byte_from_int, int_from_byte
 from maxminddb.decoder import Decoder
 
-if sys.version_info[:2] == (2, 6):
-    import unittest2 as unittest
-else:
-    import unittest
+import unittest
 
 if sys.version_info[0] == 2:
     unittest.TestCase.assertRaisesRegex = unittest.TestCase.assertRaisesRegexp

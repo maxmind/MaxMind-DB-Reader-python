@@ -85,7 +85,7 @@ invalid IP address or an IPv6 address in an IPv4 database.
 Requirements
 ------------
 
-This code requires Python 2.6+ or 3.3+. The C extension requires CPython. The
+This code requires Python 2.7+ or 3.3+. The C extension requires CPython. The
 pure Python implementation has been tested with PyPy.
 
 On Python 2, the `ipaddress module <https://pypi.python.org/pypi/ipaddress>`_ is

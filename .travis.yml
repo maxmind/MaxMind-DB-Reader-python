@@ -1,14 +1,24 @@
 language: python
-
-python:
-  - 2.6
-  - 2.7
-  - 3.3
-  - 3.4
-  - 3.5
-  - 3.6
-  - 3.7-dev
-  - pypy
+matrix:
+  include:
+    - python: 2.7
+      dist: trusty
+    - python: 3.3
+      dist: trusty
+    - python: 3.4
+      dist: trusty
+    - python: 3.5
+      dist: trusty
+    - python: 3.6
+      dist: trusty
+    - python: 3.7
+      dist: xenial
+    - python: nightly
+      dist: xenial
+    - python: pypy
+      dist: trusty
+  allow_failures:
+    - python: nightly
 
 before_install:
   - git submodule update --init --recursive
@@ -21,17 +31,23 @@ before_install:
   - sudo ldconfig
   - cd ..
   - pip install coverage coveralls
-  - if [[ $TRAVIS_PYTHON_VERSION == '3.6' ]]; then pip install pylint yapf; fi
-  - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install unittest2; fi
+  - if [[ $TRAVIS_PYTHON_VERSION == '3.7' ]]; then pip install pylint yapf; fi
+  - |
+    if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]]; then
+      sudo apt-get install -y nodejs;
+      npm install -g snyk;
+    fi
 
 script:
   - if [[ $TRAVIS_PYTHON_VERSION != 'pypy' ]]; then export MM_FORCE_EXT_TESTS=1; fi
   - CFLAGS="-Werror -Wall -Wextra" coverage run --source maxminddb setup.py test
-  - if [[ $TRAVIS_PYTHON_VERSION == '3.6' ]]; then pylint --rcfile .pylintrc maxminddb/*.py; fi
-  - if [[ $TRAVIS_PYTHON_VERSION == '3.6' ]]; then ./.travis-yapf.sh; fi
+  - if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]]; then snyk test --org=maxmind --file=requirements.txt; fi
+  - if [[ $TRAVIS_PYTHON_VERSION == '3.7' ]]; then pylint --rcfile .pylintrc maxminddb/*.py; fi
+  - if [[ $TRAVIS_PYTHON_VERSION == '3.7' ]]; then ./.travis-yapf.sh; fi
 
 after_success:
   - coveralls
+  - if [[ $TRAVIS_BRANCH == 'master' && $TRAVIS_PULL_REQUEST == 'false' && $TRAVIS_PYTHON_VERSION == '2.7' ]]; then snyk monitor --org=maxmind --project=maxmind/MaxMind-DB-Reader-python; fi
 
 notifications:
   email:
@@ -42,7 +58,8 @@ notifications:
 
 env:
   global:
-   - secure: "pVcpV/al5Q607TbRzl/sbkdsx5hUjxehaJm6t5tgWrFn45icwdZrPw3JWcpt0R57NhPvXHxcJdm4WBtcGElWoDtR52QOW3yYh+gRw23y1MJg+5qHIbh5R1sOC/fLJ9TzQzvvRH5QQ5bKIe1hRQW9Cpqm7nX5Zhq6SqnAzcG1emE="
+    - secure: "pVcpV/al5Q607TbRzl/sbkdsx5hUjxehaJm6t5tgWrFn45icwdZrPw3JWcpt0R57NhPvXHxcJdm4WBtcGElWoDtR52QOW3yYh+gRw23y1MJg+5qHIbh5R1sOC/fLJ9TzQzvvRH5QQ5bKIe1hRQW9Cpqm7nX5Zhq6SqnAzcG1emE="
+    - secure: "idzTTvCWmC0TYgYxQFOaZju86TUzKLaMKs2ZZsGloklf0mk0d3XH/CD5VYDPgP++/7Kmw9zC401EZyRC6anZYB0qCXwRulgux2Io5HCWChIrZTSx3DoSl+VRVi0cUkfMNomrwduJ0g1vVnDXp6xM8ITE574jwpasUJ2MOvVykdU="
 
 addons:
   coverity_scan:

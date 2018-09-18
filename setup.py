@@ -19,6 +19,10 @@ requirements = []
 if sys.version_info[0] == 2 or (sys.version_info[0] == 3
                                 and sys.version_info[1] < 3):
     requirements.append('ipaddress')
+    if os.environ.get('SNYK_TOKEN'):
+        with open('requirements.txt', 'w') as f:
+            for r in requirements:
+                f.write(r + '\n')
 
 compile_args = ['-Wall', '-Wextra']
 
@@ -37,10 +41,6 @@ ext_module = [
 # Cargo cult code for installing extension with pure Python fallback.
 # Taken from SQLAlchemy, but this same basic code exists in many modules.
 ext_errors = (CCompilerError, DistutilsExecError, DistutilsPlatformError)
-if sys.platform == 'win32':
-    # 2.6's distutils.msvc9compiler can raise an IOError when failing to
-    # find the compiler
-    ext_errors += (IOError, )
 
 
 class BuildFailed(Exception):
@@ -141,12 +141,13 @@ def run_setup(with_cext):
             'Intended Audience :: Developers',
             'Intended Audience :: System Administrators',
             'License :: OSI Approved :: Apache Software License',
-            'Programming Language :: Python :: 2.6',
             'Programming Language :: Python :: 2.7',
             'Programming Language :: Python :: 3',
             'Programming Language :: Python :: 3.3',
             'Programming Language :: Python :: 3.4',
             'Programming Language :: Python :: 3.5',
+            'Programming Language :: Python :: 3.6',
+            'Programming Language :: Python :: 3.7',
             'Programming Language :: Python',
             'Topic :: Internet :: Proxy Servers',
             'Topic :: Internet',
