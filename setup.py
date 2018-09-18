@@ -19,6 +19,9 @@ requirements = []
 if sys.version_info[0] == 2 or (sys.version_info[0] == 3
                                 and sys.version_info[1] < 3):
     requirements.append('ipaddress')
+    if os.environ.get('SNYK_TOKEN'):
+        f = open('requirements.txt', 'w')
+        [f.write(r + '\n') for r in requirements]
 
 compile_args = ['-Wall', '-Wextra']
 
@@ -37,6 +40,7 @@ ext_module = [
 # Cargo cult code for installing extension with pure Python fallback.
 # Taken from SQLAlchemy, but this same basic code exists in many modules.
 ext_errors = (CCompilerError, DistutilsExecError, DistutilsPlatformError)
+
 
 class BuildFailed(Exception):
     def __init__(self):

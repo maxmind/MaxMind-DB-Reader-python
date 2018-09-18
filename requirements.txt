@@ -1,4 +1,0 @@
-# NOTE: This project does not use requirements.txt, it uses setup.py.
-# This file is only present to support dependency checks in CI for certain
-# python versions.
-ipaddress
