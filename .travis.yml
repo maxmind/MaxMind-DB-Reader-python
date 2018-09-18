@@ -32,7 +32,6 @@ before_install:
   - cd ..
   - pip install coverage coveralls
   - if [[ $TRAVIS_PYTHON_VERSION == '3.7' ]]; then pip install pylint yapf; fi
-  - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install unittest2; fi
   - |
     if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]]; then
       sudo apt-get install -y nodejs;

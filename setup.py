@@ -37,11 +37,6 @@ ext_module = [
 # Cargo cult code for installing extension with pure Python fallback.
 # Taken from SQLAlchemy, but this same basic code exists in many modules.
 ext_errors = (CCompilerError, DistutilsExecError, DistutilsPlatformError)
-if sys.platform == 'win32':
-    # 2.6's distutils.msvc9compiler can raise an IOError when failing to
-    # find the compiler
-    ext_errors += (IOError, )
-
 
 class BuildFailed(Exception):
     def __init__(self):
@@ -141,7 +136,6 @@ def run_setup(with_cext):
             'Intended Audience :: Developers',
             'Intended Audience :: System Administrators',
             'License :: OSI Approved :: Apache Software License',
-            'Programming Language :: Python :: 2.6',
             'Programming Language :: Python :: 2.7',
             'Programming Language :: Python :: 3',
             'Programming Language :: Python :: 3.3',
