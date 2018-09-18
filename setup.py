@@ -20,8 +20,9 @@ if sys.version_info[0] == 2 or (sys.version_info[0] == 3
                                 and sys.version_info[1] < 3):
     requirements.append('ipaddress')
     if os.environ.get('SNYK_TOKEN'):
-        f = open('requirements.txt', 'w')
-        [f.write(r + '\n') for r in requirements]
+        with open('requirements.txt', 'w') as f:
+            for r in requirements:
+                f.write(r + '\n')
 
 compile_args = ['-Wall', '-Wextra']
 
@@ -145,6 +146,8 @@ def run_setup(with_cext):
             'Programming Language :: Python :: 3.3',
             'Programming Language :: Python :: 3.4',
             'Programming Language :: Python :: 3.5',
+            'Programming Language :: Python :: 3.6',
+            'Programming Language :: Python :: 3.7',
             'Programming Language :: Python',
             'Topic :: Internet :: Proxy Servers',
             'Topic :: Internet',
