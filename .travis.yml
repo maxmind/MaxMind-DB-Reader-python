@@ -47,7 +47,7 @@ script:
 
 after_success:
   - coveralls
-  - if [[ $TRAVIS_BRANCH == 'master' && $TRAVIS_PULL_REQUEST == 'false' && $TRAVIS_PYTHON_VERSION == '2.7' ]]; then snyk monitor --org=maxmind --project=maxmind/MaxMind-DB-Reader-python; fi
+  - if [[ $TRAVIS_BRANCH == 'master' && $TRAVIS_PULL_REQUEST == 'false' && $TRAVIS_PYTHON_VERSION == '2.7' ]]; then snyk monitor --org=maxmind --project-name=maxmind/MaxMind-DB-Reader-python; fi
 
 notifications:
   email:
