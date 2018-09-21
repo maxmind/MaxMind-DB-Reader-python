@@ -3,6 +3,7 @@ matrix:
   include:
     - python: 2.7
       dist: trusty
+      env: RUN_SNYK=1
     - python: 3.3
       dist: trusty
     - python: 3.4
@@ -13,6 +14,7 @@ matrix:
       dist: trusty
     - python: 3.7
       dist: xenial
+      env: RUN_LINTER=1
     - python: nightly
       dist: xenial
     - python: pypy
@@ -31,9 +33,9 @@ before_install:
   - sudo ldconfig
   - cd ..
   - pip install coverage coveralls
-  - if [[ $TRAVIS_PYTHON_VERSION == '3.7' ]]; then pip install pylint yapf; fi
+  - if [[ $RUN_LINTER ]]; then pip install pylint yapf; fi
   - |
-    if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]]; then
+    if [[ $RUN_SNYK ]]; then
       sudo apt-get install -y nodejs;
       npm install -g snyk;
     fi
@@ -41,13 +43,13 @@ before_install:
 script:
   - if [[ $TRAVIS_PYTHON_VERSION != 'pypy' ]]; then export MM_FORCE_EXT_TESTS=1; fi
   - CFLAGS="-Werror -Wall -Wextra" coverage run --source maxminddb setup.py test
-  - if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]]; then snyk test --org=maxmind --file=requirements.txt; fi
-  - if [[ $TRAVIS_PYTHON_VERSION == '3.7' ]]; then pylint --rcfile .pylintrc maxminddb/*.py; fi
-  - if [[ $TRAVIS_PYTHON_VERSION == '3.7' ]]; then ./.travis-yapf.sh; fi
+  - if [[ $RUN_SNYK ]]; then snyk test --org=maxmind --file=requirements.txt; fi
+  - if [[ $RUN_LINTER ]]; then pylint --rcfile .pylintrc maxminddb/*.py; fi
+  - if [[ $RUN_LINTER ]]; then ./.travis-yapf.sh; fi
 
 after_success:
   - coveralls
-  - if [[ $TRAVIS_BRANCH == 'master' && $TRAVIS_PULL_REQUEST == 'false' && $TRAVIS_PYTHON_VERSION == '2.7' ]]; then snyk monitor --org=maxmind --project-name=maxmind/MaxMind-DB-Reader-python; fi
+  - if [[ $RUN_SNYK && $TRAVIS_BRANCH == 'master' && $TRAVIS_PULL_REQUEST == 'false' ]]; then snyk monitor --org=maxmind --project-name=maxmind/MaxMind-DB-Reader-python; fi
 
 notifications:
   email:
