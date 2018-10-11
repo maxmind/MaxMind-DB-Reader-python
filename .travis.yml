@@ -35,7 +35,7 @@ before_install:
   - pip install coverage coveralls
   - if [[ $RUN_LINTER ]]; then pip install pylint yapf; fi
   - |
-    if [[ $RUN_SNYK ]]; then
+    if [[ $RUN_SNYK && $SNYK_TOKEN ]]; then
       sudo apt-get install -y nodejs;
       npm install -g snyk;
     fi
@@ -43,13 +43,13 @@ before_install:
 script:
   - if [[ $TRAVIS_PYTHON_VERSION != 'pypy' ]]; then export MM_FORCE_EXT_TESTS=1; fi
   - CFLAGS="-Werror -Wall -Wextra" coverage run --source maxminddb setup.py test
-  - if [[ $RUN_SNYK ]]; then snyk test --org=maxmind --file=requirements.txt; fi
+  - if [[ $RUN_SNYK && $SNYK_TOKEN ]]; then snyk test --org=maxmind --file=requirements.txt; fi
   - if [[ $RUN_LINTER ]]; then pylint --rcfile .pylintrc maxminddb/*.py; fi
   - if [[ $RUN_LINTER ]]; then ./.travis-yapf.sh; fi
 
 after_success:
   - coveralls
-  - if [[ $RUN_SNYK && $TRAVIS_BRANCH == 'master' && $TRAVIS_PULL_REQUEST == 'false' ]]; then snyk monitor --org=maxmind --project-name=maxmind/MaxMind-DB-Reader-python; fi
+  - if [[ $RUN_SNYK && $SNYK_TOKEN && $TRAVIS_BRANCH == 'master' && $TRAVIS_PULL_REQUEST == 'false' ]]; then snyk monitor --org=maxmind --project-name=maxmind/MaxMind-DB-Reader-python; fi
 
 notifications:
   email:
