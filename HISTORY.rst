@@ -3,6 +3,13 @@
 History
 -------
 
+1.4.2
+++++++++++++++++++
+
+* The extension source directory was moved to prevent an ``ImportWarning``
+  when importing the module on Python 2 with ``-Wdefault`` set. Reported by
+  David Szotten and Craig de Stigter. GitHub #31.
+
 1.4.1 (2018-06-22)
 ++++++++++++++++++
 
