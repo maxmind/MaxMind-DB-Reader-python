@@ -33,7 +33,7 @@ ext_module = [
     Extension(
         'maxminddb.extension',
         libraries=['maxminddb'],
-        sources=['maxminddb/extension/maxminddb.c'],
+        sources=['extension/maxminddb.c'],
         extra_compile_args=compile_args,
     )
 ]

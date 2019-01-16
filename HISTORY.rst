@@ -3,6 +3,13 @@
 History
 -------
 
+1.4.2
+++++++++++++++++++
+
+* The extension source directory was moved to prevent an ``ImportWarning``
+  when importing the module on Python 2 with ``-Wdefault`` set. Reported by
+  David Szotten and Craig de Stigter. GitHub #31.
+
 1.4.1 (2018-06-22)
 ++++++++++++++++++
 
@@ -12,13 +19,13 @@ History
 ++++++++++++++++++
 
 * IMPORTANT: Previously, the pure Python reader would allow
-  `ipaddress.IPv4Address` and `ipaddress.IPv6Address` objects when calling
-  `.get()`. This would fail with the C extension. The fact that these objects
+  ``ipaddress.IPv4Address`` and ``ipaddress.IPv6Address`` objects when calling
+  ``.get()``. This would fail with the C extension. The fact that these objects
   worked at all was an implementation detail and has varied with different
   releases. This release makes the pure Python implementation consistent
-  with the extension. A `TypeError` will now be thrown if you attempt to
+  with the extension. A ``TypeError`` will now be thrown if you attempt to
   use these types with either the pure Python implementation or the
-  extension. The IP address passed to `.get()` should be a string type.
+  extension. The IP address passed to ``.get()`` should be a string type.
 * Fix issue where incorrect size was used when unpacking some types with the
   pure Python reader. Reported by Lee Symes. GitHub #30.
 * You may now pass in the database via a file descriptor rather than a file
