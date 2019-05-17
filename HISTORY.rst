@@ -3,9 +3,10 @@
 History
 -------
 
-1.4.2
+1.5.0
 ++++++++++++++++++
 
+* Python 3.3 and 3.4 are no longer supported.
 * The extension source directory was moved to prevent an ``ImportWarning``
   when importing the module on Python 2 with ``-Wdefault`` set. Reported by
   David Szotten and Craig de Stigter. GitHub #31.
