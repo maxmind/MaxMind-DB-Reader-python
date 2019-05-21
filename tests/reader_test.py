@@ -51,9 +51,9 @@ class BaseTestReader(object):
     def test_reader(self):
         for record_size in [24, 28, 32]:
             for ip_version in [4, 6]:
-                file_name = (
-                    'tests/data/test-data/MaxMind-DB-test-ipv' +
-                    str(ip_version) + '-' + str(record_size) + '.mmdb')
+                file_name = ('tests/data/test-data/MaxMind-DB-test-ipv' +
+                             str(ip_version) + '-' + str(record_size) +
+                             '.mmdb')
                 reader = open_database(file_name, self.mode)
 
                 self._check_metadata(reader, ip_version, record_size)
@@ -75,12 +75,13 @@ class BaseTestReader(object):
         self.assertEqual(record['double'], 42.123456)
         self.assertAlmostEqual(record['float'], 1.1)
         self.assertEqual(record['int32'], -268435456)
-        self.assertEqual({
-            'mapX': {
-                'arrayX': [7, 8, 9],
-                'utf8_stringX': 'hello'
-            },
-        }, record['map'])
+        self.assertEqual(
+            {
+                'mapX': {
+                    'arrayX': [7, 8, 9],
+                    'utf8_stringX': 'hello'
+                },
+            }, record['map'])
 
         self.assertEqual(record['uint16'], 100)
         self.assertEqual(record['uint32'], 268435456)
@@ -166,12 +167,11 @@ class BaseTestReader(object):
 
     def test_bad_constructor_mode(self):
         cls = self.readerClass[0]
-        self.assertRaisesRegex(
-            ValueError,
-            r'Unsupported open mode \(100\)',
-            cls,
-            'README.md',
-            mode=100)
+        self.assertRaisesRegex(ValueError,
+                               r'Unsupported open mode \(100\)',
+                               cls,
+                               'README.md',
+                               mode=100)
 
     def test_no_constructor_args(self):
         cls = self.readerClass[0]
@@ -341,10 +341,9 @@ class BaseTestReader(object):
     def _check_ip_v4(self, reader, file_name):
         for i in range(6):
             address = '1.1.1.' + str(pow(2, i))
-            self.assertEqual({
-                'ip': address
-            }, reader.get(address), 'found expected data record for ' + address
-                             + ' in ' + file_name)
+            self.assertEqual({'ip': address}, reader.get(address),
+                             'found expected data record for ' + address +
+                             ' in ' + file_name)
 
         pairs = {
             '1.1.1.3': '1.1.1.2',
@@ -372,10 +371,9 @@ class BaseTestReader(object):
         ]
 
         for address in subnets:
-            self.assertEqual({
-                'ip': address
-            }, reader.get(address), 'found expected data record for ' + address
-                             + ' in ' + file_name)
+            self.assertEqual({'ip': address}, reader.get(address),
+                             'found expected data record for ' + address +
+                             ' in ' + file_name)
 
         pairs = {
             '::2:0:1': '::2:0:0',
@@ -389,10 +387,9 @@ class BaseTestReader(object):
         }
 
         for key_address, value_address in pairs.items():
-            self.assertEqual({
-                'ip': value_address
-            }, reader.get(key_address), 'found expected data record for ' +
-                             key_address + ' in ' + file_name)
+            self.assertEqual({'ip': value_address}, reader.get(key_address),
+                             'found expected data record for ' + key_address +
+                             ' in ' + file_name)
 
         for ip in ['1.1.1.33', '255.254.253.123', '89fa::']:
             self.assertIsNone(reader.get(ip))

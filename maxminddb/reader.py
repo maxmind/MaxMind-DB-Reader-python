@@ -50,8 +50,9 @@ class Reader(object):
         """
         if (mode == MODE_AUTO and mmap) or mode == MODE_MMAP:
             with open(database, 'rb') as db_file:
-                self._buffer = mmap.mmap(
-                    db_file.fileno(), 0, access=mmap.ACCESS_READ)
+                self._buffer = mmap.mmap(db_file.fileno(),
+                                         0,
+                                         access=mmap.ACCESS_READ)
                 self._buffer_size = self._buffer.size()
             filename = database
         elif mode in (MODE_AUTO, MODE_FILE):
