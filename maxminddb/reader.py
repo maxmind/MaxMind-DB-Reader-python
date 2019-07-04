@@ -13,6 +13,7 @@ except ImportError:
     # pylint: disable=invalid-name
     mmap = None
 
+import ipaddress
 import struct
 
 from maxminddb.compat import (byte_from_int, compat_ip_address, string_type,
@@ -105,7 +106,10 @@ class Reader(object):
         Arguments:
         ip_address -- an IP address in the standard string notation
         """
-        if not isinstance(ip_address, string_type):
+        if isinstance(ip_address,
+            (ipaddress.IPv4Address, ipaddress.IPv6Address)):
+            ip_address = str(ip_address)
+        elif not isinstance(ip_address, string_type):
             raise TypeError('argument 1 must be %s, not %s' %
                             (string_type_name, type(ip_address).__name__))
 
