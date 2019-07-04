@@ -108,12 +108,12 @@ class Reader(object):
         """
         if isinstance(ip_address,
             (ipaddress.IPv4Address, ipaddress.IPv6Address)):
-            ip_address = str(ip_address)
+            address = str(ip_address)
         elif not isinstance(ip_address, string_type):
             raise TypeError('argument 1 must be %s, not %s' %
                             (string_type_name, type(ip_address).__name__))
-
-        address = compat_ip_address(ip_address)
+        else:
+            address = compat_ip_address(ip_address)
 
         if address.version == 6 and self._metadata.ip_version == 4:
             raise ValueError(
