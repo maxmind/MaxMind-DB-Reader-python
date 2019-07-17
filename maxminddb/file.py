@@ -11,7 +11,6 @@ except ImportError:
 
 class FileBuffer(object):
     """A slice-able file reader"""
-
     def __init__(self, database):
         self._handle = open(database, 'rb')
         self._size = os.fstat(self._handle.fileno()).st_size

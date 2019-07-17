@@ -96,8 +96,8 @@ def status_msgs(*msgs):
 def find_packages(location):
     packages = []
     for pkg in ['maxminddb']:
-        for _dir, subdirectories, files in (os.walk(
-                os.path.join(location, pkg))):
+        for _dir, subdirectories, files in (os.walk(os.path.join(
+                location, pkg))):
             if '__init__.py' in files:
                 tokens = _dir.split(os.sep)[len(location.split(os.sep)):]
                 packages.append(".".join(tokens))
@@ -110,48 +110,46 @@ def run_setup(with_cext):
         if Feature:
             kwargs['features'] = {
                 'extension':
-                Feature(
-                    "optional C implementation",
-                    standard=True,
-                    ext_modules=ext_module)
+                Feature("optional C implementation",
+                        standard=True,
+                        ext_modules=ext_module)
             }
         else:
             kwargs['ext_modules'] = ext_module
 
-    setup(
-        name='maxminddb',
-        version=VERSION,
-        author='Gregory Oschwald',
-        author_email='goschwald@maxmind.com',
-        description='Reader for the MaxMind DB format',
-        long_description=README,
-        url='http://www.maxmind.com/',
-        packages=find_packages('.'),
-        package_data={'': ['LICENSE']},
-        package_dir={'maxminddb': 'maxminddb'},
-        python_requires='>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*',
-        include_package_data=True,
-        install_requires=requirements,
-        tests_require=['nose'],
-        test_suite='nose.collector',
-        license=LICENSE,
-        cmdclass=cmdclass,
-        classifiers=[
-            'Development Status :: 5 - Production/Stable',
-            'Environment :: Web Environment',
-            'Intended Audience :: Developers',
-            'Intended Audience :: System Administrators',
-            'License :: OSI Approved :: Apache Software License',
-            'Programming Language :: Python :: 2.7',
-            'Programming Language :: Python :: 3',
-            'Programming Language :: Python :: 3.5',
-            'Programming Language :: Python :: 3.6',
-            'Programming Language :: Python :: 3.7',
-            'Programming Language :: Python',
-            'Topic :: Internet :: Proxy Servers',
-            'Topic :: Internet',
-        ],
-        **kwargs)
+    setup(name='maxminddb',
+          version=VERSION,
+          author='Gregory Oschwald',
+          author_email='goschwald@maxmind.com',
+          description='Reader for the MaxMind DB format',
+          long_description=README,
+          url='http://www.maxmind.com/',
+          packages=find_packages('.'),
+          package_data={'': ['LICENSE']},
+          package_dir={'maxminddb': 'maxminddb'},
+          python_requires='>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*',
+          include_package_data=True,
+          install_requires=requirements,
+          tests_require=['nose'],
+          test_suite='nose.collector',
+          license=LICENSE,
+          cmdclass=cmdclass,
+          classifiers=[
+              'Development Status :: 5 - Production/Stable',
+              'Environment :: Web Environment',
+              'Intended Audience :: Developers',
+              'Intended Audience :: System Administrators',
+              'License :: OSI Approved :: Apache Software License',
+              'Programming Language :: Python :: 2.7',
+              'Programming Language :: Python :: 3',
+              'Programming Language :: Python :: 3.5',
+              'Programming Language :: Python :: 3.6',
+              'Programming Language :: Python :: 3.7',
+              'Programming Language :: Python',
+              'Topic :: Internet :: Proxy Servers',
+              'Topic :: Internet',
+          ],
+          **kwargs)
 
 
 if PYPY or JYTHON:
