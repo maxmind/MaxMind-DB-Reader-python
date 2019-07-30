@@ -148,7 +148,7 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
         PyObject *str;
 
         if (!is_ipaddress_object) {
-            PyErr_SetString(PyExc_TypeError, "IP address must be a string, "
+            PyErr_SetString(PyExc_TypeError, "IP address must be a string,"
                 " ipaddress.IPv4Address or ipaddress.IPv6Address object");
         } else if ((str = PyObject_Str(object)) != NULL) {
 #if PY_MAJOR_VERSION > 2
