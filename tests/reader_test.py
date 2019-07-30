@@ -184,7 +184,7 @@ class BaseTestReader(object):
     def test_too_many_get_args(self):
         reader = open_database(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', self.mode)
-        self.assertRaises(TypeError, reader.get, ('1.1.1.1', 'blah'))
+        self.assertRaises(TypeError, reader.get, '1.1.1.1', 'blah')
         reader.close()
 
     def test_no_get_args(self):
