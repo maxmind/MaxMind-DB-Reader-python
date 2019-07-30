@@ -107,7 +107,7 @@ class Reader(object):
         ip_address -- an IP address in the standard string notation
         """
         if isinstance(ip_address,
-            (ipaddress.IPv4Address, ipaddress.IPv6Address)):
+                      (ipaddress.IPv4Address, ipaddress.IPv6Address)):
             address = ip_address
         elif not isinstance(ip_address, string_type):
             raise TypeError('argument 1 must be %s, not %s' %
