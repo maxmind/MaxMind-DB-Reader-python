@@ -108,7 +108,7 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
 {
     char *ip_address = NULL;
     PyObject *object = NULL;
-#if PY_MAJOR_VERSION > 2
+#if PY_MAJOR_VERSION >= 3
     PyObject *bytes = NULL;
 #endif
 
@@ -151,7 +151,7 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
             PyErr_SetString(PyExc_TypeError, "IP address must be a string,"
                 " ipaddress.IPv4Address or ipaddress.IPv6Address object");
         } else if ((str = PyObject_Str(object)) != NULL) {
-#if PY_MAJOR_VERSION > 2
+#if PY_MAJOR_VERSION >= 3
             bytes = PyUnicode_AsEncodedString(str, "UTF-8", "strict");
             ip_address = PyBytes_AS_STRING(bytes);
 #else
@@ -182,7 +182,7 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
         MMDB_lookup_string(mmdb, ip_address, &gai_error,
                            &mmdb_error);
 
-#if PY_MAJOR_VERSION > 2
+#if PY_MAJOR_VERSION >= 3
     if (bytes != NULL) {
         Py_DECREF(bytes);
     }
