@@ -3,6 +3,7 @@
 
 from __future__ import unicode_literals
 
+import ipaddress
 import logging
 import mock
 import os
@@ -125,9 +126,7 @@ class BaseTestReader(object):
     def test_ip_object_lookup(self):
         reader = open_database('tests/data/test-data/GeoIP2-City-Test.mmdb',
                                self.mode)
-        with self.assertRaisesRegex(TypeError,
-                                    "must be str(?:ing)?, not IPv6Address"):
-            reader.get(compat_ip_address('2001:220::'))
+        reader.get(compat_ip_address('2001:220::'))
         reader.close()
 
     def test_broken_database(self):
@@ -362,6 +361,11 @@ class BaseTestReader(object):
                 'found expected data record for ' + key_address + ' in ' +
                 file_name)
 
+            self.assertEqual(
+                data, reader.get(ipaddress.ip_address(key_address)),
+                'found expected data record for ' + key_address + ' in ' +
+                file_name)
+
         for ip in ['1.1.1.33', '255.254.253.123']:
             self.assertIsNone(reader.get(ip))
 
@@ -391,8 +395,14 @@ class BaseTestReader(object):
                              'found expected data record for ' + key_address +
                              ' in ' + file_name)
 
+            self.assertEqual({'ip': value_address},
+                             reader.get(ipaddress.ip_address(key_address)),
+                             'found expected data record for ' + key_address +
+                             ' in ' + file_name)
+
         for ip in ['1.1.1.33', '255.254.253.123', '89fa::']:
             self.assertIsNone(reader.get(ip))
+            self.assertIsNone(reader.get(ipaddress.ip_address(ip)))
 
 
 def has_maxminddb_extension():

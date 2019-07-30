@@ -107,9 +107,64 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds)
 static PyObject *Reader_get(PyObject *self, PyObject *args)
 {
     char *ip_address = NULL;
+    PyObject *object = NULL;
+#if PY_MAJOR_VERSION > 2
+    PyObject *bytes = NULL;
+#endif
 
     Reader_obj *mmdb_obj = (Reader_obj *)self;
-    if (!PyArg_ParseTuple(args, "s", &ip_address)) {
+
+    if (PyArg_ParseTuple(args, "s", &ip_address)) {
+        // pass
+    } else if (PyErr_Clear(), PyArg_ParseTuple(args, "O", &object)) {
+        PyObject* module = PyImport_ImportModule("ipaddress");
+        if (module == NULL) {
+            return NULL;
+        }
+
+        PyObject* module_dict = PyModule_GetDict(module);
+        if (module_dict == NULL) {
+            return NULL;
+        }
+
+        PyObject* ipaddress_IPv4Address = PyDict_GetItemString(
+            module_dict, "IPv4Address");
+        int is_ipaddress_object = 0;
+
+        if (ipaddress_IPv4Address != NULL) {
+            is_ipaddress_object = PyObject_IsInstance(ipaddress_IPv4Address,
+                object);
+        }
+
+        PyObject* ipaddress_IPv6Address;
+        if (!is_ipaddress_object &&
+            (ipaddress_IPv6Address = PyDict_GetItemString(module_dict,
+                "IPv6Address")) != NULL) {
+            is_ipaddress_object = PyObject_IsInstance(ipaddress_IPv6Address,
+                object);
+        }
+
+        PyErr_Clear();
+        PyObject *str;
+
+        if (!is_ipaddress_object) {
+            PyErr_SetString(PyExc_TypeError, "IP address must be a string, "
+                " ipaddress.IPv4Address or ipaddress.IPv6Address object");
+        } else if ((str = PyObject_Str(object)) != NULL) {
+#if PY_MAJOR_VERSION > 2
+            bytes = PyUnicode_AsEncodedString(str, "UTF-8", "strict");
+            ip_address = PyBytes_AS_STRING(bytes);
+#else
+            ip_address = PyString_AsString(str);
+#endif
+        }
+
+        Py_DECREF(module);
+    } else {
+        return NULL;
+    }
+
+    if (ip_address == NULL) {
         return NULL;
     }
 
@@ -126,6 +181,12 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
     MMDB_lookup_result_s result =
         MMDB_lookup_string(mmdb, ip_address, &gai_error,
                            &mmdb_error);
+
+#if PY_MAJOR_VERSION > 2
+    if (bytes != NULL) {
+        Py_DECREF(bytes);
+    }
+#endif
 
     if (0 != gai_error) {
         PyErr_Format(PyExc_ValueError,
