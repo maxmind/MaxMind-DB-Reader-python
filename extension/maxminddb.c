@@ -182,16 +182,14 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
         MMDB_lookup_string(mmdb, ip_address, &gai_error,
                            &mmdb_error);
 
-#if PY_MAJOR_VERSION >= 3
-    if (bytes != NULL) {
-        Py_DECREF(bytes);
-    }
-#endif
-
     if (0 != gai_error) {
         PyErr_Format(PyExc_ValueError,
                      "'%s' does not appear to be an IPv4 or IPv6 address.",
                      ip_address);
+
+#if PY_MAJOR_VERSION >= 3
+        Py_XDECREF(bytes);
+#endif
         return NULL;
     }
 
@@ -204,6 +202,9 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
         }
         PyErr_Format(exception, "Error looking up %s. %s",
                      ip_address, MMDB_strerror(mmdb_error));
+#if PY_MAJOR_VERSION >= 3
+        Py_XDECREF(bytes);
+#endif
         return NULL;
     }
 
@@ -218,8 +219,15 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
                      "Error while looking up data for %s. %s",
                      ip_address, MMDB_strerror(status));
         MMDB_free_entry_data_list(entry_data_list);
+#if PY_MAJOR_VERSION >= 3
+        Py_XDECREF(bytes);
+#endif
         return NULL;
     }
+
+#if PY_MAJOR_VERSION >= 3
+    Py_XDECREF(bytes);
+#endif
 
     MMDB_entry_data_list_s *original_entry_data_list = entry_data_list;
     PyObject *py_obj = from_entry_data_list(&entry_data_list);
