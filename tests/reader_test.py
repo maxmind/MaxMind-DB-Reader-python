@@ -144,59 +144,60 @@ class BaseTestReader(object):
     def test_ip_validation(self):
         reader = open_database(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', self.mode)
-        self.assertRaisesRegex(
-            ValueError, "'not_ip' does not appear to be an IPv4 or "
-            "IPv6 address", reader.get, ('not_ip'))
+        with self.assertRaisesRegex(
+                ValueError, "'not_ip' does not appear to be an IPv4 or "
+                "IPv6 address"):
+            reader.get('not_ip')
         reader.close()
 
     def test_missing_database(self):
-        self.assertRaisesRegex(FileNotFoundError, "No such file or directory",
-                               open_database, 'file-does-not-exist.mmdb',
-                               self.mode)
+        with self.assertRaisesRegex(FileNotFoundError,
+                                    "No such file or directory"):
+            open_database('file-does-not-exist.mmdb', self.mode)
 
     def test_nondatabase(self):
-        self.assertRaisesRegex(
-            InvalidDatabaseError,
-            r'Error opening database file \(README.rst\). '
-            r'Is this a valid MaxMind DB file\?', open_database, 'README.rst',
-            self.mode)
+        with self.assertRaisesRegex(
+                InvalidDatabaseError,
+                r'Error opening database file \(README.rst\). '
+                r'Is this a valid MaxMind DB file\?'):
+            open_database('README.rst', self.mode)
 
     def test_too_many_constructor_args(self):
-        cls = self.readerClass[0]
-        self.assertRaises(TypeError, cls, 'README.md', self.mode, 1)
+        with self.assertRaises(TypeError):
+            self.readerClass[0]('README.md', self.mode, 1)
 
     def test_bad_constructor_mode(self):
-        cls = self.readerClass[0]
-        self.assertRaisesRegex(ValueError,
-                               r'Unsupported open mode \(100\)',
-                               cls,
-                               'README.md',
-                               mode=100)
+        with self.assertRaisesRegex(ValueError,
+                                    r'Unsupported open mode \(100\)'):
+            self.readerClass[0]('README.md', mode=100)
 
     def test_no_constructor_args(self):
-        cls = self.readerClass[0]
-        self.assertRaisesRegex(
-            TypeError, r' 1 required positional argument|'
-            r'\(pos 1\) not found|'
-            r'takes at least 2 arguments|'
-            r'function missing required argument \'database\' \(pos 1\)', cls)
+        with self.assertRaisesRegex(
+                TypeError, r' 1 required positional argument|'
+                r'\(pos 1\) not found|'
+                r'takes at least 2 arguments|'
+                r'function missing required argument \'database\' \(pos 1\)'):
+            self.readerClass[0]()
 
     def test_too_many_get_args(self):
         reader = open_database(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', self.mode)
-        self.assertRaises(TypeError, reader.get, ('1.1.1.1', 'blah'))
+        with self.assertRaises(TypeError):
+            reader.get('1.1.1.1', 'blah')
         reader.close()
 
     def test_no_get_args(self):
         reader = open_database(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', self.mode)
-        self.assertRaises(TypeError, reader.get)
+        with self.assertRaises(TypeError):
+            reader.get()
         reader.close()
 
     def test_metadata_args(self):
         reader = open_database(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', self.mode)
-        self.assertRaises(TypeError, reader.metadata, ('blah'))
+        with self.assertRaises(TypeError):
+            reader.metadata('blah')
         reader.close()
 
     def test_metadata_unknown_attribute(self):
@@ -227,9 +228,10 @@ class BaseTestReader(object):
         reader = open_database(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', self.mode)
         reader.close()
-        self.assertRaisesRegex(
-            ValueError, 'Attempt to read from a closed MaxMind DB.'
-            '|closed', reader.get, ('1.1.1.1'))
+        with self.assertRaisesRegex(
+                ValueError,
+                'Attempt to read from a closed MaxMind DB.|closed'):
+            reader.get('1.1.1.1')
 
     def test_with_statement(self):
         filename = 'tests/data/test-data/MaxMind-DB-test-ipv4-24.mmdb'
@@ -242,13 +244,10 @@ class BaseTestReader(object):
         reader = open_database(filename, self.mode)
         reader.close()
 
-        def use_with(reader):
+        with self.assertRaisesRegex(ValueError,
+                                    'Attempt to reopen a closed MaxMind DB'):
             with reader:
                 pass
-
-        self.assertRaisesRegex(ValueError,
-                               'Attempt to reopen a closed MaxMind DB',
-                               use_with, reader)
 
     def test_closed(self):
         reader = open_database(
