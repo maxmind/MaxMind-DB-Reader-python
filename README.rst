@@ -37,7 +37,7 @@ Usage
 
 To use this module, you must first download or create a MaxMind DB file. We
 provide `free GeoLite2 databases
-<http://dev.maxmind.com/geoip/geoip2/geolite2>`_. These files must be
+<https://dev.maxmind.com/geoip/geoip2/geolite2>`_. These files must be
 decompressed with ``gunzip``.
 
 After you have obtained a database and imported the module, call
@@ -94,7 +94,7 @@ required.
 Versioning
 ----------
 
-The MaxMind DB Python module uses `Semantic Versioning <http://semver.org/>`_.
+The MaxMind DB Python module uses `Semantic Versioning <https://semver.org/>`_.
 
 Support
 -------
@@ -103,5 +103,5 @@ Please report all issues with this code using the `GitHub issue tracker
 <https://github.com/maxmind/MaxMind-DB-Reader-python/issues>`_
 
 If you are having an issue with a MaxMind service that is not specific to this
-API, please contact `MaxMind support <http://www.maxmind.com/en/support>`_ for
+API, please contact `MaxMind support <https://www.maxmind.com/en/support>`_ for
 assistance.
