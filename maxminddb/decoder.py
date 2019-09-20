@@ -125,13 +125,15 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
         if not type_num:
             (type_num, new_offset) = self._read_extended(new_offset)
 
-        if type_num not in self._type_decoder:
+        try:
+            decoder = self._type_decoder[type_num]
+        except KeyError:
             raise InvalidDatabaseError('Unexpected type number ({type}) '
                                        'encountered'.format(type=type_num))
 
         (size, new_offset) = self._size_from_ctrl_byte(ctrl_byte, new_offset,
                                                        type_num)
-        return self._type_decoder[type_num](self, size, new_offset)
+        return decoder(self, size, new_offset)
 
     def _read_extended(self, offset):
         (next_byte, ) = struct.unpack(b'!B', self._buffer[offset:offset + 1])
