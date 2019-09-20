@@ -104,6 +104,16 @@ class Reader(object):
         Arguments:
         ip_address -- an IP address in the standard string notation
         """
+        (record, _) = self.get_with_prefix_len(ip_address)
+        return record
+
+    def get_with_prefix_len(self, ip_address):
+        """Return a tuple with the record and the associated prefix length
+
+
+        Arguments:
+        ip_address -- an IP address in the standard string notation
+        """
         if isinstance(ip_address, string_type):
             address = compat_ip_address(ip_address)
         else:
@@ -118,24 +128,29 @@ class Reader(object):
             raise ValueError(
                 'Error looking up {0}. You attempted to look up '
                 'an IPv6 address in an IPv4-only database.'.format(ip_address))
-        pointer = self._find_address_in_tree(packed_address)
 
-        return self._resolve_data_pointer(pointer) if pointer else None
+        (pointer, prefix_len) = self._find_address_in_tree(packed_address)
+
+        if pointer:
+            return self._resolve_data_pointer(pointer), prefix_len
+        return None, prefix_len
 
     def _find_address_in_tree(self, packed):
         bit_count = len(packed) * 8
         node = self._start_node(bit_count)
+        node_count = self._metadata.node_count
 
-        for i in range(bit_count):
-            if node >= self._metadata.node_count:
-                break
+        i = 0
+        while i < bit_count and node < node_count:
             bit = 1 & (packed[i >> 3] >> 7 - (i % 8))
             node = self._read_node(node, bit)
-        if node == self._metadata.node_count:
+            i = i + 1
+
+        if node == node_count:
             # Record is empty
-            return 0
-        if node > self._metadata.node_count:
-            return node
+            return 0, i
+        if node > node_count:
+            return node, i
 
         raise InvalidDatabaseError('Invalid node in search tree')
 
