@@ -36,7 +36,7 @@ static PyObject *from_entry_data_list(MMDB_entry_data_list_s **entry_data_list);
 static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list);
 static PyObject *from_array(MMDB_entry_data_list_s **entry_data_list);
 static PyObject *from_uint128(const MMDB_entry_data_list_s *entry_data_list);
-static int ip_converter(PyObject *obj, struct sockaddr **ip_address);
+static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address);
 
 #if PY_MAJOR_VERSION >= 3
     #define MOD_INIT(name) PyMODINIT_FUNC PyInit_ ## name(void)
@@ -119,12 +119,13 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    struct sockaddr *ip_address = NULL;
-    if (!PyArg_ParseTuple(args, "O&", ip_converter, &ip_address)) {
+    struct sockaddr_storage ip_address_ss = { 0 };
+    struct sockaddr *ip_address = (struct sockaddr *)&ip_address_ss;
+    if (!PyArg_ParseTuple(args, "O&", ip_converter, &ip_address_ss)) {
         return NULL;
     }
 
-    if (ip_address == NULL) {
+    if (!ip_address->sa_family) {
         PyErr_SetString(PyExc_ValueError,
                         "Error parsing argument");
         return NULL;
@@ -145,12 +146,10 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
         PyErr_Format(exception, "Error looking up %s. %s",
                      ipstr, MMDB_strerror(mmdb_error));
         free(ipstr);
-        free(ip_address);
         return NULL;
     }
 
     if (!result.found_entry) {
-        free(ip_address);
         Py_RETURN_NONE;
     }
 
@@ -162,7 +161,6 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
                      "Error while looking up data for %s. %s",
                      ipstr, MMDB_strerror(status));
         free(ipstr);
-        free(ip_address);
         MMDB_free_entry_data_list(entry_data_list);
         return NULL;
     }
@@ -170,11 +168,10 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
     MMDB_entry_data_list_s *original_entry_data_list = entry_data_list;
     PyObject *py_obj = from_entry_data_list(&entry_data_list);
     MMDB_free_entry_data_list(original_entry_data_list);
-    free(ip_address);
     return py_obj;
 }
 
-static int ip_converter(PyObject *obj, struct sockaddr **ip_address)
+static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address)
 {
 #if PY_MAJOR_VERSION >= 3
     if (PyUnicode_Check(obj)) {
@@ -211,8 +208,7 @@ static int ip_converter(PyObject *obj, struct sockaddr **ip_address)
                          ipstr);
             return 0;
         }
-        *ip_address = calloc(1, sizeof(struct sockaddr_storage));
-        memcpy(*ip_address, addresses->ai_addr, addresses->ai_addrlen);
+        memcpy(ip_address, addresses->ai_addr, addresses->ai_addrlen);
         freeaddrinfo(addresses);
         return 1;
     }
@@ -229,19 +225,17 @@ static int ip_converter(PyObject *obj, struct sockaddr **ip_address)
         return 0;
     }
 
-    *ip_address = calloc(1, sizeof(struct sockaddr_storage));
-
     switch (len) {
     case 16: {
-            (*ip_address)->sa_family = AF_INET6;
-            struct sockaddr_in6 *sin = (struct sockaddr_in6 *)*ip_address;
+            ip_address->ss_family = AF_INET6;
+            struct sockaddr_in6 *sin = (struct sockaddr_in6 *)ip_address;
             memcpy(sin->sin6_addr.s6_addr, bytes, len);
             Py_DECREF(packed);
             return 1;
         }
     case 4: {
-            (*ip_address)->sa_family = AF_INET;
-            struct sockaddr_in *sin = (struct sockaddr_in *)*ip_address;
+            ip_address->ss_family = AF_INET;
+            struct sockaddr_in *sin = (struct sockaddr_in *)ip_address;
             memcpy(&(sin->sin_addr.s_addr), bytes, len);
             Py_DECREF(packed);
             return 1;
