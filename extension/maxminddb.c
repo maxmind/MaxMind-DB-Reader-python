@@ -31,6 +31,7 @@ typedef struct {
     PyObject *record_size;
 } Metadata_obj;
 
+static int get_record(PyObject *self, PyObject *args, PyObject **record);
 static bool format_sockaddr(struct sockaddr *addr, char *dst);
 static PyObject *from_entry_data_list(MMDB_entry_data_list_s **entry_data_list);
 static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list);
@@ -111,24 +112,43 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds)
 
 static PyObject *Reader_get(PyObject *self, PyObject *args)
 {
-    MMDB_s *mmdb = ((Reader_obj *)self)->mmdb;
+    PyObject *record = NULL;
+    if (get_record(self, args, &record) == -1) {
+        return NULL;
+    }
+    return record;
+}
 
+static PyObject *Reader_get_with_prefix_len(PyObject *self, PyObject *args)
+{
+    PyObject *record = NULL;
+    int prefix_len = get_record(self, args, &record);
+    if (prefix_len == -1) {
+        return NULL;
+    }
+
+    return PyTuple_Pack(2, record, PyLong_FromLong(prefix_len));
+}
+
+static int get_record(PyObject *self, PyObject *args, PyObject **record)
+{
+    MMDB_s *mmdb = ((Reader_obj *)self)->mmdb;
     if (NULL == mmdb) {
         PyErr_SetString(PyExc_ValueError,
                         "Attempt to read from a closed MaxMind DB.");
-        return NULL;
+        return -1;
     }
 
     struct sockaddr_storage ip_address_ss = { 0 };
     struct sockaddr *ip_address = (struct sockaddr *)&ip_address_ss;
     if (!PyArg_ParseTuple(args, "O&", ip_converter, &ip_address_ss)) {
-        return NULL;
+        return -1;
     }
 
     if (!ip_address->sa_family) {
         PyErr_SetString(PyExc_ValueError,
                         "Error parsing argument");
-        return NULL;
+        return -1;
     }
 
     int mmdb_error = MMDB_SUCCESS;
@@ -147,11 +167,19 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
             PyErr_Format(exception, "Error looking up %s. %s",
                          ipstr, MMDB_strerror(mmdb_error));
         }
-        return NULL;
+        return -1;
+    }
+
+    int prefix_len = result.netmask;
+    if (ip_address->sa_family == AF_INET && mmdb->metadata.ip_version == 6) {
+        // We return the prefix length given the IPv4 address. If there is
+        // no IPv4 subtree, we return a prefix length of 0.
+        prefix_len = prefix_len >= 96 ? prefix_len - 96 : 0;
     }
 
     if (!result.found_entry) {
-        Py_RETURN_NONE;
+        *record = Py_None;
+        return prefix_len;
     }
 
     MMDB_entry_data_list_s *entry_data_list = NULL;
@@ -164,13 +192,14 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
                          ipstr, MMDB_strerror(status));
         }
         MMDB_free_entry_data_list(entry_data_list);
-        return NULL;
+        return -1;
     }
 
     MMDB_entry_data_list_s *original_entry_data_list = entry_data_list;
-    PyObject *py_obj = from_entry_data_list(&entry_data_list);
+    *record = from_entry_data_list(&entry_data_list);
     MMDB_free_entry_data_list(original_entry_data_list);
-    return py_obj;
+
+    return prefix_len;
 }
 
 static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address)
@@ -589,9 +618,11 @@ static PyObject *from_uint128(const MMDB_entry_data_list_s *entry_data_list)
 
 static PyMethodDef Reader_methods[] = {
     { "get",      Reader_get,      METH_VARARGS,
-      "Get record for IP address" },
+        "Return the record for the ip_address in the MaxMind DB" },
+    { "get_with_prefix_len",      Reader_get_with_prefix_len,      METH_VARARGS,
+      "Return a tuple with the record and the associated prefix length" },
     { "metadata", Reader_metadata, METH_NOARGS,
-      "Returns metadata object for database" },
+      "Return metadata object for database" },
     { "close",    Reader_close,    METH_NOARGS, "Closes database"},
     { "__exit__", Reader__exit__, METH_VARARGS, "Called when exiting a with-context. Calls close"},
     { "__enter__", Reader__enter__, METH_NOARGS, "Called when entering a with-context."},
