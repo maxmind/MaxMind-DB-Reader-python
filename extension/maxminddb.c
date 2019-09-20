@@ -1,5 +1,8 @@
 #include <Python.h>
 #include <maxminddb.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 #include "structmember.h"
 
 #define __STDC_FORMAT_MACROS
@@ -28,10 +31,12 @@ typedef struct {
     PyObject *record_size;
 } Metadata_obj;
 
+static char *format_sockaddr(struct sockaddr *addr);
 static PyObject *from_entry_data_list(MMDB_entry_data_list_s **entry_data_list);
 static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list);
 static PyObject *from_array(MMDB_entry_data_list_s **entry_data_list);
 static PyObject *from_uint128(const MMDB_entry_data_list_s *entry_data_list);
+static int ip_converter(PyObject *obj, struct sockaddr **ip_address);
 
 #if PY_MAJOR_VERSION >= 3
     #define MOD_INIT(name) PyMODINIT_FUNC PyInit_ ## name(void)
@@ -106,14 +111,7 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds)
 
 static PyObject *Reader_get(PyObject *self, PyObject *args)
 {
-    char *ip_address = NULL;
-
-    Reader_obj *mmdb_obj = (Reader_obj *)self;
-    if (!PyArg_ParseTuple(args, "s", &ip_address)) {
-        return NULL;
-    }
-
-    MMDB_s *mmdb = mmdb_obj->mmdb;
+    MMDB_s *mmdb = ((Reader_obj *)self)->mmdb;
 
     if (NULL == mmdb) {
         PyErr_SetString(PyExc_ValueError,
@@ -121,18 +119,20 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    int gai_error = 0;
-    int mmdb_error = MMDB_SUCCESS;
-    MMDB_lookup_result_s result =
-        MMDB_lookup_string(mmdb, ip_address, &gai_error,
-                           &mmdb_error);
-
-    if (0 != gai_error) {
-        PyErr_Format(PyExc_ValueError,
-                     "'%s' does not appear to be an IPv4 or IPv6 address.",
-                     ip_address);
+    struct sockaddr *ip_address = NULL;
+    if (!PyArg_ParseTuple(args, "O&", ip_converter, &ip_address)) {
         return NULL;
     }
+
+    if (ip_address == NULL) {
+        PyErr_SetString(PyExc_ValueError,
+                        "Error parsing argument");
+        return NULL;
+    }
+
+    int mmdb_error = MMDB_SUCCESS;
+    MMDB_lookup_result_s result =
+        MMDB_lookup_sockaddr(mmdb, ip_address, &mmdb_error);
 
     if (MMDB_SUCCESS != mmdb_error) {
         PyObject *exception;
@@ -141,21 +141,28 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
         } else {
             exception = MaxMindDB_error;
         }
+        char *ipstr = format_sockaddr(ip_address);
         PyErr_Format(exception, "Error looking up %s. %s",
-                     ip_address, MMDB_strerror(mmdb_error));
+                     ipstr, MMDB_strerror(mmdb_error));
+        free(ipstr);
+        free(ip_address);
         return NULL;
     }
 
     if (!result.found_entry) {
+        free(ip_address);
         Py_RETURN_NONE;
     }
 
     MMDB_entry_data_list_s *entry_data_list = NULL;
     int status = MMDB_get_entry_data_list(&result.entry, &entry_data_list);
     if (MMDB_SUCCESS != status) {
+        char *ipstr = format_sockaddr(ip_address);
         PyErr_Format(MaxMindDB_error,
                      "Error while looking up data for %s. %s",
-                     ip_address, MMDB_strerror(status));
+                     ipstr, MMDB_strerror(status));
+        free(ipstr);
+        free(ip_address);
         MMDB_free_entry_data_list(entry_data_list);
         return NULL;
     }
@@ -163,8 +170,106 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
     MMDB_entry_data_list_s *original_entry_data_list = entry_data_list;
     PyObject *py_obj = from_entry_data_list(&entry_data_list);
     MMDB_free_entry_data_list(original_entry_data_list);
+    free(ip_address);
     return py_obj;
 }
+
+static int ip_converter(PyObject *obj, struct sockaddr **ip_address)
+{
+#if PY_MAJOR_VERSION >= 3
+    if (PyUnicode_Check(obj)) {
+        Py_ssize_t len;
+        const char *ipstr = PyUnicode_AsUTF8AndSize(obj, &len);
+# else
+    if (PyUnicode_Check(obj) || PyString_Check(obj)) {
+        // Although this should work on Python 3, we will hopefully delete
+        // this soon and the Python 3 version is cleaner.
+        const char *ipstr = PyString_AsString(obj);
+        Py_ssize_t len = strlen(ipstr);
+#endif
+        if (!ipstr) {
+            PyErr_SetString(PyExc_ValueError, "invalid string");
+            return 0;
+        }
+        if (strlen(ipstr) != (size_t)len) {
+            PyErr_SetString(PyExc_ValueError, "embedded null character");
+            return 0;
+        }
+
+        struct addrinfo hints = {
+            .ai_family   = AF_UNSPEC,
+            .ai_flags    = AI_NUMERICHOST,
+            // We set ai_socktype so that we only get one result back
+            .ai_socktype = SOCK_STREAM
+        };
+
+        struct addrinfo *addresses = NULL;
+        int gai_status = getaddrinfo(ipstr, NULL, &hints, &addresses);
+        if (gai_status) {
+            PyErr_Format(PyExc_ValueError,
+                         "'%s' does not appear to be an IPv4 or IPv6 address.",
+                         ipstr);
+            return 0;
+        }
+        *ip_address = calloc(1, sizeof(struct sockaddr_storage));
+        memcpy(*ip_address, addresses->ai_addr, addresses->ai_addrlen);
+        freeaddrinfo(addresses);
+        return 1;
+    }
+    PyObject *packed = PyObject_GetAttrString(obj, "packed");
+    if (!packed) {
+        PyErr_SetString(PyExc_ValueError, "error about object type");
+    }
+    Py_ssize_t len;
+    char *bytes;
+    int status = PyBytes_AsStringAndSize(packed, &bytes, &len);
+    if (status == -1) {
+        PyErr_SetString(PyExc_ValueError, "cannot get bytes");
+        Py_DECREF(packed);
+        return 0;
+    }
+
+    *ip_address = calloc(1, sizeof(struct sockaddr_storage));
+
+    switch (len) {
+    case 16: {
+            (*ip_address)->sa_family = AF_INET6;
+            struct sockaddr_in6 *sin = (struct sockaddr_in6 *)*ip_address;
+            memcpy(sin->sin6_addr.s6_addr, bytes, len);
+            Py_DECREF(packed);
+            return 1;
+        }
+    case 4: {
+            (*ip_address)->sa_family = AF_INET;
+            struct sockaddr_in *sin = (struct sockaddr_in *)*ip_address;
+            memcpy(&(sin->sin_addr.s_addr), bytes, len);
+            Py_DECREF(packed);
+            return 1;
+        }
+    default:
+        PyErr_SetString(PyExc_ValueError, "unexpected packed length");
+        Py_DECREF(packed);
+        return 0;
+    }
+}
+
+static char *format_sockaddr(struct sockaddr *sa)
+{
+    char *ip = calloc(INET6_ADDRSTRLEN, sizeof(char));
+
+    char *addr;
+    if (sa->sa_family == AF_INET) {
+        struct sockaddr_in *sin = (struct sockaddr_in *)sa;
+        addr = (char *)&sin->sin_addr;
+    } else {
+        struct sockaddr_in6 *sin = (struct sockaddr_in6 *)sa;
+        addr = (char *)&sin->sin6_addr;
+    }
+
+    inet_ntop(sa->sa_family, addr, ip, INET6_ADDRSTRLEN);
+    return ip;
+}
+
 
 static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args))
 {
