@@ -193,6 +193,14 @@ class BaseTestReader(object):
             reader.get()
         reader.close()
 
+    def test_incorrect_get_arg_type(self):
+        reader = open_database('tests/data/test-data/GeoIP2-City-Test.mmdb',
+                               self.mode)
+        with self.assertRaisesRegex(
+                TypeError, "argument 1 must be a string or ipaddress object"):
+            reader.get(1)
+        reader.close()
+
     def test_metadata_args(self):
         reader = open_database(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', self.mode)

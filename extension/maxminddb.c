@@ -185,11 +185,13 @@ static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address)
         Py_ssize_t len = strlen(ipstr);
 #endif
         if (!ipstr) {
-            PyErr_SetString(PyExc_ValueError, "invalid string");
+            PyErr_SetString(PyExc_TypeError,
+                            "argument 1 contains an invalid string");
             return 0;
         }
         if (strlen(ipstr) != (size_t)len) {
-            PyErr_SetString(PyExc_ValueError, "embedded null character");
+            PyErr_SetString(PyExc_TypeError,
+                            "argument 1 contains an embedded null character");
             return 0;
         }
 
@@ -214,13 +216,16 @@ static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address)
     }
     PyObject *packed = PyObject_GetAttrString(obj, "packed");
     if (!packed) {
-        PyErr_SetString(PyExc_ValueError, "error about object type");
+        PyErr_SetString(PyExc_TypeError,
+                        "argument 1 must be a string or ipaddress object");
+        return 0;
     }
     Py_ssize_t len;
     char *bytes;
     int status = PyBytes_AsStringAndSize(packed, &bytes, &len);
     if (status == -1) {
-        PyErr_SetString(PyExc_ValueError, "cannot get bytes");
+        PyErr_SetString(PyExc_TypeError,
+                        "argument 1 must be a string or ipaddress object");
         Py_DECREF(packed);
         return 0;
     }
@@ -241,7 +246,8 @@ static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address)
             return 1;
         }
     default:
-        PyErr_SetString(PyExc_ValueError, "unexpected packed length");
+        PyErr_SetString(PyExc_ValueError,
+                        "argument 1 returned an unexpected packed length for address");
         Py_DECREF(packed);
         return 0;
     }

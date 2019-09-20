@@ -104,26 +104,25 @@ class Reader(object):
         Arguments:
         ip_address -- an IP address in the standard string notation
         """
-        if isinstance(ip_address,
-                      (ipaddress.IPv4Address, ipaddress.IPv6Address)):
-            address = ip_address
-        elif isinstance(ip_address, string_type):
+        if isinstance(ip_address, string_type):
             address = compat_ip_address(ip_address)
         else:
-            raise TypeError('argument 1 must be %s, not %s' %
-                            (string_type_name, type(ip_address).__name__))
+            address = ip_address
+
+        try:
+            packed_address = bytearray(address.packed)
+        except AttributeError:
+            raise TypeError('argument 1 must be a string or ipaddress object')
 
         if address.version == 6 and self._metadata.ip_version == 4:
             raise ValueError(
                 'Error looking up {0}. You attempted to look up '
                 'an IPv6 address in an IPv4-only database.'.format(ip_address))
-        pointer = self._find_address_in_tree(address)
+        pointer = self._find_address_in_tree(packed_address)
 
         return self._resolve_data_pointer(pointer) if pointer else None
 
-    def _find_address_in_tree(self, ip_address):
-        packed = bytearray(ip_address.packed)
-
+    def _find_address_in_tree(self, packed):
         bit_count = len(packed) * 8
         node = self._start_node(bit_count)
 
