@@ -4,6 +4,7 @@
 from __future__ import unicode_literals
 
 import logging
+import ipaddress
 import mock
 import os
 import sys
@@ -48,6 +49,13 @@ def get_reader_from_file_descriptor(filepath, mode):
 
 
 class BaseTestReader(object):
+    use_ip_objects = False
+
+    def ipf(self, ip):
+        if self.use_ip_objects:
+            return ipaddress.ip_address(ip)
+        return ip
+
     def test_reader(self):
         for record_size in [24, 28, 32]:
             for ip_version in [4, 6]:
@@ -67,7 +75,7 @@ class BaseTestReader(object):
     def test_decoder(self):
         reader = open_database(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', self.mode)
-        record = reader.get('::1.1.1.0')
+        record = reader.get(self.ipf('::1.1.1.0'))
 
         self.assertEqual(record['array'], [1, 2, 3])
         self.assertEqual(record['boolean'], True)
@@ -97,8 +105,8 @@ class BaseTestReader(object):
             'tests/data/test-data/MaxMind-DB-no-ipv4-search-tree.mmdb',
             self.mode)
 
-        self.assertEqual(reader.get('1.1.1.1'), '::0/64')
-        self.assertEqual(reader.get('192.1.1.1'), '::0/64')
+        self.assertEqual(reader.get(self.ipf('1.1.1.1')), '::0/64')
+        self.assertEqual(reader.get(self.ipf('192.1.1.1')), '::0/64')
         reader.close()
 
     def test_ipv6_address_in_ipv4_database(self):
@@ -108,7 +116,7 @@ class BaseTestReader(object):
                 ValueError, 'Error looking up 2001::. '
                 'You attempted to look up an IPv6 address '
                 'in an IPv4-only database'):
-            reader.get('2001::')
+            reader.get(self.ipf('2001::'))
         reader.close()
 
     def test_no_extension_exception(self):
@@ -122,14 +130,6 @@ class BaseTestReader(object):
                           MODE_MMAP_EXT)
         maxminddb.extension = real_extension
 
-    def test_ip_object_lookup(self):
-        reader = open_database('tests/data/test-data/GeoIP2-City-Test.mmdb',
-                               self.mode)
-        with self.assertRaisesRegex(TypeError,
-                                    "must be str(?:ing)?, not IPv6Address"):
-            reader.get(compat_ip_address('2001:220::'))
-        reader.close()
-
     def test_broken_database(self):
         reader = open_database(
             'tests/data/test-data/'
@@ -138,65 +138,74 @@ class BaseTestReader(object):
                 InvalidDatabaseError, r"The MaxMind DB file's data "
                 r"section contains bad data \(unknown data "
                 r"type or corrupt data\)"):
-            reader.get('2001:220::')
+            reader.get(self.ipf('2001:220::'))
         reader.close()
 
     def test_ip_validation(self):
         reader = open_database(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', self.mode)
-        self.assertRaisesRegex(
-            ValueError, "'not_ip' does not appear to be an IPv4 or "
-            "IPv6 address", reader.get, ('not_ip'))
+        with self.assertRaisesRegex(
+                ValueError, "'not_ip' does not appear to be an IPv4 or "
+                "IPv6 address"):
+            reader.get('not_ip')
         reader.close()
 
     def test_missing_database(self):
-        self.assertRaisesRegex(FileNotFoundError, "No such file or directory",
-                               open_database, 'file-does-not-exist.mmdb',
-                               self.mode)
+        with self.assertRaisesRegex(FileNotFoundError,
+                                    "No such file or directory"):
+            open_database('file-does-not-exist.mmdb', self.mode)
 
     def test_nondatabase(self):
-        self.assertRaisesRegex(
-            InvalidDatabaseError,
-            r'Error opening database file \(README.rst\). '
-            r'Is this a valid MaxMind DB file\?', open_database, 'README.rst',
-            self.mode)
+        with self.assertRaisesRegex(
+                InvalidDatabaseError,
+                r'Error opening database file \(README.rst\). '
+                r'Is this a valid MaxMind DB file\?'):
+            open_database('README.rst', self.mode)
 
     def test_too_many_constructor_args(self):
-        cls = self.readerClass[0]
-        self.assertRaises(TypeError, cls, 'README.md', self.mode, 1)
+        with self.assertRaises(TypeError):
+            self.readerClass[0]('README.md', self.mode, 1)
 
     def test_bad_constructor_mode(self):
-        cls = self.readerClass[0]
-        self.assertRaisesRegex(ValueError,
-                               r'Unsupported open mode \(100\)',
-                               cls,
-                               'README.md',
-                               mode=100)
+        with self.assertRaisesRegex(ValueError,
+                                    r'Unsupported open mode \(100\)'):
+            self.readerClass[0]('README.md', mode=100)
 
     def test_no_constructor_args(self):
-        cls = self.readerClass[0]
-        self.assertRaisesRegex(
-            TypeError, r' 1 required positional argument|'
-            r'\(pos 1\) not found|'
-            r'takes at least 2 arguments|'
-            r'function missing required argument \'database\' \(pos 1\)', cls)
+        with self.assertRaisesRegex(
+                TypeError, r' 1 required positional argument|'
+                r'\(pos 1\) not found|'
+                r'takes at least 2 arguments|'
+                r'function missing required argument \'database\' \(pos 1\)'):
+            self.readerClass[0]()
 
     def test_too_many_get_args(self):
         reader = open_database(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', self.mode)
-        self.assertRaises(TypeError, reader.get, ('1.1.1.1', 'blah'))
+        with self.assertRaises(TypeError):
+            reader.get(self.ipf('1.1.1.1'), 'blah')
         reader.close()
 
     def test_no_get_args(self):
         reader = open_database(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', self.mode)
-        self.assertRaises(TypeError, reader.get)
+        with self.assertRaises(TypeError):
+            reader.get()
+        reader.close()
+
+    def test_incorrect_get_arg_type(self):
+        reader = open_database('tests/data/test-data/GeoIP2-City-Test.mmdb',
+                               self.mode)
+        with self.assertRaisesRegex(
+                TypeError, "argument 1 must be a string or ipaddress object"):
+            reader.get(1)
         reader.close()
 
     def test_metadata_args(self):
         reader = open_database(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', self.mode)
-        self.assertRaises(TypeError, reader.metadata, ('blah'))
+        with self.assertRaises(TypeError):
+            reader.metadata('blah')
         reader.close()
 
     def test_metadata_unknown_attribute(self):
@@ -227,9 +236,10 @@ class BaseTestReader(object):
         reader = open_database(
             'tests/data/test-data/MaxMind-DB-test-decoder.mmdb', self.mode)
         reader.close()
-        self.assertRaisesRegex(
-            ValueError, 'Attempt to read from a closed MaxMind DB.'
-            '|closed', reader.get, ('1.1.1.1'))
+        with self.assertRaisesRegex(
+                ValueError,
+                'Attempt to read from a closed MaxMind DB.|closed'):
+            reader.get(self.ipf('1.1.1.1'))
 
     def test_with_statement(self):
         filename = 'tests/data/test-data/MaxMind-DB-test-ipv4-24.mmdb'
@@ -242,13 +252,10 @@ class BaseTestReader(object):
         reader = open_database(filename, self.mode)
         reader.close()
 
-        def use_with(reader):
+        with self.assertRaisesRegex(ValueError,
+                                    'Attempt to reopen a closed MaxMind DB'):
             with reader:
                 pass
-
-        self.assertRaisesRegex(ValueError,
-                               'Attempt to reopen a closed MaxMind DB',
-                               use_with, reader)
 
     def test_closed(self):
         reader = open_database(
@@ -297,7 +304,7 @@ class BaseTestReader(object):
         def lookup(pipe):
             try:
                 for i in range(32):
-                    reader.get('65.115.240.{i}'.format(i=i))
+                    reader.get(self.ipf('65.115.240.{i}'.format(i=i)))
                 pipe.send(1)
             except:
                 pipe.send(0)
@@ -341,7 +348,7 @@ class BaseTestReader(object):
     def _check_ip_v4(self, reader, file_name):
         for i in range(6):
             address = '1.1.1.' + str(pow(2, i))
-            self.assertEqual({'ip': address}, reader.get(address),
+            self.assertEqual({'ip': address}, reader.get(self.ipf(address)),
                              'found expected data record for ' + address +
                              ' in ' + file_name)
 
@@ -358,12 +365,12 @@ class BaseTestReader(object):
             data = {'ip': value_address}
 
             self.assertEqual(
-                data, reader.get(key_address),
+                data, reader.get(self.ipf(key_address)),
                 'found expected data record for ' + key_address + ' in ' +
                 file_name)
 
         for ip in ['1.1.1.33', '255.254.253.123']:
-            self.assertIsNone(reader.get(ip))
+            self.assertIsNone(reader.get(self.ipf(ip)))
 
     def _check_ip_v6(self, reader, file_name):
         subnets = [
@@ -371,7 +378,7 @@ class BaseTestReader(object):
         ]
 
         for address in subnets:
-            self.assertEqual({'ip': address}, reader.get(address),
+            self.assertEqual({'ip': address}, reader.get(self.ipf(address)),
                              'found expected data record for ' + address +
                              ' in ' + file_name)
 
@@ -387,12 +394,13 @@ class BaseTestReader(object):
         }
 
         for key_address, value_address in pairs.items():
-            self.assertEqual({'ip': value_address}, reader.get(key_address),
+            self.assertEqual({'ip': value_address},
+                             reader.get(self.ipf(key_address)),
                              'found expected data record for ' + key_address +
                              ' in ' + file_name)
 
         for ip in ['1.1.1.33', '255.254.253.123', '89fa::']:
-            self.assertIsNone(reader.get(ip))
+            self.assertIsNone(reader.get(self.ipf(ip)))
 
 
 def has_maxminddb_extension():
@@ -409,6 +417,17 @@ class TestExtensionReader(BaseTestReader, unittest.TestCase):
         readerClass = [maxminddb.extension.Reader]
 
 
+@unittest.skipIf(not has_maxminddb_extension()
+                 and not os.environ.get('MM_FORCE_EXT_TESTS'),
+                 'No C extension module found. Skipping tests')
+class TestExtensionReaderWithIPObjects(BaseTestReader, unittest.TestCase):
+    mode = MODE_MMAP_EXT
+    use_ip_objects = True
+
+    if has_maxminddb_extension():
+        readerClass = [maxminddb.extension.Reader]
+
+
 class TestAutoReader(BaseTestReader, unittest.TestCase):
     mode = MODE_AUTO
 
@@ -420,6 +439,14 @@ class TestAutoReader(BaseTestReader, unittest.TestCase):
 
 class TestMMAPReader(BaseTestReader, unittest.TestCase):
     mode = MODE_MMAP
+    readerClass = [maxminddb.reader.Reader]
+
+
+# We want one pure Python test to use IP objects, it doesn't
+# really matter which one.
+class TestMMAPReaderWithIPObjects(BaseTestReader, unittest.TestCase):
+    mode = MODE_MMAP
+    use_ip_objects = True
     readerClass = [maxminddb.reader.Reader]
 
 

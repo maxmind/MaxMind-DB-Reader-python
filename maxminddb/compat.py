@@ -24,7 +24,6 @@ if sys.version_info[0] == 2:
 
     string_type = basestring
 
-    string_type_name = 'string'
 else:
 
     def compat_ip_address(address):
@@ -39,5 +38,3 @@ else:
     byte_from_int = lambda x: bytes([x])
 
     string_type = str
-
-    string_type_name = string_type.__name__
