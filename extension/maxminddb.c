@@ -184,7 +184,7 @@ static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address)
         // Although this should work on Python 3, we will hopefully delete
         // this soon and the Python 3 version is cleaner.
         const char *ipstr = PyString_AsString(obj);
-        Py_ssize_t len = strlen(ipstr);
+        Py_ssize_t len = PyString_Size(obj);
 #endif
         if (!ipstr) {
             PyErr_SetString(PyExc_TypeError,
