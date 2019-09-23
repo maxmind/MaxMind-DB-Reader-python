@@ -31,7 +31,7 @@ typedef struct {
     PyObject *record_size;
 } Metadata_obj;
 
-static char *format_sockaddr(struct sockaddr *addr);
+static bool format_sockaddr(struct sockaddr *addr, char *dst);
 static PyObject *from_entry_data_list(MMDB_entry_data_list_s **entry_data_list);
 static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list);
 static PyObject *from_array(MMDB_entry_data_list_s **entry_data_list);
@@ -142,10 +142,11 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
         } else {
             exception = MaxMindDB_error;
         }
-        char *ipstr = format_sockaddr(ip_address);
-        PyErr_Format(exception, "Error looking up %s. %s",
-                     ipstr, MMDB_strerror(mmdb_error));
-        free(ipstr);
+        char ipstr[INET6_ADDRSTRLEN] = { 0 };
+        if (format_sockaddr(ip_address, ipstr)) {
+            PyErr_Format(exception, "Error looking up %s. %s",
+                         ipstr, MMDB_strerror(mmdb_error));
+        }
         return NULL;
     }
 
@@ -156,11 +157,12 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
     MMDB_entry_data_list_s *entry_data_list = NULL;
     int status = MMDB_get_entry_data_list(&result.entry, &entry_data_list);
     if (MMDB_SUCCESS != status) {
-        char *ipstr = format_sockaddr(ip_address);
-        PyErr_Format(MaxMindDB_error,
-                     "Error while looking up data for %s. %s",
-                     ipstr, MMDB_strerror(status));
-        free(ipstr);
+        char ipstr[INET6_ADDRSTRLEN] = { 0 };
+        if (format_sockaddr(ip_address, ipstr)) {
+            PyErr_Format(MaxMindDB_error,
+                         "Error while looking up data for %s. %s",
+                         ipstr, MMDB_strerror(status));
+        }
         MMDB_free_entry_data_list(entry_data_list);
         return NULL;
     }
@@ -253,10 +255,8 @@ static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address)
     }
 }
 
-static char *format_sockaddr(struct sockaddr *sa)
+static bool format_sockaddr(struct sockaddr *sa, char *dst)
 {
-    char *ip = calloc(INET6_ADDRSTRLEN, sizeof(char));
-
     char *addr;
     if (sa->sa_family == AF_INET) {
         struct sockaddr_in *sin = (struct sockaddr_in *)sa;
@@ -266,8 +266,12 @@ static char *format_sockaddr(struct sockaddr *sa)
         addr = (char *)&sin->sin6_addr;
     }
 
-    inet_ntop(sa->sa_family, addr, ip, INET6_ADDRSTRLEN);
-    return ip;
+    if (inet_ntop(sa->sa_family, addr, dst, INET6_ADDRSTRLEN)) {
+        return true;
+    }
+    PyErr_SetString(PyExc_RuntimeError,
+                    "unable to format IP address");
+    return false;
 }
 
 
