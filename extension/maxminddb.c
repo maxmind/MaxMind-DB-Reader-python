@@ -212,6 +212,11 @@ static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address)
                          ipstr);
             return 0;
         }
+        if (!addresses) {
+            PyErr_SetString(PyExc_RuntimeError,
+                            "getaddrinfo was successful but failed to set the addrinfo");
+
+        }
         memcpy(ip_address, addresses->ai_addr, addresses->ai_addrlen);
         freeaddrinfo(addresses);
         return 1;
