@@ -1,9 +1,9 @@
 #include <Python.h>
-#include <maxminddb.h>
 #include <arpa/inet.h>
+#include <maxminddb.h>
 #include <netinet/in.h>
+#include <structmember.h>
 #include <sys/socket.h>
-#include "structmember.h"
 
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
@@ -12,14 +12,15 @@ static PyTypeObject Reader_Type;
 static PyTypeObject Metadata_Type;
 static PyObject *MaxMindDB_error;
 
+// clang-format off
 typedef struct {
-    PyObject_HEAD               /* no semicolon */
+    PyObject_HEAD /* no semicolon */
     MMDB_s *mmdb;
     PyObject *closed;
 } Reader_obj;
 
 typedef struct {
-    PyObject_HEAD               /* no semicolon */
+    PyObject_HEAD /* no semicolon */
     PyObject *binary_format_major_version;
     PyObject *binary_format_minor_version;
     PyObject *build_epoch;
@@ -30,7 +31,9 @@ typedef struct {
     PyObject *node_count;
     PyObject *record_size;
 } Metadata_obj;
+// clang-format on
 
+static int get_record(PyObject *self, PyObject *args, PyObject **record);
 static bool format_sockaddr(struct sockaddr *addr, char *dst);
 static PyObject *from_entry_data_list(MMDB_entry_data_list_s **entry_data_list);
 static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list);
@@ -39,43 +42,44 @@ static PyObject *from_uint128(const MMDB_entry_data_list_s *entry_data_list);
 static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address);
 
 #if PY_MAJOR_VERSION >= 3
-    #define MOD_INIT(name) PyMODINIT_FUNC PyInit_ ## name(void)
-    #define RETURN_MOD_INIT(m) return (m)
-    #define FILE_NOT_FOUND_ERROR PyExc_FileNotFoundError
+#define MOD_INIT(name) PyMODINIT_FUNC PyInit_##name(void)
+#define RETURN_MOD_INIT(m) return (m)
+#define FILE_NOT_FOUND_ERROR PyExc_FileNotFoundError
 #else
-    #define MOD_INIT(name) PyMODINIT_FUNC init ## name(void)
-    #define RETURN_MOD_INIT(m) return
-    #define PyInt_FromLong PyLong_FromLong
-    #define FILE_NOT_FOUND_ERROR PyExc_IOError
+#define MOD_INIT(name) PyMODINIT_FUNC init##name(void)
+#define RETURN_MOD_INIT(m) return
+#define PyInt_FromLong PyLong_FromLong
+#define FILE_NOT_FOUND_ERROR PyExc_IOError
 #endif
 
 #ifdef __GNUC__
-    #  define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
+#define UNUSED(x) UNUSED_##x __attribute__((__unused__))
 #else
-    #  define UNUSED(x) UNUSED_ ## x
+#define UNUSED(x) UNUSED_##x
 #endif
 
-static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds)
-{
+static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
     char *filename;
     int mode = 0;
 
     static char *kwlist[] = {"database", "mode", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "s|i", kwlist, &filename, &mode)) {
+    if (!PyArg_ParseTupleAndKeywords(
+            args, kwds, "s|i", kwlist, &filename, &mode)) {
         return -1;
     }
 
     if (mode != 0 && mode != 1) {
-        PyErr_Format(PyExc_ValueError, "Unsupported open mode (%i). Only "
+        PyErr_Format(
+            PyExc_ValueError,
+            "Unsupported open mode (%i). Only "
             "MODE_AUTO and MODE_MMAP_EXT are supported by this extension.",
             mode);
         return -1;
     }
 
     if (0 != access(filename, R_OK)) {
-        PyErr_Format(FILE_NOT_FOUND_ERROR,
-                     "No such file or directory: '%s'",
-                     filename);
+        PyErr_Format(
+            FILE_NOT_FOUND_ERROR, "No such file or directory: '%s'", filename);
         return -1;
     }
 
@@ -96,11 +100,10 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds)
 
     if (MMDB_SUCCESS != status) {
         free(mmdb);
-        PyErr_Format(
-            MaxMindDB_error,
-            "Error opening database file (%s). Is this a valid MaxMind DB file?",
-            filename
-            );
+        PyErr_Format(MaxMindDB_error,
+                     "Error opening database file (%s). Is this a valid "
+                     "MaxMind DB file?",
+                     filename);
         return -1;
     }
 
@@ -109,26 +112,41 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds)
     return 0;
 }
 
-static PyObject *Reader_get(PyObject *self, PyObject *args)
-{
-    MMDB_s *mmdb = ((Reader_obj *)self)->mmdb;
+static PyObject *Reader_get(PyObject *self, PyObject *args) {
+    PyObject *record = NULL;
+    if (get_record(self, args, &record) == -1) {
+        return NULL;
+    }
+    return record;
+}
 
+static PyObject *Reader_get_with_prefix_len(PyObject *self, PyObject *args) {
+    PyObject *record = NULL;
+    int prefix_len = get_record(self, args, &record);
+    if (prefix_len == -1) {
+        return NULL;
+    }
+
+    return PyTuple_Pack(2, record, PyLong_FromLong(prefix_len));
+}
+
+static int get_record(PyObject *self, PyObject *args, PyObject **record) {
+    MMDB_s *mmdb = ((Reader_obj *)self)->mmdb;
     if (NULL == mmdb) {
         PyErr_SetString(PyExc_ValueError,
                         "Attempt to read from a closed MaxMind DB.");
-        return NULL;
+        return -1;
     }
 
-    struct sockaddr_storage ip_address_ss = { 0 };
+    struct sockaddr_storage ip_address_ss = {0};
     struct sockaddr *ip_address = (struct sockaddr *)&ip_address_ss;
     if (!PyArg_ParseTuple(args, "O&", ip_converter, &ip_address_ss)) {
-        return NULL;
+        return -1;
     }
 
     if (!ip_address->sa_family) {
-        PyErr_SetString(PyExc_ValueError,
-                        "Error parsing argument");
-        return NULL;
+        PyErr_SetString(PyExc_ValueError, "Error parsing argument");
+        return -1;
     }
 
     int mmdb_error = MMDB_SUCCESS;
@@ -142,44 +160,55 @@ static PyObject *Reader_get(PyObject *self, PyObject *args)
         } else {
             exception = MaxMindDB_error;
         }
-        char ipstr[INET6_ADDRSTRLEN] = { 0 };
+        char ipstr[INET6_ADDRSTRLEN] = {0};
         if (format_sockaddr(ip_address, ipstr)) {
-            PyErr_Format(exception, "Error looking up %s. %s",
-                         ipstr, MMDB_strerror(mmdb_error));
+            PyErr_Format(exception,
+                         "Error looking up %s. %s",
+                         ipstr,
+                         MMDB_strerror(mmdb_error));
         }
-        return NULL;
+        return -1;
+    }
+
+    int prefix_len = result.netmask;
+    if (ip_address->sa_family == AF_INET && mmdb->metadata.ip_version == 6) {
+        // We return the prefix length given the IPv4 address. If there is
+        // no IPv4 subtree, we return a prefix length of 0.
+        prefix_len = prefix_len >= 96 ? prefix_len - 96 : 0;
     }
 
     if (!result.found_entry) {
-        Py_RETURN_NONE;
+        *record = Py_None;
+        return prefix_len;
     }
 
     MMDB_entry_data_list_s *entry_data_list = NULL;
     int status = MMDB_get_entry_data_list(&result.entry, &entry_data_list);
     if (MMDB_SUCCESS != status) {
-        char ipstr[INET6_ADDRSTRLEN] = { 0 };
+        char ipstr[INET6_ADDRSTRLEN] = {0};
         if (format_sockaddr(ip_address, ipstr)) {
             PyErr_Format(MaxMindDB_error,
                          "Error while looking up data for %s. %s",
-                         ipstr, MMDB_strerror(status));
+                         ipstr,
+                         MMDB_strerror(status));
         }
         MMDB_free_entry_data_list(entry_data_list);
-        return NULL;
+        return -1;
     }
 
     MMDB_entry_data_list_s *original_entry_data_list = entry_data_list;
-    PyObject *py_obj = from_entry_data_list(&entry_data_list);
+    *record = from_entry_data_list(&entry_data_list);
     MMDB_free_entry_data_list(original_entry_data_list);
-    return py_obj;
+
+    return prefix_len;
 }
 
-static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address)
-{
+static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address) {
 #if PY_MAJOR_VERSION >= 3
     if (PyUnicode_Check(obj)) {
         Py_ssize_t len;
         const char *ipstr = PyUnicode_AsUTF8AndSize(obj, &len);
-# else
+#else
     if (PyUnicode_Check(obj) || PyString_Check(obj)) {
         // Although this should work on Python 3, we will hopefully delete
         // this soon and the Python 3 version is cleaner.
@@ -198,11 +227,10 @@ static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address)
         }
 
         struct addrinfo hints = {
-            .ai_family   = AF_UNSPEC,
-            .ai_flags    = AI_NUMERICHOST,
+            .ai_family = AF_UNSPEC,
+            .ai_flags = AI_NUMERICHOST,
             // We set ai_socktype so that we only get one result back
-            .ai_socktype = SOCK_STREAM
-        };
+            .ai_socktype = SOCK_STREAM};
 
         struct addrinfo *addresses = NULL;
         int gai_status = getaddrinfo(ipstr, NULL, &hints, &addresses);
@@ -213,9 +241,10 @@ static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address)
             return 0;
         }
         if (!addresses) {
-            PyErr_SetString(PyExc_RuntimeError,
-                            "getaddrinfo was successful but failed to set the addrinfo");
-
+            PyErr_SetString(
+                PyExc_RuntimeError,
+                "getaddrinfo was successful but failed to set the addrinfo");
+            return 0;
         }
         memcpy(ip_address, addresses->ai_addr, addresses->ai_addrlen);
         freeaddrinfo(addresses);
@@ -238,30 +267,30 @@ static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address)
     }
 
     switch (len) {
-    case 16: {
+        case 16: {
             ip_address->ss_family = AF_INET6;
             struct sockaddr_in6 *sin = (struct sockaddr_in6 *)ip_address;
             memcpy(sin->sin6_addr.s6_addr, bytes, len);
             Py_DECREF(packed);
             return 1;
         }
-    case 4: {
+        case 4: {
             ip_address->ss_family = AF_INET;
             struct sockaddr_in *sin = (struct sockaddr_in *)ip_address;
             memcpy(&(sin->sin_addr.s_addr), bytes, len);
             Py_DECREF(packed);
             return 1;
         }
-    default:
-        PyErr_SetString(PyExc_ValueError,
-                        "argument 1 returned an unexpected packed length for address");
-        Py_DECREF(packed);
-        return 0;
+        default:
+            PyErr_SetString(
+                PyExc_ValueError,
+                "argument 1 returned an unexpected packed length for address");
+            Py_DECREF(packed);
+            return 0;
     }
 }
 
-static bool format_sockaddr(struct sockaddr *sa, char *dst)
-{
+static bool format_sockaddr(struct sockaddr *sa, char *dst) {
     char *addr;
     if (sa->sa_family == AF_INET) {
         struct sockaddr_in *sin = (struct sockaddr_in *)sa;
@@ -274,14 +303,11 @@ static bool format_sockaddr(struct sockaddr *sa, char *dst)
     if (inet_ntop(sa->sa_family, addr, dst, INET6_ADDRSTRLEN)) {
         return true;
     }
-    PyErr_SetString(PyExc_RuntimeError,
-                    "unable to format IP address");
+    PyErr_SetString(PyExc_RuntimeError, "unable to format IP address");
     return false;
 }
 
-
-static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args))
-{
+static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args)) {
     Reader_obj *mmdb_obj = (Reader_obj *)self;
 
     if (NULL == mmdb_obj->mmdb) {
@@ -297,8 +323,7 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args))
     PyObject *metadata_dict = from_entry_data_list(&entry_data_list);
     MMDB_free_entry_data_list(original_entry_data_list);
     if (NULL == metadata_dict || !PyDict_Check(metadata_dict)) {
-        PyErr_SetString(MaxMindDB_error,
-                        "Error decoding metadata.");
+        PyErr_SetString(MaxMindDB_error, "Error decoding metadata.");
         return NULL;
     }
 
@@ -308,15 +333,14 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args))
         return NULL;
     }
 
-    PyObject *metadata = PyObject_Call((PyObject *)&Metadata_Type, args,
-                                       metadata_dict);
+    PyObject *metadata =
+        PyObject_Call((PyObject *)&Metadata_Type, args, metadata_dict);
 
     Py_DECREF(metadata_dict);
     return metadata;
 }
 
-static PyObject *Reader_close(PyObject *self, PyObject *UNUSED(args))
-{
+static PyObject *Reader_close(PyObject *self, PyObject *UNUSED(args)) {
     Reader_obj *mmdb_obj = (Reader_obj *)self;
 
     if (NULL != mmdb_obj->mmdb) {
@@ -330,11 +354,10 @@ static PyObject *Reader_close(PyObject *self, PyObject *UNUSED(args))
     Py_RETURN_NONE;
 }
 
-static PyObject *Reader__enter__(PyObject *self, PyObject *UNUSED(args))
-{
+static PyObject *Reader__enter__(PyObject *self, PyObject *UNUSED(args)) {
     Reader_obj *mmdb_obj = (Reader_obj *)self;
 
-    if(mmdb_obj->closed == Py_True) {
+    if (mmdb_obj->closed == Py_True) {
         PyErr_SetString(PyExc_ValueError,
                         "Attempt to reopen a closed MaxMind DB.");
         return NULL;
@@ -344,14 +367,12 @@ static PyObject *Reader__enter__(PyObject *self, PyObject *UNUSED(args))
     return (PyObject *)self;
 }
 
-static PyObject *Reader__exit__(PyObject *self, PyObject *UNUSED(args))
-{
+static PyObject *Reader__exit__(PyObject *self, PyObject *UNUSED(args)) {
     Reader_close(self, NULL);
     Py_RETURN_NONE;
 }
 
-static void Reader_dealloc(PyObject *self)
-{
+static void Reader_dealloc(PyObject *self) {
     Reader_obj *obj = (Reader_obj *)self;
     if (NULL != obj->mmdb) {
         Reader_close(self, NULL);
@@ -360,34 +381,27 @@ static void Reader_dealloc(PyObject *self)
     PyObject_Del(self);
 }
 
-static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds)
-{
+static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds) {
 
-    PyObject
-    *binary_format_major_version,
-    *binary_format_minor_version,
-    *build_epoch,
-    *database_type,
-    *description,
-    *ip_version,
-    *languages,
-    *node_count,
-    *record_size;
+    PyObject *binary_format_major_version, *binary_format_minor_version,
+        *build_epoch, *database_type, *description, *ip_version, *languages,
+        *node_count, *record_size;
 
-    static char *kwlist[] = {
-        "binary_format_major_version",
-        "binary_format_minor_version",
-        "build_epoch",
-        "database_type",
-        "description",
-        "ip_version",
-        "languages",
-        "node_count",
-        "record_size",
-        NULL
-    };
+    static char *kwlist[] = {"binary_format_major_version",
+                             "binary_format_minor_version",
+                             "build_epoch",
+                             "database_type",
+                             "description",
+                             "ip_version",
+                             "languages",
+                             "node_count",
+                             "record_size",
+                             NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOOOOOO", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args,
+                                     kwds,
+                                     "|OOOOOOOOO",
+                                     kwlist,
                                      &binary_format_major_version,
                                      &binary_format_minor_version,
                                      &build_epoch,
@@ -425,8 +439,7 @@ static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds)
     return 0;
 }
 
-static void Metadata_dealloc(PyObject *self)
-{
+static void Metadata_dealloc(PyObject *self) {
     Metadata_obj *obj = (Metadata_obj *)self;
     Py_DECREF(obj->binary_format_major_version);
     Py_DECREF(obj->binary_format_minor_version);
@@ -440,58 +453,57 @@ static void Metadata_dealloc(PyObject *self)
     PyObject_Del(self);
 }
 
-static PyObject *from_entry_data_list(MMDB_entry_data_list_s **entry_data_list)
-{
+static PyObject *
+from_entry_data_list(MMDB_entry_data_list_s **entry_data_list) {
     if (NULL == entry_data_list || NULL == *entry_data_list) {
-        PyErr_SetString(
-            MaxMindDB_error,
-            "Error while looking up data. Your database may be corrupt or you have found a bug in libmaxminddb."
-            );
+        PyErr_SetString(MaxMindDB_error,
+                        "Error while looking up data. Your database may be "
+                        "corrupt or you have found a bug in libmaxminddb.");
         return NULL;
     }
 
     switch ((*entry_data_list)->entry_data.type) {
-    case MMDB_DATA_TYPE_MAP:
-        return from_map(entry_data_list);
-    case MMDB_DATA_TYPE_ARRAY:
-        return from_array(entry_data_list);
-    case MMDB_DATA_TYPE_UTF8_STRING:
-        return PyUnicode_FromStringAndSize(
-                   (*entry_data_list)->entry_data.utf8_string,
-                   (*entry_data_list)->entry_data.data_size
-                   );
-    case MMDB_DATA_TYPE_BYTES:
-        return PyByteArray_FromStringAndSize(
-                   (const char *)(*entry_data_list)->entry_data.bytes,
-                   (Py_ssize_t)(*entry_data_list)->entry_data.data_size);
-    case MMDB_DATA_TYPE_DOUBLE:
-        return PyFloat_FromDouble((*entry_data_list)->entry_data.double_value);
-    case MMDB_DATA_TYPE_FLOAT:
-        return PyFloat_FromDouble((*entry_data_list)->entry_data.float_value);
-    case MMDB_DATA_TYPE_UINT16:
-        return PyLong_FromLong( (*entry_data_list)->entry_data.uint16);
-    case MMDB_DATA_TYPE_UINT32:
-        return PyLong_FromLong((*entry_data_list)->entry_data.uint32);
-    case MMDB_DATA_TYPE_BOOLEAN:
-        return PyBool_FromLong((*entry_data_list)->entry_data.boolean);
-    case MMDB_DATA_TYPE_UINT64:
-        return PyLong_FromUnsignedLongLong(
-                   (*entry_data_list)->entry_data.uint64);
-    case MMDB_DATA_TYPE_UINT128:
-        return from_uint128(*entry_data_list);
-    case MMDB_DATA_TYPE_INT32:
-        return PyLong_FromLong((*entry_data_list)->entry_data.int32);
-    default:
-        PyErr_Format(MaxMindDB_error,
-                     "Invalid data type arguments: %d",
-                     (*entry_data_list)->entry_data.type);
-        return NULL;
+        case MMDB_DATA_TYPE_MAP:
+            return from_map(entry_data_list);
+        case MMDB_DATA_TYPE_ARRAY:
+            return from_array(entry_data_list);
+        case MMDB_DATA_TYPE_UTF8_STRING:
+            return PyUnicode_FromStringAndSize(
+                (*entry_data_list)->entry_data.utf8_string,
+                (*entry_data_list)->entry_data.data_size);
+        case MMDB_DATA_TYPE_BYTES:
+            return PyByteArray_FromStringAndSize(
+                (const char *)(*entry_data_list)->entry_data.bytes,
+                (Py_ssize_t)(*entry_data_list)->entry_data.data_size);
+        case MMDB_DATA_TYPE_DOUBLE:
+            return PyFloat_FromDouble(
+                (*entry_data_list)->entry_data.double_value);
+        case MMDB_DATA_TYPE_FLOAT:
+            return PyFloat_FromDouble(
+                (*entry_data_list)->entry_data.float_value);
+        case MMDB_DATA_TYPE_UINT16:
+            return PyLong_FromLong((*entry_data_list)->entry_data.uint16);
+        case MMDB_DATA_TYPE_UINT32:
+            return PyLong_FromLong((*entry_data_list)->entry_data.uint32);
+        case MMDB_DATA_TYPE_BOOLEAN:
+            return PyBool_FromLong((*entry_data_list)->entry_data.boolean);
+        case MMDB_DATA_TYPE_UINT64:
+            return PyLong_FromUnsignedLongLong(
+                (*entry_data_list)->entry_data.uint64);
+        case MMDB_DATA_TYPE_UINT128:
+            return from_uint128(*entry_data_list);
+        case MMDB_DATA_TYPE_INT32:
+            return PyLong_FromLong((*entry_data_list)->entry_data.int32);
+        default:
+            PyErr_Format(MaxMindDB_error,
+                         "Invalid data type arguments: %d",
+                         (*entry_data_list)->entry_data.type);
+            return NULL;
     }
     return NULL;
 }
 
-static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list)
-{
+static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list) {
     PyObject *py_obj = PyDict_New();
     if (NULL == py_obj) {
         PyErr_NoMemory();
@@ -509,8 +521,7 @@ static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list)
 
         PyObject *key = PyUnicode_FromStringAndSize(
             (char *)(*entry_data_list)->entry_data.utf8_string,
-            (*entry_data_list)->entry_data.data_size
-            );
+            (*entry_data_list)->entry_data.data_size);
 
         *entry_data_list = (*entry_data_list)->next;
 
@@ -528,8 +539,7 @@ static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list)
     return py_obj;
 }
 
-static PyObject *from_array(MMDB_entry_data_list_s **entry_data_list)
-{
+static PyObject *from_array(MMDB_entry_data_list_s **entry_data_list) {
     const uint32_t size = (*entry_data_list)->entry_data.data_size;
 
     PyObject *py_obj = PyList_New(size);
@@ -555,8 +565,7 @@ static PyObject *from_array(MMDB_entry_data_list_s **entry_data_list)
     return py_obj;
 }
 
-static PyObject *from_uint128(const MMDB_entry_data_list_s *entry_data_list)
-{
+static PyObject *from_uint128(const MMDB_entry_data_list_s *entry_data_list) {
     uint64_t high = 0;
     uint64_t low = 0;
 #if MMDB_UINT128_IS_BYTE_ARRAY
@@ -588,21 +597,34 @@ static PyObject *from_uint128(const MMDB_entry_data_list_s *entry_data_list)
 }
 
 static PyMethodDef Reader_methods[] = {
-    { "get",      Reader_get,      METH_VARARGS,
-      "Get record for IP address" },
-    { "metadata", Reader_metadata, METH_NOARGS,
-      "Returns metadata object for database" },
-    { "close",    Reader_close,    METH_NOARGS, "Closes database"},
-    { "__exit__", Reader__exit__, METH_VARARGS, "Called when exiting a with-context. Calls close"},
-    { "__enter__", Reader__enter__, METH_NOARGS, "Called when entering a with-context."},
-    { NULL,       NULL,            0,           NULL        }
-};
+    {"get",
+     Reader_get,
+     METH_VARARGS,
+     "Return the record for the ip_address in the MaxMind DB"},
+    {"get_with_prefix_len",
+     Reader_get_with_prefix_len,
+     METH_VARARGS,
+     "Return a tuple with the record and the associated prefix length"},
+    {"metadata",
+     Reader_metadata,
+     METH_NOARGS,
+     "Return metadata object for database"},
+    {"close", Reader_close, METH_NOARGS, "Closes database"},
+    {"__exit__",
+     Reader__exit__,
+     METH_VARARGS,
+     "Called when exiting a with-context. Calls close"},
+    {"__enter__",
+     Reader__enter__,
+     METH_NOARGS,
+     "Called when entering a with-context."},
+    {NULL, NULL, 0, NULL}};
 
 static PyMemberDef Reader_members[] = {
-    { "closed", T_OBJECT, offsetof(Reader_obj, closed), READONLY, NULL },
-    { NULL, 0, 0, 0, NULL }
-};
+    {"closed", T_OBJECT, offsetof(Reader_obj, closed), READONLY, NULL},
+    {NULL, 0, 0, 0, NULL}};
 
+// clang-format off
 static PyTypeObject Reader_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_basicsize = sizeof(Reader_obj),
@@ -614,35 +636,55 @@ static PyTypeObject Reader_Type = {
     .tp_name = "Reader",
     .tp_init = Reader_init,
 };
+// clang-format on
 
-static PyMethodDef Metadata_methods[] = {
-    { NULL, NULL, 0, NULL }
-};
+static PyMethodDef Metadata_methods[] = {{NULL, NULL, 0, NULL}};
 
-/* *INDENT-OFF* */
 static PyMemberDef Metadata_members[] = {
-    { "binary_format_major_version", T_OBJECT, offsetof(
-          Metadata_obj, binary_format_major_version), READONLY, NULL },
-    { "binary_format_minor_version", T_OBJECT, offsetof(
-          Metadata_obj, binary_format_minor_version), READONLY, NULL },
-    { "build_epoch", T_OBJECT, offsetof(Metadata_obj, build_epoch),
-          READONLY, NULL },
-    { "database_type", T_OBJECT, offsetof(Metadata_obj, database_type),
-          READONLY, NULL },
-    { "description", T_OBJECT, offsetof(Metadata_obj, description),
-          READONLY, NULL },
-    { "ip_version", T_OBJECT, offsetof(Metadata_obj, ip_version),
-          READONLY, NULL },
-    { "languages", T_OBJECT, offsetof(Metadata_obj, languages), READONLY,
-          NULL },
-    { "node_count", T_OBJECT, offsetof(Metadata_obj, node_count),
-          READONLY, NULL },
-    { "record_size", T_OBJECT, offsetof(Metadata_obj, record_size),
-          READONLY, NULL },
-    { NULL, 0, 0, 0, NULL }
-};
-/* *INDENT-ON* */
+    {"binary_format_major_version",
+     T_OBJECT,
+     offsetof(Metadata_obj, binary_format_major_version),
+     READONLY,
+     NULL},
+    {"binary_format_minor_version",
+     T_OBJECT,
+     offsetof(Metadata_obj, binary_format_minor_version),
+     READONLY,
+     NULL},
+    {"build_epoch",
+     T_OBJECT,
+     offsetof(Metadata_obj, build_epoch),
+     READONLY,
+     NULL},
+    {"database_type",
+     T_OBJECT,
+     offsetof(Metadata_obj, database_type),
+     READONLY,
+     NULL},
+    {"description",
+     T_OBJECT,
+     offsetof(Metadata_obj, description),
+     READONLY,
+     NULL},
+    {"ip_version",
+     T_OBJECT,
+     offsetof(Metadata_obj, ip_version),
+     READONLY,
+     NULL},
+    {"languages", T_OBJECT, offsetof(Metadata_obj, languages), READONLY, NULL},
+    {"node_count",
+     T_OBJECT,
+     offsetof(Metadata_obj, node_count),
+     READONLY,
+     NULL},
+    {"record_size",
+     T_OBJECT,
+     offsetof(Metadata_obj, record_size),
+     READONLY,
+     NULL},
+    {NULL, 0, 0, 0, NULL}};
 
+// clang-format off
 static PyTypeObject Metadata_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_basicsize = sizeof(Metadata_obj),
@@ -652,13 +694,10 @@ static PyTypeObject Metadata_Type = {
     .tp_members = Metadata_members,
     .tp_methods = Metadata_methods,
     .tp_name = "Metadata",
-    .tp_init = Metadata_init
-};
+    .tp_init = Metadata_init};
+// clang-format on
 
-static PyMethodDef MaxMindDB_methods[] = {
-    { NULL, NULL, 0, NULL }
-};
-
+static PyMethodDef MaxMindDB_methods[] = {{NULL, NULL, 0, NULL}};
 
 #if PY_MAJOR_VERSION >= 3
 static struct PyModuleDef MaxMindDB_module = {
@@ -669,7 +708,7 @@ static struct PyModuleDef MaxMindDB_module = {
 };
 #endif
 
-MOD_INIT(extension){
+MOD_INIT(extension) {
     PyObject *m;
 
 #if PY_MAJOR_VERSION >= 3
@@ -695,7 +734,7 @@ MOD_INIT(extension){
     }
     PyModule_AddObject(m, "extension", (PyObject *)&Metadata_Type);
 
-    PyObject* error_mod = PyImport_ImportModule("maxminddb.errors");
+    PyObject *error_mod = PyImport_ImportModule("maxminddb.errors");
     if (error_mod == NULL) {
         RETURN_MOD_INIT(NULL);
     }

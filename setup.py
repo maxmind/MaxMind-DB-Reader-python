@@ -9,7 +9,7 @@ from distutils.command.build_ext import build_ext
 from distutils.errors import (CCompilerError, DistutilsExecError,
                               DistutilsPlatformError)
 
-from setuptools import setup, Extension, Feature
+from setuptools import setup, Extension
 
 cmdclass = {}
 PYPY = hasattr(sys, 'pypy_version_info')
@@ -107,15 +107,7 @@ def find_packages(location):
 def run_setup(with_cext):
     kwargs = {}
     if with_cext:
-        if Feature:
-            kwargs['features'] = {
-                'extension':
-                Feature("optional C implementation",
-                        standard=True,
-                        ext_modules=ext_module)
-            }
-        else:
-            kwargs['ext_modules'] = ext_module
+        kwargs['ext_modules'] = ext_module
 
     setup(name='maxminddb',
           version=VERSION,

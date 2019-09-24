@@ -3,18 +3,15 @@
 
 from __future__ import unicode_literals
 
-import logging
 import ipaddress
-import mock
 import os
 import sys
 import threading
-
 from multiprocessing import Process, Pipe
 
-import maxminddb
+import mock
 
-from maxminddb.compat import compat_ip_address
+import maxminddb
 
 try:
     import maxminddb.extension
@@ -71,6 +68,111 @@ class BaseTestReader(object):
                 else:
                     self._check_ip_v6(reader, file_name)
                 reader.close()
+
+    def test_get_with_prefix_len(self):
+        decoder_record = {
+            "array": [1, 2, 3],
+            "boolean": True,
+            "bytes": b'\x00\x00\x00*',
+            "double": 42.123456,
+            "float": 1.100000023841858,
+            "int32": -268435456,
+            "map": {
+                "mapX": {
+                    "arrayX": [7, 8, 9],
+                    "utf8_stringX": "hello",
+                },
+            },
+            "uint128": 1329227995784915872903807060280344576,
+            "uint16": 0x64,
+            "uint32": 0x10000000,
+            "uint64": 0x1000000000000000,
+            "utf8_string": "unicode! ☯ - ♫",
+        }
+
+        tests = [{
+            'ip': '1.1.1.1',
+            'file_name': 'MaxMind-DB-test-ipv6-32.mmdb',
+            'expected_prefix_len': 8,
+            'expected_record': None,
+        }, {
+            'ip': '::1:ffff:ffff',
+            'file_name': 'MaxMind-DB-test-ipv6-24.mmdb',
+            'expected_prefix_len': 128,
+            'expected_record': {
+                "ip": "::1:ffff:ffff"
+            },
+        }, {
+            'ip': '::2:0:1',
+            'file_name': 'MaxMind-DB-test-ipv6-24.mmdb',
+            'expected_prefix_len': 122,
+            'expected_record': {
+                "ip": "::2:0:0"
+            },
+        }, {
+            'ip': '1.1.1.1',
+            'file_name': 'MaxMind-DB-test-ipv4-24.mmdb',
+            'expected_prefix_len': 32,
+            'expected_record': {
+                "ip": "1.1.1.1"
+            },
+        }, {
+            'ip': '1.1.1.3',
+            'file_name': 'MaxMind-DB-test-ipv4-24.mmdb',
+            'expected_prefix_len': 31,
+            'expected_record': {
+                "ip": "1.1.1.2"
+            },
+        }, {
+            'ip': '1.1.1.3',
+            'file_name': 'MaxMind-DB-test-decoder.mmdb',
+            'expected_prefix_len': 24,
+            'expected_record': decoder_record,
+        }, {
+            'ip': '::ffff:1.1.1.128',
+            'file_name': 'MaxMind-DB-test-decoder.mmdb',
+            'expected_prefix_len': 120,
+            'expected_record': decoder_record,
+        }, {
+            'ip': '::1.1.1.128',
+            'file_name': 'MaxMind-DB-test-decoder.mmdb',
+            'expected_prefix_len': 120,
+            'expected_record': decoder_record,
+        }, {
+            'ip': '200.0.2.1',
+            'file_name': 'MaxMind-DB-no-ipv4-search-tree.mmdb',
+            'expected_prefix_len': 0,
+            'expected_record': "::0/64",
+        }, {
+            'ip': '::200.0.2.1',
+            'file_name': 'MaxMind-DB-no-ipv4-search-tree.mmdb',
+            'expected_prefix_len': 64,
+            'expected_record': "::0/64",
+        }, {
+            'ip': '0:0:0:0:ffff:ffff:ffff:ffff',
+            'file_name': 'MaxMind-DB-no-ipv4-search-tree.mmdb',
+            'expected_prefix_len': 64,
+            'expected_record': "::0/64",
+        }, {
+            'ip': 'ef00::',
+            'file_name': 'MaxMind-DB-no-ipv4-search-tree.mmdb',
+            'expected_prefix_len': 1,
+            'expected_record': None,
+        }]
+
+        for test in tests:
+            with open_database('tests/data/test-data/' + test['file_name'],
+                               self.mode) as reader:
+                (record, prefix_len) = reader.get_with_prefix_len(test['ip'])
+
+                self.assertEqual(
+                    prefix_len, test['expected_prefix_len'],
+                    'expected prefix_len of {} for {} in {} but got {}'.format(
+                        test['expected_prefix_len'], test['ip'],
+                        test['file_name'], prefix_len))
+                self.assertEqual(
+                    record, test['expected_record'], 'expected_record for ' +
+                    test['ip'] + ' in ' + test['file_name'])
 
     def test_decoder(self):
         reader = open_database(
