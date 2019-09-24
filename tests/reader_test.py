@@ -3,18 +3,15 @@
 
 from __future__ import unicode_literals
 
-import logging
 import ipaddress
-import mock
 import os
 import sys
 import threading
-
 from multiprocessing import Process, Pipe
 
-import maxminddb
+import mock
 
-from maxminddb.compat import compat_ip_address
+import maxminddb
 
 try:
     import maxminddb.extension
