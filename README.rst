@@ -62,6 +62,10 @@ corresponding values for the IP address from the database (e.g., a dictionary
 for GeoIP2/GeoLite2 databases). If the database does not contain a record for
 that IP address, the method will return ``None``.
 
+If you wish to also retrieve the prefix length for the record, use the
+``get_with_prefix_len`` method. This returns a tuple containing the record
+followed by the network prefix length associated with the record.
+
 Example
 -------
 
@@ -70,8 +74,12 @@ Example
     >>> import maxminddb
     >>>
     >>> reader = maxminddb.open_database('GeoLite2-City.mmdb')
+    >>>
     >>> reader.get('1.1.1.1')
     {'country': ... }
+    >>>
+    >>> reader.get_with_prefix_len('1.1.1.1')
+    ({'country': ... }, 24)
     >>>
     >>> reader.close()
 
