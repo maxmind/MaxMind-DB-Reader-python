@@ -12,15 +12,16 @@ static PyTypeObject Reader_Type;
 static PyTypeObject Metadata_Type;
 static PyObject *MaxMindDB_error;
 
+// clang-format off
 typedef struct {
     PyObject_HEAD /* no semicolon */
-        MMDB_s *mmdb;
+    MMDB_s *mmdb;
     PyObject *closed;
 } Reader_obj;
 
 typedef struct {
     PyObject_HEAD /* no semicolon */
-        PyObject *binary_format_major_version;
+    PyObject *binary_format_major_version;
     PyObject *binary_format_minor_version;
     PyObject *build_epoch;
     PyObject *database_type;
@@ -30,6 +31,7 @@ typedef struct {
     PyObject *node_count;
     PyObject *record_size;
 } Metadata_obj;
+// clang-format on
 
 static int get_record(PyObject *self, PyObject *args, PyObject **record);
 static bool format_sockaddr(struct sockaddr *addr, char *dst);
@@ -622,8 +624,10 @@ static PyMemberDef Reader_members[] = {
     {"closed", T_OBJECT, offsetof(Reader_obj, closed), READONLY, NULL},
     {NULL, 0, 0, 0, NULL}};
 
+// clang-format off
 static PyTypeObject Reader_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0).tp_basicsize = sizeof(Reader_obj),
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_basicsize = sizeof(Reader_obj),
     .tp_dealloc = Reader_dealloc,
     .tp_doc = "Reader object",
     .tp_flags = Py_TPFLAGS_DEFAULT,
@@ -632,10 +636,10 @@ static PyTypeObject Reader_Type = {
     .tp_name = "Reader",
     .tp_init = Reader_init,
 };
+// clang-format on
 
 static PyMethodDef Metadata_methods[] = {{NULL, NULL, 0, NULL}};
 
-/* *INDENT-OFF* */
 static PyMemberDef Metadata_members[] = {
     {"binary_format_major_version",
      T_OBJECT,
@@ -679,10 +683,11 @@ static PyMemberDef Metadata_members[] = {
      READONLY,
      NULL},
     {NULL, 0, 0, 0, NULL}};
-/* *INDENT-ON* */
 
+// clang-format off
 static PyTypeObject Metadata_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0).tp_basicsize = sizeof(Metadata_obj),
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_basicsize = sizeof(Metadata_obj),
     .tp_dealloc = Metadata_dealloc,
     .tp_doc = "Metadata object",
     .tp_flags = Py_TPFLAGS_DEFAULT,
@@ -690,6 +695,7 @@ static PyTypeObject Metadata_Type = {
     .tp_methods = Metadata_methods,
     .tp_name = "Metadata",
     .tp_init = Metadata_init};
+// clang-format on
 
 static PyMethodDef MaxMindDB_methods[] = {{NULL, NULL, 0, NULL}};
 
