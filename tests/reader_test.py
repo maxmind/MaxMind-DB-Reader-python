@@ -161,18 +161,18 @@ class BaseTestReader(object):
         }]
 
         for test in tests:
-            reader = open_database('tests/data/test-data/' + test['file_name'],
-                                   self.mode)
-            (record, prefix_len) = reader.get_with_prefix_len(test['ip'])
+            with open_database('tests/data/test-data/' + test['file_name'],
+                               self.mode) as reader:
+                (record, prefix_len) = reader.get_with_prefix_len(test['ip'])
 
-            self.assertEqual(
-                prefix_len, test['expected_prefix_len'],
-                'expected prefix_len of {} for {} in {} but got {}'.format(
-                    test['expected_prefix_len'], test['ip'], test['file_name'],
-                    prefix_len))
-            self.assertEqual(
-                record, test['expected_record'], 'expected_record for ' +
-                test['ip'] + ' in ' + test['file_name'])
+                self.assertEqual(
+                    prefix_len, test['expected_prefix_len'],
+                    'expected prefix_len of {} for {} in {} but got {}'.format(
+                        test['expected_prefix_len'], test['ip'],
+                        test['file_name'], prefix_len))
+                self.assertEqual(
+                    record, test['expected_record'], 'expected_record for ' +
+                    test['ip'] + ' in ' + test['file_name'])
 
     def test_decoder(self):
         reader = open_database(
