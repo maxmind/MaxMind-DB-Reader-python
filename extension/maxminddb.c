@@ -1,8 +1,8 @@
-#include "structmember.h"
 #include <Python.h>
 #include <arpa/inet.h>
 #include <maxminddb.h>
 #include <netinet/in.h>
+#include <structmember.h>
 #include <sys/socket.h>
 
 #define __STDC_FORMAT_MACROS
