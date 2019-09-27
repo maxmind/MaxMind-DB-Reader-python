@@ -3,7 +3,7 @@
 History
 -------
 
-1.5.0
+1.5.0 (2019-09-27)
 ++++++++++++++++++
 
 * Python 3.3 and 3.4 are no longer supported.
@@ -14,7 +14,7 @@ History
   ``ipaddress.IPv6Address`` objects in addition to strings.  This works with
   both the pure Python implementation as well as the extension. Based on a
   pull request #48 by Eric Pruitt. GitHub #50.
-* A new method, ``get_with_prefix_len`` was added. This method returns a
+* A new method, ``get_with_prefix_len``, was added. This method returns a
   tuple containing the record and the prefix length.
 
 1.4.1 (2018-06-22)
