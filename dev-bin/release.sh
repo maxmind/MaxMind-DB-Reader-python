@@ -2,6 +2,8 @@
 
 set -eu -o pipefail
 
+pip install twine sphinx
+
 changelog=$(cat HISTORY.rst)
 
 regex='
@@ -63,4 +65,6 @@ hub release create -m "$message" "$tag"
 
 git push --tags
 
-python setup.py release
+rm -fr dist
+python setup.py sdist
+twine upload dist/*
