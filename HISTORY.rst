@@ -3,6 +3,12 @@
 History
 -------
 
+1.5.1 (2019-09-27)
+++++++++++++++++++
+
+* Fix a possible segfault due to not correctly incrementing the reference
+  on a returned object.
+
 1.5.0 (2019-09-27)
 ++++++++++++++++++
 

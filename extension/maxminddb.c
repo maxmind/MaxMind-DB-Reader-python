@@ -127,7 +127,10 @@ static PyObject *Reader_get_with_prefix_len(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-    return PyTuple_Pack(2, record, PyLong_FromLong(prefix_len));
+    PyObject *tuple = Py_BuildValue("(Oi)", record, prefix_len);
+    Py_DECREF(record);
+
+    return tuple;
 }
 
 static int get_record(PyObject *self, PyObject *args, PyObject **record) {
@@ -178,6 +181,7 @@ static int get_record(PyObject *self, PyObject *args, PyObject **record) {
     }
 
     if (!result.found_entry) {
+        Py_INCREF(Py_None);
         *record = Py_None;
         return prefix_len;
     }
