@@ -9,7 +9,7 @@ from __future__ import unicode_literals
 
 import struct
 
-from maxminddb.compat import byte_from_int, int_from_bytes
+from maxminddb.compat import byte_from_int, int_from_byte, int_from_bytes
 from maxminddb.errors import InvalidDatabaseError
 
 
@@ -164,21 +164,22 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
 
     def _size_from_ctrl_byte(self, ctrl_byte, offset, type_num):
         size = ctrl_byte & 0x1f
-        if type_num == 1:
+        if type_num == 1 or size < 29:
             return size, offset
-        bytes_to_read = 0 if size < 29 else size - 28
-
-        new_offset = offset + bytes_to_read
-        size_bytes = self._buffer[offset:new_offset]
 
         # Using unpack rather than int_from_bytes as it is about 200 lookups
         # per second faster here.
         if size == 29:
-            size = 29 + struct.unpack(b'!B', size_bytes)[0]
-        elif size == 30:
-            size = 285 + struct.unpack(b'!H', size_bytes)[0]
-        elif size > 30:
-            size = struct.unpack(b'!I', size_bytes.rjust(4,
-                                                         b'\x00'))[0] + 65821
+            size = 29 + int_from_byte(self._buffer[offset])
+            return size, offset + 1
 
+        if size == 30:
+            new_offset = offset + 2
+            size_bytes = self._buffer[offset:new_offset]
+            size = 285 + struct.unpack(b'!H', size_bytes)[0]
+            return size, new_offset
+
+        new_offset = offset + 3
+        size_bytes = self._buffer[offset:new_offset]
+        size = struct.unpack(b'!I', b'\x00' + size_bytes)[0] + 65821
         return size, new_offset
