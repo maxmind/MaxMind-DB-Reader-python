@@ -21,7 +21,7 @@ class FileBuffer(object):
         if isinstance(key, slice):
             return self._read(key.stop - key.start, key.start)
         if isinstance(key, int):
-            return self._read(1, key)
+            return self._read(1, key)[0]
         raise TypeError("Invalid argument type.")
 
     def rfind(self, needle, start):
