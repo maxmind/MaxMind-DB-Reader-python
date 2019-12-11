@@ -88,6 +88,13 @@ class Reader(object):
         (metadata, _) = metadata_decoder.decode(metadata_start)
         self._metadata = Metadata(**metadata)  # pylint: disable=bad-option-value
 
+        self._ip_version = self._metadata.ip_version
+        self._node_byte_size = self._metadata.node_byte_size
+        self._node_count = self._metadata.node_count
+        self._record_size = self._metadata.record_size
+
+        self._data_pointer_offset = self._metadata.search_tree_size - self._node_count
+
         self._decoder = Decoder(
             self._buffer, self._metadata.search_tree_size +
             self._DATA_SECTION_SEPARATOR_SIZE)
@@ -124,7 +131,7 @@ class Reader(object):
         except AttributeError:
             raise TypeError('argument 1 must be a string or ipaddress object')
 
-        if address.version == 6 and self._metadata.ip_version == 4:
+        if address.version == 6 and self._ip_version == 4:
             raise ValueError(
                 'Error looking up {0}. You attempted to look up '
                 'an IPv6 address in an IPv4-only database.'.format(ip_address))
@@ -138,7 +145,7 @@ class Reader(object):
     def _find_address_in_tree(self, packed):
         bit_count = len(packed) * 8
         node = self._start_node(bit_count)
-        node_count = self._metadata.node_count
+        node_count = self._node_count
 
         i = 0
         while i < bit_count and node < node_count:
@@ -155,7 +162,7 @@ class Reader(object):
         raise InvalidDatabaseError('Invalid node in search tree')
 
     def _start_node(self, length):
-        if self._metadata.ip_version != 6 or length == 128:
+        if self._ip_version != 6 or length == 128:
             return 0
 
         # We are looking up an IPv4 address in an IPv6 tree. Skip over the
@@ -165,16 +172,16 @@ class Reader(object):
 
         node = 0
         for _ in range(96):
-            if node >= self._metadata.node_count:
+            if node >= self._node_count:
                 break
             node = self._read_node(node, 0)
         self._ipv4_start = node
         return node
 
     def _read_node(self, node_number, index):
-        base_offset = node_number * self._metadata.node_byte_size
+        base_offset = node_number * self._node_byte_size
 
-        record_size = self._metadata.record_size
+        record_size = self._record_size
         if record_size == 24:
             offset = base_offset + index * 3
             node_bytes = b'\x00' + self._buffer[offset:offset + 3]
@@ -195,8 +202,7 @@ class Reader(object):
         return struct.unpack(b'!I', node_bytes)[0]
 
     def _resolve_data_pointer(self, pointer):
-        resolved = pointer - self._metadata.node_count + \
-            self._metadata.search_tree_size
+        resolved = pointer + self._data_pointer_offset
 
         if resolved > self._buffer_size:
             raise InvalidDatabaseError(
