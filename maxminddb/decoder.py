@@ -41,22 +41,30 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
         new_offset = offset + size
         return self._buffer[offset:new_offset], new_offset
 
-    # pylint: disable=no-self-argument
-    # |-> I am open to better ways of doing this as long as it doesn't involve
-    #     lots of code duplication.
-    def _decode_packed_type(type_code, type_size, pad=False):
-        # pylint: disable=protected-access, missing-docstring
-        def unpack_type(self, size, offset):
-            if not pad:
-                self._verify_size(size, type_size)
-            new_offset = offset + size
-            packed_bytes = self._buffer[offset:new_offset]
-            if pad:
-                packed_bytes = packed_bytes.rjust(type_size, b'\x00')
-            (value, ) = struct.unpack(type_code, packed_bytes)
-            return value, new_offset
+    def _decode_double(self, size, offset):
+        self._verify_size(size, 8)
+        new_offset = offset + size
+        packed_bytes = self._buffer[offset:new_offset]
+        (value, ) = struct.unpack(b'!d', packed_bytes)
+        return value, new_offset
 
-        return unpack_type
+    def _decode_float(self, size, offset):
+        self._verify_size(size, 4)
+        new_offset = offset + size
+        packed_bytes = self._buffer[offset:new_offset]
+        (value, ) = struct.unpack(b'!f', packed_bytes)
+        return value, new_offset
+
+    def _decode_int32(self, size, offset):
+        if size == 0:
+            return 0, offset
+        new_offset = offset + size
+        packed_bytes = self._buffer[offset:new_offset]
+
+        if size != 4:
+            packed_bytes = packed_bytes.rjust(4, b'\x00')
+        (value, ) = struct.unpack(b'!i', packed_bytes)
+        return value, new_offset
 
     def _decode_map(self, size, offset):
         container = {}
@@ -99,17 +107,17 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
     _type_decoder = {
         1: _decode_pointer,
         2: _decode_utf8_string,
-        3: _decode_packed_type(b'!d', 8),  # double,
+        3: _decode_double,
         4: _decode_bytes,
         5: _decode_uint,  # uint16
         6: _decode_uint,  # uint32
         7: _decode_map,
-        8: _decode_packed_type(b'!i', 4, pad=True),  # int32
+        8: _decode_int32,
         9: _decode_uint,  # uint64
         10: _decode_uint,  # uint128
         11: _decode_array,
         14: _decode_boolean,
-        15: _decode_packed_type(b'!f', 4),  # float,
+        15: _decode_float,
     }
 
     def decode(self, offset):
