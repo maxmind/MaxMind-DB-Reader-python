@@ -74,22 +74,25 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
             container[key] = value
         return container, offset
 
-    _pointer_value_offset = {
-        1: 0,
-        2: 2048,
-        3: 526336,
-        4: 0,
-    }
-
     def _decode_pointer(self, size, offset):
-        pointer_size = ((size >> 3) & 0x3) + 1
+        pointer_size = (size >> 3) + 1
+
+        buf = self._buffer[offset:offset + pointer_size]
         new_offset = offset + pointer_size
-        pointer_bytes = self._buffer[offset:new_offset]
-        packed = pointer_bytes if pointer_size == 4 else struct.pack(
-            b'!c', byte_from_int(size & 0x7)) + pointer_bytes
-        unpacked = int_from_bytes(packed)
-        pointer = unpacked + self._pointer_base + \
-            self._pointer_value_offset[pointer_size]
+
+        if pointer_size == 1:
+            buf = byte_from_int(size & 0x7) + buf
+            pointer = struct.unpack(b'!H', buf)[0] + self._pointer_base
+        elif pointer_size == 2:
+            buf = b'\x00' + byte_from_int(size & 0x7) + buf
+            pointer = struct.unpack(b'!I', buf)[0] + 2048 + self._pointer_base
+        elif pointer_size == 3:
+            buf = byte_from_int(size & 0x7) + buf
+            pointer = struct.unpack(b'!I',
+                                    buf)[0] + 526336 + self._pointer_base
+        else:
+            pointer = struct.unpack(b'!I', buf)[0] + self._pointer_base
+
         if self._pointer_test:
             return pointer, new_offset
         (value, _) = self.decode(pointer)
