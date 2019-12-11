@@ -22,6 +22,7 @@ parser.add_argument('--file',
 
 args = parser.parse_args()
 
+random.seed(0)
 reader = maxminddb.open_database(args.file, args.mode)
 
 
