@@ -200,7 +200,7 @@ class Reader(object):
         resolved = pointer - self._metadata.node_count + \
             self._metadata.search_tree_size
 
-        if resolved > self._buffer_size:
+        if resolved >= self._buffer_size:
             raise InvalidDatabaseError(
                 "The MaxMind DB file's search tree is corrupt")
 
