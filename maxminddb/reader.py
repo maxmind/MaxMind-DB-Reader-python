@@ -179,15 +179,13 @@ class Reader(object):
             offset = base_offset + index * 3
             node_bytes = b'\x00' + self._buffer[offset:offset + 3]
         elif record_size == 28:
-            (middle, ) = struct.unpack(
-                b'!B', self._buffer[base_offset + 3:base_offset + 4])
+            offset = base_offset + 3 * index
+            node_bytes = bytearray(self._buffer[offset:offset + 4])
             if index:
-                middle &= 0x0F
+                node_bytes[0] = 0x0F & node_bytes[0]
             else:
-                middle = (0xF0 & middle) >> 4
-            offset = base_offset + index * 4
-            node_bytes = byte_from_int(middle) + self._buffer[offset:offset +
-                                                              3]
+                middle = (0xF0 & node_bytes.pop()) >> 4
+                node_bytes.insert(0, middle)
         elif record_size == 32:
             offset = base_offset + index * 4
             node_bytes = self._buffer[offset:offset + 4]
