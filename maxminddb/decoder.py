@@ -9,7 +9,7 @@ from __future__ import unicode_literals
 
 import struct
 
-from maxminddb.compat import byte_from_int, int_from_bytes
+from maxminddb.compat import byte_from_int, int_from_byte, int_from_bytes
 from maxminddb.errors import InvalidDatabaseError
 
 
@@ -41,22 +41,30 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
         new_offset = offset + size
         return self._buffer[offset:new_offset], new_offset
 
-    # pylint: disable=no-self-argument
-    # |-> I am open to better ways of doing this as long as it doesn't involve
-    #     lots of code duplication.
-    def _decode_packed_type(type_code, type_size, pad=False):
-        # pylint: disable=protected-access, missing-docstring
-        def unpack_type(self, size, offset):
-            if not pad:
-                self._verify_size(size, type_size)
-            new_offset = offset + size
-            packed_bytes = self._buffer[offset:new_offset]
-            if pad:
-                packed_bytes = packed_bytes.rjust(type_size, b'\x00')
-            (value, ) = struct.unpack(type_code, packed_bytes)
-            return value, new_offset
+    def _decode_double(self, size, offset):
+        self._verify_size(size, 8)
+        new_offset = offset + size
+        packed_bytes = self._buffer[offset:new_offset]
+        (value, ) = struct.unpack(b'!d', packed_bytes)
+        return value, new_offset
 
-        return unpack_type
+    def _decode_float(self, size, offset):
+        self._verify_size(size, 4)
+        new_offset = offset + size
+        packed_bytes = self._buffer[offset:new_offset]
+        (value, ) = struct.unpack(b'!f', packed_bytes)
+        return value, new_offset
+
+    def _decode_int32(self, size, offset):
+        if size == 0:
+            return 0, offset
+        new_offset = offset + size
+        packed_bytes = self._buffer[offset:new_offset]
+
+        if size != 4:
+            packed_bytes = packed_bytes.rjust(4, b'\x00')
+        (value, ) = struct.unpack(b'!i', packed_bytes)
+        return value, new_offset
 
     def _decode_map(self, size, offset):
         container = {}
@@ -66,22 +74,25 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
             container[key] = value
         return container, offset
 
-    _pointer_value_offset = {
-        1: 0,
-        2: 2048,
-        3: 526336,
-        4: 0,
-    }
-
     def _decode_pointer(self, size, offset):
-        pointer_size = ((size >> 3) & 0x3) + 1
+        pointer_size = (size >> 3) + 1
+
+        buf = self._buffer[offset:offset + pointer_size]
         new_offset = offset + pointer_size
-        pointer_bytes = self._buffer[offset:new_offset]
-        packed = pointer_bytes if pointer_size == 4 else struct.pack(
-            b'!c', byte_from_int(size & 0x7)) + pointer_bytes
-        unpacked = int_from_bytes(packed)
-        pointer = unpacked + self._pointer_base + \
-            self._pointer_value_offset[pointer_size]
+
+        if pointer_size == 1:
+            buf = byte_from_int(size & 0x7) + buf
+            pointer = struct.unpack(b'!H', buf)[0] + self._pointer_base
+        elif pointer_size == 2:
+            buf = b'\x00' + byte_from_int(size & 0x7) + buf
+            pointer = struct.unpack(b'!I', buf)[0] + 2048 + self._pointer_base
+        elif pointer_size == 3:
+            buf = byte_from_int(size & 0x7) + buf
+            pointer = struct.unpack(b'!I',
+                                    buf)[0] + 526336 + self._pointer_base
+        else:
+            pointer = struct.unpack(b'!I', buf)[0] + self._pointer_base
+
         if self._pointer_test:
             return pointer, new_offset
         (value, _) = self.decode(pointer)
@@ -99,17 +110,17 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
     _type_decoder = {
         1: _decode_pointer,
         2: _decode_utf8_string,
-        3: _decode_packed_type(b'!d', 8),  # double,
+        3: _decode_double,
         4: _decode_bytes,
         5: _decode_uint,  # uint16
         6: _decode_uint,  # uint32
         7: _decode_map,
-        8: _decode_packed_type(b'!i', 4, pad=True),  # int32
+        8: _decode_int32,
         9: _decode_uint,  # uint64
         10: _decode_uint,  # uint128
         11: _decode_array,
         14: _decode_boolean,
-        15: _decode_packed_type(b'!f', 4),  # float,
+        15: _decode_float,
     }
 
     def decode(self, offset):
@@ -119,7 +130,7 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
         offset -- the location of the data structure to decode
         """
         new_offset = offset + 1
-        (ctrl_byte, ) = struct.unpack(b'!B', self._buffer[offset:new_offset])
+        ctrl_byte = int_from_byte(self._buffer[offset])
         type_num = ctrl_byte >> 5
         # Extended type
         if not type_num:
@@ -136,7 +147,7 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
         return decoder(self, size, new_offset)
 
     def _read_extended(self, offset):
-        (next_byte, ) = struct.unpack(b'!B', self._buffer[offset:offset + 1])
+        next_byte = int_from_byte(self._buffer[offset])
         type_num = next_byte + 7
         if type_num < 7:
             raise InvalidDatabaseError(
@@ -153,21 +164,22 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
 
     def _size_from_ctrl_byte(self, ctrl_byte, offset, type_num):
         size = ctrl_byte & 0x1f
-        if type_num == 1:
+        if type_num == 1 or size < 29:
             return size, offset
-        bytes_to_read = 0 if size < 29 else size - 28
 
-        new_offset = offset + bytes_to_read
-        size_bytes = self._buffer[offset:new_offset]
-
-        # Using unpack rather than int_from_bytes as it is about 200 lookups
-        # per second faster here.
         if size == 29:
-            size = 29 + struct.unpack(b'!B', size_bytes)[0]
-        elif size == 30:
-            size = 285 + struct.unpack(b'!H', size_bytes)[0]
-        elif size > 30:
-            size = struct.unpack(b'!I', size_bytes.rjust(4,
-                                                         b'\x00'))[0] + 65821
+            size = 29 + int_from_byte(self._buffer[offset])
+            return size, offset + 1
 
+        # Using unpack rather than int_from_bytes as it is faster
+        # here and below.
+        if size == 30:
+            new_offset = offset + 2
+            size_bytes = self._buffer[offset:new_offset]
+            size = 285 + struct.unpack(b'!H', size_bytes)[0]
+            return size, new_offset
+
+        new_offset = offset + 3
+        size_bytes = self._buffer[offset:new_offset]
+        size = struct.unpack(b'!I', b'\x00' + size_bytes)[0] + 65821
         return size, new_offset
