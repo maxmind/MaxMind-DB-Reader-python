@@ -167,12 +167,12 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
         if type_num == 1 or size < 29:
             return size, offset
 
-        # Using unpack rather than int_from_bytes as it is about 200 lookups
-        # per second faster here.
         if size == 29:
             size = 29 + int_from_byte(self._buffer[offset])
             return size, offset + 1
 
+        # Using unpack rather than int_from_bytes as it is faster
+        # here and below.
         if size == 30:
             new_offset = offset + 2
             size_bytes = self._buffer[offset:new_offset]
