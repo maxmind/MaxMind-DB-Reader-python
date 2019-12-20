@@ -4,7 +4,7 @@ History
 -------
 
 1.5.2 (2019-12-20)
-------------------
+++++++++++++++++++
 
 * Minor performance improvements in the pure Python reader.
 
