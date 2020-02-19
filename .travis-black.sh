@@ -1,9 +1,11 @@
 #!/bin/bash
 
-diff=$(yapf -rd maxminddb tests)
+set -eux
+
+diff=$(black --check .)
 
 if [[ $? != 0 ]]; then
-    echo "yapf failed to run."
+    echo "black failed to run."
     echo "$diff"
     exit $?
 elif [[ $diff ]]; then

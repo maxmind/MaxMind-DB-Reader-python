@@ -8,8 +8,14 @@ try:
 except ImportError:
     maxminddb.extension = None
 
-from maxminddb.const import (MODE_AUTO, MODE_MMAP, MODE_MMAP_EXT, MODE_FILE,
-                             MODE_MEMORY, MODE_FD)
+from maxminddb.const import (
+    MODE_AUTO,
+    MODE_MMAP,
+    MODE_MMAP_EXT,
+    MODE_FILE,
+    MODE_MEMORY,
+    MODE_FD,
+)
 from maxminddb.decoder import InvalidDatabaseError
 
 
@@ -29,8 +35,7 @@ def open_database(database, mode=MODE_AUTO):
             * MODE_AUTO - tries MODE_MMAP_EXT, MODE_MMAP, MODE_FILE in that
                           order. Default mode.
     """
-    has_extension = maxminddb.extension and hasattr(maxminddb.extension,
-                                                    'Reader')
+    has_extension = maxminddb.extension and hasattr(maxminddb.extension, "Reader")
     if (mode == MODE_AUTO and has_extension) or mode == MODE_MMAP_EXT:
         if not has_extension:
             raise ValueError(
@@ -39,7 +44,7 @@ def open_database(database, mode=MODE_AUTO):
         return maxminddb.extension.Reader(database)
     if mode in (MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY, MODE_FD):
         return maxminddb.reader.Reader(database, mode)
-    raise ValueError('Unsupported open mode: {0}'.format(mode))
+    raise ValueError("Unsupported open mode: {0}".format(mode))
 
 
 def Reader(database):  # pylint: disable=invalid-name
@@ -47,8 +52,8 @@ def Reader(database):  # pylint: disable=invalid-name
     return open_database(database)
 
 
-__title__ = 'maxminddb'
-__version__ = '1.5.2'
-__author__ = 'Gregory Oschwald'
-__license__ = 'Apache License, Version 2.0'
-__copyright__ = 'Copyright 2013-2019 Maxmind, Inc.'
+__title__ = "maxminddb"
+__version__ = "1.5.2"
+__author__ = "Gregory Oschwald"
+__license__ = "Apache License, Version 2.0"
+__copyright__ = "Copyright 2013-2019 Maxmind, Inc."

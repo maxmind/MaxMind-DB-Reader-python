@@ -33,7 +33,7 @@ else:
 
     FileNotFoundError = FileNotFoundError
 
-    int_from_bytes = lambda x: int.from_bytes(x, 'big')
+    int_from_bytes = lambda x: int.from_bytes(x, "big")
 
     byte_from_int = lambda x: bytes([x])
 

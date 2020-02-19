@@ -31,7 +31,7 @@ before_install:
   - sudo ldconfig
   - cd ..
   - pip install coverage coveralls
-  - if [[ $RUN_LINTER ]]; then pip install pylint yapf; fi
+  - if [[ $RUN_LINTER ]]; then pip install pylint black; fi
   - |
     if [[ $RUN_SNYK && $SNYK_TOKEN ]]; then
       sudo apt-get install -y nodejs;
@@ -43,7 +43,7 @@ script:
   - CFLAGS="-Werror -Wall -Wextra" coverage run --source maxminddb setup.py test
   - if [[ $RUN_SNYK && $SNYK_TOKEN ]]; then snyk test --org=maxmind --file=requirements.txt; fi
   - if [[ $RUN_LINTER ]]; then pylint --rcfile .pylintrc maxminddb/*.py; fi
-  - if [[ $RUN_LINTER ]]; then ./.travis-yapf.sh; fi
+  - if [[ $RUN_LINTER ]]; then ./.travis-black.sh; fi
 
 after_success:
   - coveralls
