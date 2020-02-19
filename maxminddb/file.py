@@ -11,10 +11,11 @@ except ImportError:
 
 class FileBuffer(object):
     """A slice-able file reader"""
+
     def __init__(self, database):
-        self._handle = open(database, 'rb')
+        self._handle = open(database, "rb")
         self._size = os.fstat(self._handle.fileno()).st_size
-        if not hasattr(os, 'pread'):
+        if not hasattr(os, "pread"):
             self._lock = Lock()
 
     def __getitem__(self, key):
@@ -39,7 +40,7 @@ class FileBuffer(object):
         """Close file"""
         self._handle.close()
 
-    if hasattr(os, 'pread'):
+    if hasattr(os, "pread"):
 
         def _read(self, buffersize, offset):
             """read that uses pread"""

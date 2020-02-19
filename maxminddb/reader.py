@@ -48,10 +48,8 @@ class Reader(object):
                         a path. This mode implies MODE_MEMORY.
         """
         if (mode == MODE_AUTO and mmap) or mode == MODE_MMAP:
-            with open(database, 'rb') as db_file:
-                self._buffer = mmap.mmap(db_file.fileno(),
-                                         0,
-                                         access=mmap.ACCESS_READ)
+            with open(database, "rb") as db_file:
+                self._buffer = mmap.mmap(db_file.fileno(), 0, access=mmap.ACCESS_READ)
                 self._buffer_size = self._buffer.size()
             filename = database
         elif mode in (MODE_AUTO, MODE_FILE):
@@ -59,7 +57,7 @@ class Reader(object):
             self._buffer_size = self._buffer.size()
             filename = database
         elif mode == MODE_MEMORY:
-            with open(database, 'rb') as db_file:
+            with open(database, "rb") as db_file:
                 self._buffer = db_file.read()
                 self._buffer_size = len(self._buffer)
             filename = database
@@ -69,19 +67,22 @@ class Reader(object):
             filename = database.name
         else:
             raise ValueError(
-                'Unsupported open mode ({0}). Only MODE_AUTO, MODE_FILE, '
-                'MODE_MEMORY and MODE_FD are supported by the pure Python '
-                'Reader'.format(mode))
+                "Unsupported open mode ({0}). Only MODE_AUTO, MODE_FILE, "
+                "MODE_MEMORY and MODE_FD are supported by the pure Python "
+                "Reader".format(mode)
+            )
 
         metadata_start = self._buffer.rfind(
-            self._METADATA_START_MARKER, max(0,
-                                             self._buffer_size - 128 * 1024))
+            self._METADATA_START_MARKER, max(0, self._buffer_size - 128 * 1024)
+        )
 
         if metadata_start == -1:
             self.close()
-            raise InvalidDatabaseError('Error opening database file ({0}). '
-                                       'Is this a valid MaxMind DB file?'
-                                       ''.format(filename))
+            raise InvalidDatabaseError(
+                "Error opening database file ({0}). "
+                "Is this a valid MaxMind DB file?"
+                "".format(filename)
+            )
 
         metadata_start += len(self._METADATA_START_MARKER)
         metadata_decoder = Decoder(self._buffer, metadata_start)
@@ -89,8 +90,9 @@ class Reader(object):
         self._metadata = Metadata(**metadata)  # pylint: disable=bad-option-value
 
         self._decoder = Decoder(
-            self._buffer, self._metadata.search_tree_size +
-            self._DATA_SECTION_SEPARATOR_SIZE)
+            self._buffer,
+            self._metadata.search_tree_size + self._DATA_SECTION_SEPARATOR_SIZE,
+        )
         self.closed = False
 
     def metadata(self):
@@ -122,12 +124,13 @@ class Reader(object):
         try:
             packed_address = bytearray(address.packed)
         except AttributeError:
-            raise TypeError('argument 1 must be a string or ipaddress object')
+            raise TypeError("argument 1 must be a string or ipaddress object")
 
         if address.version == 6 and self._metadata.ip_version == 4:
             raise ValueError(
-                'Error looking up {0}. You attempted to look up '
-                'an IPv6 address in an IPv4-only database.'.format(ip_address))
+                "Error looking up {0}. You attempted to look up "
+                "an IPv6 address in an IPv4-only database.".format(ip_address)
+            )
 
         (pointer, prefix_len) = self._find_address_in_tree(packed_address)
 
@@ -152,7 +155,7 @@ class Reader(object):
         if node > node_count:
             return node, i
 
-        raise InvalidDatabaseError('Invalid node in search tree')
+        raise InvalidDatabaseError("Invalid node in search tree")
 
     def _start_node(self, length):
         if self._metadata.ip_version != 6 or length == 128:
@@ -177,10 +180,10 @@ class Reader(object):
         record_size = self._metadata.record_size
         if record_size == 24:
             offset = base_offset + index * 3
-            node_bytes = b'\x00' + self._buffer[offset:offset + 3]
+            node_bytes = b"\x00" + self._buffer[offset : offset + 3]
         elif record_size == 28:
             offset = base_offset + 3 * index
-            node_bytes = bytearray(self._buffer[offset:offset + 4])
+            node_bytes = bytearray(self._buffer[offset : offset + 4])
             if index:
                 node_bytes[0] = 0x0F & node_bytes[0]
             else:
@@ -188,19 +191,16 @@ class Reader(object):
                 node_bytes.insert(0, middle)
         elif record_size == 32:
             offset = base_offset + index * 4
-            node_bytes = self._buffer[offset:offset + 4]
+            node_bytes = self._buffer[offset : offset + 4]
         else:
-            raise InvalidDatabaseError(
-                'Unknown record size: {0}'.format(record_size))
-        return struct.unpack(b'!I', node_bytes)[0]
+            raise InvalidDatabaseError("Unknown record size: {0}".format(record_size))
+        return struct.unpack(b"!I", node_bytes)[0]
 
     def _resolve_data_pointer(self, pointer):
-        resolved = pointer - self._metadata.node_count + \
-            self._metadata.search_tree_size
+        resolved = pointer - self._metadata.node_count + self._metadata.search_tree_size
 
         if resolved >= self._buffer_size:
-            raise InvalidDatabaseError(
-                "The MaxMind DB file's search tree is corrupt")
+            raise InvalidDatabaseError("The MaxMind DB file's search tree is corrupt")
 
         (data, _) = self._decoder.decode(resolved)
         return data
@@ -217,7 +217,7 @@ class Reader(object):
 
     def __enter__(self):
         if self.closed:
-            raise ValueError('Attempt to reopen a closed MaxMind DB')
+            raise ValueError("Attempt to reopen a closed MaxMind DB")
         return self
 
 
@@ -290,17 +290,15 @@ class Metadata(object):
         """Creates new Metadata object. kwargs are key/value pairs from spec"""
         # Although I could just update __dict__, that is less obvious and it
         # doesn't work well with static analysis tools and some IDEs
-        self.node_count = kwargs['node_count']
-        self.record_size = kwargs['record_size']
-        self.ip_version = kwargs['ip_version']
-        self.database_type = kwargs['database_type']
-        self.languages = kwargs['languages']
-        self.binary_format_major_version = kwargs[
-            'binary_format_major_version']
-        self.binary_format_minor_version = kwargs[
-            'binary_format_minor_version']
-        self.build_epoch = kwargs['build_epoch']
-        self.description = kwargs['description']
+        self.node_count = kwargs["node_count"]
+        self.record_size = kwargs["record_size"]
+        self.ip_version = kwargs["ip_version"]
+        self.database_type = kwargs["database_type"]
+        self.languages = kwargs["languages"]
+        self.binary_format_major_version = kwargs["binary_format_major_version"]
+        self.binary_format_minor_version = kwargs["binary_format_minor_version"]
+        self.build_epoch = kwargs["build_epoch"]
+        self.description = kwargs["description"]
 
     @property
     def node_byte_size(self):
@@ -319,8 +317,7 @@ class Metadata(object):
         return self.node_count * self.node_byte_size
 
     def __repr__(self):
-        args = ', '.join('%s=%r' % x for x in self.__dict__.items())
-        return '{module}.{class_name}({data})'.format(
-            module=self.__module__,
-            class_name=self.__class__.__name__,
-            data=args)
+        args = ", ".join("%s=%r" % x for x in self.__dict__.items())
+        return "{module}.{class_name}({data})".format(
+            module=self.__module__, class_name=self.__class__.__name__, data=args
+        )
