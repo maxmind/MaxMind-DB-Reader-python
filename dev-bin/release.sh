@@ -35,7 +35,7 @@ if [ -n "$(git status --porcelain)" ]; then
     exit 1
 fi
 
-perl -pi -e "s/(?<=__version__ = ').+?(?=')/$version/gsm" maxminddb/__init__.py
+perl -pi -e "s/(?<=__version__ = \").+?(?=\")/$version/gsm" maxminddb/__init__.py
 
 echo $"Test results:"
 python setup.py test
