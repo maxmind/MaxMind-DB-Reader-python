@@ -286,6 +286,15 @@ class BaseTestReader(object):
         ):
             open_database("README.rst", self.mode)
 
+    # This is from https://github.com/maxmind/MaxMind-DB-Reader-python/issues/58
+    def test_database_with_invalid_utf8_key(self):
+        reader = open_database(
+            "tests/data/bad-data/maxminddb-python/bad-unicode-in-map-key.mmdb",
+            self.mode,
+        )
+        with self.assertRaises(UnicodeDecodeError):
+            reader.get_with_prefix_len("163.254.149.39")
+
     def test_too_many_constructor_args(self):
         with self.assertRaises(TypeError):
             self.readerClass[0]("README.md", self.mode, 1)
