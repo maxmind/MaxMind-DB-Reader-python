@@ -3,6 +3,12 @@
 History
 -------
 
+1.5.3 (2020-05-04)
+++++++++++++++++++
+
+* Fix a segfault when decoding a database with a corrupt data section.
+  Reported by Robert Scott. GitHub #58.
+
 1.5.2 (2019-12-20)
 ++++++++++++++++++
 
