@@ -204,6 +204,11 @@ static int get_record(PyObject *self, PyObject *args, PyObject **record) {
     *record = from_entry_data_list(&entry_data_list);
     MMDB_free_entry_data_list(original_entry_data_list);
 
+    // from_entry_data_list will return NULL on errors.
+    if (*record == NULL) {
+        return -1;
+    }
+
     return prefix_len;
 }
 
@@ -526,6 +531,11 @@ static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list) {
         PyObject *key = PyUnicode_FromStringAndSize(
             (char *)(*entry_data_list)->entry_data.utf8_string,
             (*entry_data_list)->entry_data.data_size);
+        if (!key) {
+            // PyUnicode_FromStringAndSize will set an appropriate exception
+            // in this case.
+            return NULL;
+        }
 
         *entry_data_list = (*entry_data_list)->next;
 
