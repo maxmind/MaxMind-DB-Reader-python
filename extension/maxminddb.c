@@ -204,6 +204,11 @@ static int get_record(PyObject *self, PyObject *args, PyObject **record) {
     *record = from_entry_data_list(&entry_data_list);
     MMDB_free_entry_data_list(original_entry_data_list);
 
+    // from_entry_data_list will return NULL on errors.
+    if (*record == NULL) {
+        return -1;
+    }
+
     return prefix_len;
 }
 
