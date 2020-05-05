@@ -3,6 +3,12 @@
 History
 -------
 
+1.5.4 (2020-05-05)
+++++++++++++++++++
+
+* 1.5.3 was missing a test database. This release adds the test file.
+  There are no other changes. Reported by Lumír 'Frenzy' Balhar. GitHub #60.
+
 1.5.3 (2020-05-04)
 ++++++++++++++++++
 
