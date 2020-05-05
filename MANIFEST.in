@@ -1,2 +1,3 @@
-include HISTORY.rst README.rst LICENSE tests/*.py tests/data/test-data/*.mmdb tests/data/test-data/*.raw
+include HISTORY.rst README.rst LICENSE
+recursive-include tests/ *.mmdb *.py *.raw
 graft docs/html
