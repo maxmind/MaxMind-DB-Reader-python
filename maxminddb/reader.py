@@ -17,7 +17,7 @@ import ipaddress
 import struct
 from ipaddress import IPv4Address, IPv6Address
 from os import PathLike
-from typing import Any, AnyStr, Dict, List, IO, Optional, Tuple, Union
+from typing import Any, AnyStr, IO, Optional, Tuple, Union
 
 from maxminddb.const import MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY, MODE_FD
 from maxminddb.decoder import Decoder
@@ -61,7 +61,7 @@ class Reader:
                 self._buffer_size = self._buffer.size()
             filename = database
         elif mode in (MODE_AUTO, MODE_FILE):
-            self._buffer = FileBuffer(database)
+            self._buffer = FileBuffer(database)  # type: ignore
             self._buffer_size = self._buffer.size()
             filename = database
         elif mode == MODE_MEMORY:
@@ -95,6 +95,12 @@ class Reader:
         metadata_start += len(self._METADATA_START_MARKER)
         metadata_decoder = Decoder(self._buffer, metadata_start)
         (metadata, _) = metadata_decoder.decode(metadata_start)
+
+        if not isinstance(metadata, dict):
+            raise InvalidDatabaseError(
+                "Error reading metadata in database file ({0}).".format(filename)
+            )
+
         self._metadata = Metadata(**metadata)  # pylint: disable=bad-option-value
 
         self._decoder = Decoder(
@@ -208,23 +214,7 @@ class Reader:
             raise InvalidDatabaseError("Unknown record size: {0}".format(record_size))
         return struct.unpack(b"!I", node_bytes)[0]
 
-    def _resolve_data_pointer(
-        self, pointer: int
-    ) -> Union[
-        str,
-        Dict[str, str],
-        Dict[
-            str,
-            Union[
-                List[int],
-                bytes,
-                float,
-                int,
-                Dict[str, Dict[str, Union[List[int], str]]],
-                str,
-            ],
-        ],
-    ]:
+    def _resolve_data_pointer(self, pointer: int) -> Record:
         resolved = pointer - self._metadata.node_count + self._metadata.search_tree_size
 
         if resolved >= self._buffer_size:
