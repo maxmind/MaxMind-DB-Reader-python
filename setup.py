@@ -15,17 +15,7 @@ PYPY = hasattr(sys, "pypy_version_info")
 JYTHON = sys.platform.startswith("java")
 requirements = []
 
-if sys.version_info[0] == 2 or (sys.version_info[0] == 3 and sys.version_info[1] < 3):
-    requirements.append("ipaddress")
-    if os.environ.get("SNYK_TOKEN"):
-        with open("requirements.txt", "w") as f:
-            for r in requirements:
-                f.write(r + "\n")
-
 compile_args = ["-Wall", "-Wextra"]
-
-if sys.version_info[0] == 2:
-    compile_args.append("-fno-strict-aliasing")
 
 ext_module = [
     Extension(
