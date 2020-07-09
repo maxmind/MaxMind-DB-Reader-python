@@ -3,6 +3,11 @@
 History
 -------
 
+2.0.0
+++++++++++++++++++
+
+* IMPORTANT: Python 3.7 or greater is required.
+
 1.5.4 (2020-05-05)
 ++++++++++++++++++
 
