@@ -5,17 +5,15 @@ maxminddb.reader
 This module contains the pure Python database reader and related classes.
 
 """
-from __future__ import unicode_literals
-
 try:
     import mmap
 except ImportError:
     # pylint: disable=invalid-name
     mmap = None
 
+import ipaddress
 import struct
 
-from maxminddb.compat import compat_ip_address, string_type
 from maxminddb.const import MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY, MODE_FD
 from maxminddb.decoder import Decoder
 from maxminddb.errors import InvalidDatabaseError
@@ -116,8 +114,8 @@ class Reader(object):
         Arguments:
         ip_address -- an IP address in the standard string notation
         """
-        if isinstance(ip_address, string_type):
-            address = compat_ip_address(ip_address)
+        if isinstance(ip_address, str):
+            address = ipaddress.ip_address(ip_address)
         else:
             address = ip_address
 
@@ -180,10 +178,10 @@ class Reader(object):
         record_size = self._metadata.record_size
         if record_size == 24:
             offset = base_offset + index * 3
-            node_bytes = b"\x00" + self._buffer[offset : offset + 3]
+            node_bytes = b"\x00" + self._buffer[offset: offset + 3]
         elif record_size == 28:
             offset = base_offset + 3 * index
-            node_bytes = bytearray(self._buffer[offset : offset + 4])
+            node_bytes = bytearray(self._buffer[offset: offset + 4])
             if index:
                 node_bytes[0] = 0x0F & node_bytes[0]
             else:
@@ -191,7 +189,7 @@ class Reader(object):
                 node_bytes.insert(0, middle)
         elif record_size == 32:
             offset = base_offset + index * 4
-            node_bytes = self._buffer[offset : offset + 4]
+            node_bytes = self._buffer[offset: offset + 4]
         else:
             raise InvalidDatabaseError("Unknown record size: {0}".format(record_size))
         return struct.unpack(b"!I", node_bytes)[0]

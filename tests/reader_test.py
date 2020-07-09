@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import unicode_literals
-
 import ipaddress
 import os
 import sys
@@ -19,7 +17,6 @@ except ImportError:
     maxminddb.extension = None
 
 from maxminddb import open_database, InvalidDatabaseError
-from maxminddb.compat import FileNotFoundError
 from maxminddb.const import (
     MODE_AUTO,
     MODE_MMAP_EXT,

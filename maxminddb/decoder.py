@@ -5,11 +5,8 @@ maxminddb.decoder
 This package contains code for decoding the MaxMind DB data section.
 
 """
-from __future__ import unicode_literals
-
 import struct
 
-from maxminddb.compat import byte_from_int, int_from_byte, int_from_bytes
 from maxminddb.errors import InvalidDatabaseError
 
 
@@ -78,17 +75,17 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
     def _decode_pointer(self, size, offset):
         pointer_size = (size >> 3) + 1
 
-        buf = self._buffer[offset : offset + pointer_size]
+        buf = self._buffer[offset: offset + pointer_size]
         new_offset = offset + pointer_size
 
         if pointer_size == 1:
-            buf = byte_from_int(size & 0x7) + buf
+            buf = bytes([size & 0x7]) + buf
             pointer = struct.unpack(b"!H", buf)[0] + self._pointer_base
         elif pointer_size == 2:
-            buf = b"\x00" + byte_from_int(size & 0x7) + buf
+            buf = b"\x00" + bytes([size & 0x7]) + buf
             pointer = struct.unpack(b"!I", buf)[0] + 2048 + self._pointer_base
         elif pointer_size == 3:
-            buf = byte_from_int(size & 0x7) + buf
+            buf = bytes([size & 0x7]) + buf
             pointer = struct.unpack(b"!I", buf)[0] + 526336 + self._pointer_base
         else:
             pointer = struct.unpack(b"!I", buf)[0] + self._pointer_base
@@ -101,7 +98,7 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
     def _decode_uint(self, size, offset):
         new_offset = offset + size
         uint_bytes = self._buffer[offset:new_offset]
-        return int_from_bytes(uint_bytes), new_offset
+        return int.from_bytes(uint_bytes, "big"), new_offset
 
     def _decode_utf8_string(self, size, offset):
         new_offset = offset + size
@@ -130,7 +127,7 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
         offset -- the location of the data structure to decode
         """
         new_offset = offset + 1
-        ctrl_byte = int_from_byte(self._buffer[offset])
+        ctrl_byte = self._buffer[offset]
         type_num = ctrl_byte >> 5
         # Extended type
         if not type_num:
@@ -147,7 +144,7 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
         return decoder(self, size, new_offset)
 
     def _read_extended(self, offset):
-        next_byte = int_from_byte(self._buffer[offset])
+        next_byte = self._buffer[offset]
         type_num = next_byte + 7
         if type_num < 7:
             raise InvalidDatabaseError(
@@ -157,7 +154,8 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
             )
         return type_num, offset + 1
 
-    def _verify_size(self, expected, actual):
+    @staticmethod
+    def _verify_size(expected, actual):
         if expected != actual:
             raise InvalidDatabaseError(
                 "The MaxMind DB file's data section contains bad data "
@@ -170,7 +168,7 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
             return size, offset
 
         if size == 29:
-            size = 29 + int_from_byte(self._buffer[offset])
+            size = 29 + self._buffer[offset]
             return size, offset + 1
 
         # Using unpack rather than int_from_bytes as it is faster
