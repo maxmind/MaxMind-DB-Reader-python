@@ -23,22 +23,7 @@ from maxminddb.const import MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY, MODE_F
 from maxminddb.decoder import Decoder
 from maxminddb.errors import InvalidDatabaseError
 from maxminddb.file import FileBuffer
-
-Record = Union[
-    str,
-    Dict[str, str],
-    Dict[
-        str,
-        Union[
-            List[int],
-            bytes,
-            float,
-            int,
-            Dict[str, Dict[str, Union[List[int], str]]],
-            str,
-        ],
-    ],
-]
+from maxminddb.types import Record
 
 
 class Reader:
