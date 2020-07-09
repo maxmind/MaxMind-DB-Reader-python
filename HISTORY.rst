@@ -6,7 +6,9 @@ History
 2.0.0
 ++++++++++++++++++
 
-* IMPORTANT: Python 3.7 or greater is required.
+* IMPORTANT: Python 3.7 or greater is required. If you are using an older
+  version, please use a 1.x.x release.
+* Type hints have been added to the pure Python implementation.
 
 1.5.4 (2020-05-05)
 ++++++++++++++++++
