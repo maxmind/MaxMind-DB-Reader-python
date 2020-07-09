@@ -17,9 +17,14 @@ from maxminddb.const import (
     MODE_FD,
 )
 from maxminddb.decoder import InvalidDatabaseError
+from io import BufferedReader
+from maxminddb.reader import Reader
+from typing import Union
 
 
-def open_database(database, mode=MODE_AUTO):
+def open_database(
+    database: Union[str, BufferedReader], mode: int = MODE_AUTO
+) -> Reader:
     """Open a Maxmind DB database
 
     Arguments:

@@ -5,6 +5,8 @@ maxminddb.reader
 This module contains the pure Python database reader and related classes.
 
 """
+from __future__ import annotations
+
 try:
     import mmap
 except ImportError:
@@ -18,6 +20,9 @@ from maxminddb.const import MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY, MODE_F
 from maxminddb.decoder import Decoder
 from maxminddb.errors import InvalidDatabaseError
 from maxminddb.file import FileBuffer
+from io import BufferedReader
+from ipaddress import IPv4Address, IPv6Address
+from typing import Dict, List, Optional, Tuple, Union
 
 
 class Reader(object):
@@ -31,7 +36,9 @@ class Reader(object):
 
     _ipv4_start = None
 
-    def __init__(self, database, mode=MODE_AUTO):
+    def __init__(
+        self, database: Union[str, BufferedReader], mode: int = MODE_AUTO
+    ) -> None:
         """Reader for the MaxMind DB file format
 
         Arguments:
@@ -93,11 +100,29 @@ class Reader(object):
         )
         self.closed = False
 
-    def metadata(self):
+    def metadata(self) -> Metadata:
         """Return the metadata associated with the MaxMind DB file"""
         return self._metadata
 
-    def get(self, ip_address):
+    def get(
+        self, ip_address: Union[str, IPv6Address, IPv4Address, int]
+    ) -> Optional[
+        Union[
+            Dict[
+                str,
+                Union[
+                    List[int],
+                    bytes,
+                    float,
+                    int,
+                    Dict[str, Dict[str, Union[List[int], str]]],
+                    str,
+                ],
+            ],
+            Dict[str, str],
+            str,
+        ]
+    ]:
         """Return the record for the ip_address in the MaxMind DB
 
 
@@ -107,7 +132,27 @@ class Reader(object):
         (record, _) = self.get_with_prefix_len(ip_address)
         return record
 
-    def get_with_prefix_len(self, ip_address):
+    def get_with_prefix_len(
+        self, ip_address: Union[str, IPv6Address, IPv4Address, int]
+    ) -> Union[
+        Tuple[
+            Dict[
+                str,
+                Union[
+                    List[int],
+                    bytes,
+                    float,
+                    int,
+                    Dict[str, Dict[str, Union[List[int], str]]],
+                    str,
+                ],
+            ],
+            int,
+        ],
+        Tuple[str, int],
+        Tuple[Dict[str, str], int],
+        Tuple[None, int],
+    ]:
         """Return a tuple with the record and the associated prefix length
 
 
@@ -136,7 +181,7 @@ class Reader(object):
             return self._resolve_data_pointer(pointer), prefix_len
         return None, prefix_len
 
-    def _find_address_in_tree(self, packed):
+    def _find_address_in_tree(self, packed: bytearray) -> Tuple[int, int]:
         bit_count = len(packed) * 8
         node = self._start_node(bit_count)
         node_count = self._metadata.node_count
@@ -155,7 +200,7 @@ class Reader(object):
 
         raise InvalidDatabaseError("Invalid node in search tree")
 
-    def _start_node(self, length):
+    def _start_node(self, length: int) -> int:
         if self._metadata.ip_version != 6 or length == 128:
             return 0
 
@@ -172,7 +217,7 @@ class Reader(object):
         self._ipv4_start = node
         return node
 
-    def _read_node(self, node_number, index):
+    def _read_node(self, node_number: int, index: int) -> int:
         base_offset = node_number * self._metadata.node_byte_size
 
         record_size = self._metadata.record_size
@@ -189,12 +234,28 @@ class Reader(object):
                 node_bytes.insert(0, middle)
         elif record_size == 32:
             offset = base_offset + index * 4
-            node_bytes = self._buffer[offset: offset + 4]
+            node_bytes = self._buffer[offset : offset + 4]
         else:
             raise InvalidDatabaseError("Unknown record size: {0}".format(record_size))
         return struct.unpack(b"!I", node_bytes)[0]
 
-    def _resolve_data_pointer(self, pointer):
+    def _resolve_data_pointer(
+        self, pointer: int
+    ) -> Union[
+        str,
+        Dict[str, str],
+        Dict[
+            str,
+            Union[
+                List[int],
+                bytes,
+                float,
+                int,
+                Dict[str, Dict[str, Union[List[int], str]]],
+                str,
+            ],
+        ],
+    ]:
         resolved = pointer - self._metadata.node_count + self._metadata.search_tree_size
 
         if resolved >= self._buffer_size:
@@ -203,17 +264,17 @@ class Reader(object):
         (data, _) = self._decoder.decode(resolved)
         return data
 
-    def close(self):
+    def close(self) -> None:
         """Closes the MaxMind DB file and returns the resources to the system"""
         # pylint: disable=unidiomatic-typecheck
         if type(self._buffer) not in (str, bytes):
             self._buffer.close()
         self.closed = True
 
-    def __exit__(self, *args):
+    def __exit__(self, *args) -> None:
         self.close()
 
-    def __enter__(self):
+    def __enter__(self) -> Reader:
         if self.closed:
             raise ValueError("Attempt to reopen a closed MaxMind DB")
         return self
@@ -284,7 +345,7 @@ class Metadata(object):
     """
 
     # pylint: disable=too-many-instance-attributes
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         """Creates new Metadata object. kwargs are key/value pairs from spec"""
         # Although I could just update __dict__, that is less obvious and it
         # doesn't work well with static analysis tools and some IDEs
@@ -299,7 +360,7 @@ class Metadata(object):
         self.description = kwargs["description"]
 
     @property
-    def node_byte_size(self):
+    def node_byte_size(self) -> int:
         """The size of a node in bytes
 
         :type: int
@@ -307,7 +368,7 @@ class Metadata(object):
         return self.record_size // 4
 
     @property
-    def search_tree_size(self):
+    def search_tree_size(self) -> int:
         """The size of the search tree
 
         :type: int
