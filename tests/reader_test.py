@@ -5,6 +5,7 @@ import ipaddress
 import os
 import sys
 import threading
+import unittest
 from multiprocessing import Process, Pipe
 
 import mock
@@ -25,15 +26,6 @@ from maxminddb.const import (
     MODE_MEMORY,
     MODE_FD,
 )
-
-if sys.version_info[:2] == (2, 6):
-    import unittest2 as unittest
-else:
-    import unittest
-
-if sys.version_info[0] == 2:
-    unittest.TestCase.assertRaisesRegex = unittest.TestCase.assertRaisesRegexp
-    unittest.TestCase.assertRegex = unittest.TestCase.assertRegexpMatches
 
 
 def get_reader_from_file_descriptor(filepath, mode):
@@ -431,14 +423,6 @@ class BaseTestReader(object):
 
     def test_threading(self):
         self._check_concurrency(threading.Thread)
-
-    if sys.version_info[0] == 2:
-
-        def test_byte_ip_on_python2(self):
-            reader = open_database(
-                "tests/data/test-data/MaxMind-DB-test-decoder.mmdb", self.mode
-            )
-            record = reader.get(b"::1.1.1.0")
 
     def _check_concurrency(self, worker_class):
         reader = open_database(

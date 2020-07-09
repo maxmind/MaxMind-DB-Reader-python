@@ -2,15 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import mmap
-import sys
 
 from maxminddb.decoder import Decoder
 
 import unittest
-
-if sys.version_info[0] == 2:
-    unittest.TestCase.assertRaisesRegex = unittest.TestCase.assertRaisesRegexp
-    unittest.TestCase.assertRegex = unittest.TestCase.assertRegexpMatches
 
 
 class TestDecoder(unittest.TestCase):
