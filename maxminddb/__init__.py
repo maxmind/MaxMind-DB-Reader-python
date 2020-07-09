@@ -1,12 +1,13 @@
 # pylint:disable=C0111
 import os
+from typing import AnyStr, IO, Union
 
 import maxminddb.reader
 
 try:
     import maxminddb.extension
 except ImportError:
-    maxminddb.extension = None
+    maxminddb.extension = None  # type: ignore
 
 from maxminddb.const import (
     MODE_AUTO,
@@ -17,14 +18,12 @@ from maxminddb.const import (
     MODE_FD,
 )
 from maxminddb.decoder import InvalidDatabaseError
-from io import BufferedReader
 from maxminddb.reader import Reader
-from typing import Union
 
 
 def open_database(
-    database: Union[str, BufferedReader], mode: int = MODE_AUTO
-) -> Reader:
+    database: Union[AnyStr, int, os.PathLike, IO], mode: int = MODE_AUTO
+) -> Union[Reader, "maxminddb.extension.Reader"]:
     """Open a Maxmind DB database
 
     Arguments:

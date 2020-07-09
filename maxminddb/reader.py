@@ -11,18 +11,34 @@ try:
     import mmap
 except ImportError:
     # pylint: disable=invalid-name
-    mmap = None
+    mmap = None  # type: ignore
 
 import ipaddress
 import struct
+from ipaddress import IPv4Address, IPv6Address
+from os import PathLike
+from typing import Any, AnyStr, Dict, List, IO, Optional, Tuple, Union
 
 from maxminddb.const import MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY, MODE_FD
 from maxminddb.decoder import Decoder
 from maxminddb.errors import InvalidDatabaseError
 from maxminddb.file import FileBuffer
-from io import BufferedReader
-from ipaddress import IPv4Address, IPv6Address
-from typing import Dict, List, Optional, Tuple, Union
+
+Record = Union[
+    str,
+    Dict[str, str],
+    Dict[
+        str,
+        Union[
+            List[int],
+            bytes,
+            float,
+            int,
+            Dict[str, Dict[str, Union[List[int], str]]],
+            str,
+        ],
+    ],
+]
 
 
 class Reader(object):
@@ -34,10 +50,11 @@ class Reader(object):
     _DATA_SECTION_SEPARATOR_SIZE = 16
     _METADATA_START_MARKER = b"\xAB\xCD\xEFMaxMind.com"
 
-    _ipv4_start = None
+    _buffer: Union[bytes, FileBuffer, "mmap.mmap"]
+    _ipv4_start: Optional[int] = None
 
     def __init__(
-        self, database: Union[str, BufferedReader], mode: int = MODE_AUTO
+        self, database: Union[AnyStr, int, PathLike, IO], mode: int = MODE_AUTO
     ) -> None:
         """Reader for the MaxMind DB file format
 
@@ -52,8 +69,9 @@ class Reader(object):
             * MODE_FD - the param passed via database is a file descriptor, not
                         a path. This mode implies MODE_MEMORY.
         """
+        filename: Any
         if (mode == MODE_AUTO and mmap) or mode == MODE_MMAP:
-            with open(database, "rb") as db_file:
+            with open(database, "rb") as db_file:  # type: ignore
                 self._buffer = mmap.mmap(db_file.fileno(), 0, access=mmap.ACCESS_READ)
                 self._buffer_size = self._buffer.size()
             filename = database
@@ -62,14 +80,14 @@ class Reader(object):
             self._buffer_size = self._buffer.size()
             filename = database
         elif mode == MODE_MEMORY:
-            with open(database, "rb") as db_file:
+            with open(database, "rb") as db_file:  # type: ignore
                 self._buffer = db_file.read()
                 self._buffer_size = len(self._buffer)
             filename = database
         elif mode == MODE_FD:
-            self._buffer = database.read()
-            self._buffer_size = len(self._buffer)
-            filename = database.name
+            self._buffer = database.read()  # type: ignore
+            self._buffer_size = len(self._buffer)  # type: ignore
+            filename = database.name  # type: ignore
         else:
             raise ValueError(
                 "Unsupported open mode ({0}). Only MODE_AUTO, MODE_FILE, "
@@ -106,23 +124,7 @@ class Reader(object):
 
     def get(
         self, ip_address: Union[str, IPv6Address, IPv4Address, int]
-    ) -> Optional[
-        Union[
-            Dict[
-                str,
-                Union[
-                    List[int],
-                    bytes,
-                    float,
-                    int,
-                    Dict[str, Dict[str, Union[List[int], str]]],
-                    str,
-                ],
-            ],
-            Dict[str, str],
-            str,
-        ]
-    ]:
+    ) -> Optional[Record]:
         """Return the record for the ip_address in the MaxMind DB
 
 
@@ -134,25 +136,7 @@ class Reader(object):
 
     def get_with_prefix_len(
         self, ip_address: Union[str, IPv6Address, IPv4Address, int]
-    ) -> Union[
-        Tuple[
-            Dict[
-                str,
-                Union[
-                    List[int],
-                    bytes,
-                    float,
-                    int,
-                    Dict[str, Dict[str, Union[List[int], str]]],
-                    str,
-                ],
-            ],
-            int,
-        ],
-        Tuple[str, int],
-        Tuple[Dict[str, str], int],
-        Tuple[None, int],
-    ]:
+    ) -> Tuple[Optional[Record], int]:
         """Return a tuple with the record and the associated prefix length
 
 
@@ -267,9 +251,9 @@ class Reader(object):
     def close(self) -> None:
         """Closes the MaxMind DB file and returns the resources to the system"""
         try:
-            self._buffer.close()
+            self._buffer.close()  # type: ignore
         except AttributeError:
-            ...
+            pass
         self.closed = True
 
     def __exit__(self, *args) -> None:

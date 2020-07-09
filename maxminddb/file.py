@@ -6,7 +6,7 @@ try:
     # pylint: disable=no-name-in-module
     from multiprocessing import Lock
 except ImportError:
-    from threading import Lock
+    from threading import Lock  # type: ignore
 
 
 class FileBuffer(object):
