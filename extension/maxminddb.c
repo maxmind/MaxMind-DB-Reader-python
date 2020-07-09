@@ -41,17 +41,6 @@ static PyObject *from_array(MMDB_entry_data_list_s **entry_data_list);
 static PyObject *from_uint128(const MMDB_entry_data_list_s *entry_data_list);
 static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address);
 
-#if PY_MAJOR_VERSION >= 3
-#define MOD_INIT(name) PyMODINIT_FUNC PyInit_##name(void)
-#define RETURN_MOD_INIT(m) return (m)
-#define FILE_NOT_FOUND_ERROR PyExc_FileNotFoundError
-#else
-#define MOD_INIT(name) PyMODINIT_FUNC init##name(void)
-#define RETURN_MOD_INIT(m) return
-#define PyInt_FromLong PyLong_FromLong
-#define FILE_NOT_FOUND_ERROR PyExc_IOError
-#endif
-
 #ifdef __GNUC__
 #define UNUSED(x) UNUSED_##x __attribute__((__unused__))
 #else
@@ -78,8 +67,9 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
     }
 
     if (0 != access(filename, R_OK)) {
-        PyErr_Format(
-            FILE_NOT_FOUND_ERROR, "No such file or directory: '%s'", filename);
+        PyErr_Format(PyExc_FileNotFoundError,
+                     "No such file or directory: '%s'",
+                     filename);
         return -1;
     }
 
@@ -213,17 +203,10 @@ static int get_record(PyObject *self, PyObject *args, PyObject **record) {
 }
 
 static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address) {
-#if PY_MAJOR_VERSION >= 3
     if (PyUnicode_Check(obj)) {
         Py_ssize_t len;
         const char *ipstr = PyUnicode_AsUTF8AndSize(obj, &len);
-#else
-    if (PyUnicode_Check(obj) || PyString_Check(obj)) {
-        // Although this should work on Python 3, we will hopefully delete
-        // this soon and the Python 3 version is cleaner.
-        const char *ipstr = PyString_AsString(obj);
-        Py_ssize_t len = PyString_Size(obj);
-#endif
+
         if (!ipstr) {
             PyErr_SetString(PyExc_TypeError,
                             "argument 1 contains an invalid string");
@@ -713,51 +696,45 @@ static PyTypeObject Metadata_Type = {
 
 static PyMethodDef MaxMindDB_methods[] = {{NULL, NULL, 0, NULL}};
 
-#if PY_MAJOR_VERSION >= 3
 static struct PyModuleDef MaxMindDB_module = {
     PyModuleDef_HEAD_INIT,
     .m_name = "extension",
     .m_doc = "This is a C extension to read MaxMind DB file format",
     .m_methods = MaxMindDB_methods,
 };
-#endif
 
-MOD_INIT(extension) {
+PyMODINIT_FUNC PyInit_extension(void) {
     PyObject *m;
 
-#if PY_MAJOR_VERSION >= 3
     m = PyModule_Create(&MaxMindDB_module);
-#else
-    m = Py_InitModule("extension", MaxMindDB_methods);
-#endif
 
     if (!m) {
-        RETURN_MOD_INIT(NULL);
+        return NULL;
     }
 
     Reader_Type.tp_new = PyType_GenericNew;
     if (PyType_Ready(&Reader_Type)) {
-        RETURN_MOD_INIT(NULL);
+        return NULL;
     }
     Py_INCREF(&Reader_Type);
     PyModule_AddObject(m, "Reader", (PyObject *)&Reader_Type);
 
     Metadata_Type.tp_new = PyType_GenericNew;
     if (PyType_Ready(&Metadata_Type)) {
-        RETURN_MOD_INIT(NULL);
+        return NULL;
     }
     PyModule_AddObject(m, "extension", (PyObject *)&Metadata_Type);
 
     PyObject *error_mod = PyImport_ImportModule("maxminddb.errors");
     if (error_mod == NULL) {
-        RETURN_MOD_INIT(NULL);
+        return NULL;
     }
 
     MaxMindDB_error = PyObject_GetAttrString(error_mod, "InvalidDatabaseError");
     Py_DECREF(error_mod);
 
     if (MaxMindDB_error == NULL) {
-        RETURN_MOD_INIT(NULL);
+        return NULL;
     }
 
     Py_INCREF(MaxMindDB_error);
@@ -765,5 +742,5 @@ MOD_INIT(extension) {
     /* We primarily add it to the module for backwards compatibility */
     PyModule_AddObject(m, "InvalidDatabaseError", MaxMindDB_error);
 
-    RETURN_MOD_INIT(m);
+    return m;
 }
