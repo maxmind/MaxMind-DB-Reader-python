@@ -139,11 +139,10 @@ class TestDecoder(unittest.TestCase):
         self.validate_type_decoding("string", self.strings)
 
     def test_byte(self):
-        # Python 2.6 doesn't support dictionary comprehension
-        b = dict(
-            (bytes([0xC0 ^ k[0]]) + k[1:], v.encode("utf-8"))
+        b = {
+            bytes([0xC0 ^ k[0]]) + k[1:]: v.encode("utf-8")
             for k, v in self.strings.items()
-        )
+        }
         self.validate_type_decoding("byte", b)
 
     def test_uint16(self):
