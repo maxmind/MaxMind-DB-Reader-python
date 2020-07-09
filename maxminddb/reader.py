@@ -223,10 +223,10 @@ class Reader(object):
         record_size = self._metadata.record_size
         if record_size == 24:
             offset = base_offset + index * 3
-            node_bytes = b"\x00" + self._buffer[offset: offset + 3]
+            node_bytes = b"\x00" + self._buffer[offset : offset + 3]
         elif record_size == 28:
             offset = base_offset + 3 * index
-            node_bytes = bytearray(self._buffer[offset: offset + 4])
+            node_bytes = bytearray(self._buffer[offset : offset + 4])
             if index:
                 node_bytes[0] = 0x0F & node_bytes[0]
             else:

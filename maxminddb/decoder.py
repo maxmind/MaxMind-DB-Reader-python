@@ -75,7 +75,7 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
     def _decode_pointer(self, size, offset):
         pointer_size = (size >> 3) + 1
 
-        buf = self._buffer[offset: offset + pointer_size]
+        buf = self._buffer[offset : offset + pointer_size]
         new_offset = offset + pointer_size
 
         if pointer_size == 1:
