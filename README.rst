@@ -94,8 +94,7 @@ Requirements
 ------------
 
 This code requires Python 3.7+. Older versions are not supported. The C
-extension requires CPython. The pure Python implementation has been tested with
-PyPy3.
+extension requires CPython.
 
 Versioning
 ----------
