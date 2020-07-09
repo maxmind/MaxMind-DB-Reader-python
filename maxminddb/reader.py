@@ -266,9 +266,10 @@ class Reader(object):
 
     def close(self) -> None:
         """Closes the MaxMind DB file and returns the resources to the system"""
-        # pylint: disable=unidiomatic-typecheck
-        if type(self._buffer) not in (str, bytes):
+        try:
             self._buffer.close()
+        except AttributeError:
+            ...
         self.closed = True
 
     def __exit__(self, *args) -> None:
