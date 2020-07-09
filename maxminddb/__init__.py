@@ -18,12 +18,12 @@ from maxminddb.const import (
     MODE_FD,
 )
 from maxminddb.decoder import InvalidDatabaseError
-from maxminddb.reader import Reader
+from maxminddb.reader import Reader as PyReader
 
 
 def open_database(
     database: Union[AnyStr, int, os.PathLike, IO], mode: int = MODE_AUTO
-) -> Union[Reader, "maxminddb.extension.Reader"]:
+) -> Union[PyReader, "maxminddb.extension.Reader"]:
     """Open a Maxmind DB database
 
     Arguments:
@@ -47,7 +47,7 @@ def open_database(
             )
         return maxminddb.extension.Reader(database)
     if mode in (MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY, MODE_FD):
-        return maxminddb.reader.Reader(database, mode)
+        return PyReader(database, mode)
     raise ValueError("Unsupported open mode: {0}".format(mode))
 
 
