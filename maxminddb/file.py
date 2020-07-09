@@ -9,7 +9,7 @@ except ImportError:
     from threading import Lock  # type: ignore
 
 
-class FileBuffer(object):
+class FileBuffer:
     """A slice-able file reader"""
 
     def __init__(self, database):

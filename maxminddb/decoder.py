@@ -10,7 +10,7 @@ import struct
 from maxminddb.errors import InvalidDatabaseError
 
 
-class Decoder(object):  # pylint: disable=too-few-public-methods
+class Decoder:  # pylint: disable=too-few-public-methods
     """Decoder for the data section of the MaxMind DB"""
 
     def __init__(self, database_buffer, pointer_base=0, pointer_test=False):
@@ -32,7 +32,7 @@ class Decoder(object):  # pylint: disable=too-few-public-methods
             array.append(value)
         return array, offset
 
-    def _decode_boolean(self, size, offset):
+    def _decode_boolean(self, size, offset):  # pylint: disable=no-self-use
         return size != 0, offset
 
     def _decode_bytes(self, size, offset):

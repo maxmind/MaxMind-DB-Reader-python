@@ -41,7 +41,7 @@ Record = Union[
 ]
 
 
-class Reader(object):
+class Reader:
     """
     Instances of this class provide a reader for the MaxMind DB format. IP
     addresses can be looked up using the ``get`` method.
@@ -265,7 +265,7 @@ class Reader(object):
         return self
 
 
-class Metadata(object):
+class Metadata:
     """Metadata for the MaxMind DB reader
 
 
