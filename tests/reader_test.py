@@ -3,10 +3,10 @@
 
 import ipaddress
 import os
-import sys
 import threading
 import unittest
 from multiprocessing import Process, Pipe
+from typing import Union, Type
 
 import mock
 
@@ -15,7 +15,7 @@ import maxminddb
 try:
     import maxminddb.extension
 except ImportError:
-    maxminddb.extension = None
+    maxminddb.extension = None  # type: ignore
 
 from maxminddb import open_database, InvalidDatabaseError
 from maxminddb.const import (
@@ -41,6 +41,9 @@ def get_reader_from_file_descriptor(filepath, mode):
 
 
 class BaseTestReader(object):
+    readerClass: Union[
+        Type["maxminddb.extension.Reader"], Type["maxminddb.reader.Reader"]
+    ]
     use_ip_objects = False
 
     def ipf(self, ip):
@@ -563,6 +566,9 @@ class TestExtensionReaderWithIPObjects(BaseTestReader, unittest.TestCase):
 class TestAutoReader(BaseTestReader, unittest.TestCase):
     mode = MODE_AUTO
 
+    readerClass: Union[
+        Type["maxminddb.extension.Reader"], Type["maxminddb.reader.Reader"]
+    ]
     if has_maxminddb_extension():
         readerClass = maxminddb.extension.Reader
     else:
