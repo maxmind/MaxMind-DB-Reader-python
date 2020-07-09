@@ -111,9 +111,7 @@ class Reader:
         """Return the metadata associated with the MaxMind DB file"""
         return self._metadata
 
-    def get(
-        self, ip_address: Union[str, IPv6Address, IPv4Address, int]
-    ) -> Optional[Record]:
+    def get(self, ip_address: Union[str, IPv6Address, IPv4Address]) -> Optional[Record]:
         """Return the record for the ip_address in the MaxMind DB
 
 
@@ -124,7 +122,7 @@ class Reader:
         return record
 
     def get_with_prefix_len(
-        self, ip_address: Union[str, IPv6Address, IPv4Address, int]
+        self, ip_address: Union[str, IPv6Address, IPv4Address]
     ) -> Tuple[Optional[Record], int]:
         """Return a tuple with the record and the associated prefix length
 
