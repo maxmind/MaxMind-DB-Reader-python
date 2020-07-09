@@ -5,8 +5,6 @@ maxminddb.reader
 This module contains the pure Python database reader and related classes.
 
 """
-from __future__ import annotations
-
 try:
     import mmap
 except ImportError:
@@ -109,7 +107,7 @@ class Reader:
         )
         self.closed = False
 
-    def metadata(self) -> Metadata:
+    def metadata(self) -> "Metadata":
         """Return the metadata associated with the MaxMind DB file"""
         return self._metadata
 
@@ -234,7 +232,7 @@ class Reader:
     def __exit__(self, *args) -> None:
         self.close()
 
-    def __enter__(self) -> Reader:
+    def __enter__(self) -> "Reader":
         if self.closed:
             raise ValueError("Attempt to reopen a closed MaxMind DB")
         return self
