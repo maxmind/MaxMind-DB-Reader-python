@@ -2,7 +2,7 @@
 maxminddb.types
 ~~~~~~~~~~~~~~~
 
-This module provides a Record type the represents a database record.
+This module provides a Record type that represents a database record.
 """
 from typing import AnyStr, Dict, List, Union
 

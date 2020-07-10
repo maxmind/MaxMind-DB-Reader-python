@@ -24,7 +24,7 @@ from maxminddb.reader import Reader as PyReader
 def open_database(
     database: Union[AnyStr, int, os.PathLike, IO], mode: int = MODE_AUTO
 ) -> Union[PyReader, "maxminddb.extension.Reader"]:
-    """Open a Maxmind DB database
+    """Open a MaxMind DB database
 
     Arguments:
         database -- A path to a valid MaxMind DB file such as a GeoIP2 database
@@ -60,4 +60,4 @@ __title__ = "maxminddb"
 __version__ = "1.5.4"
 __author__ = "Gregory Oschwald"
 __license__ = "Apache License, Version 2.0"
-__copyright__ = "Copyright 2013-2019 Maxmind, Inc."
+__copyright__ = "Copyright 2013-2019 MaxMind, Inc."
