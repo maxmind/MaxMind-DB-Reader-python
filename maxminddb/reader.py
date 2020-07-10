@@ -5,24 +5,26 @@ maxminddb.reader
 This module contains the pure Python database reader and related classes.
 
 """
-from __future__ import unicode_literals
-
 try:
     import mmap
 except ImportError:
     # pylint: disable=invalid-name
-    mmap = None
+    mmap = None  # type: ignore
 
+import ipaddress
 import struct
+from ipaddress import IPv4Address, IPv6Address
+from os import PathLike
+from typing import Any, AnyStr, IO, Optional, Tuple, Union
 
-from maxminddb.compat import compat_ip_address, string_type
 from maxminddb.const import MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY, MODE_FD
 from maxminddb.decoder import Decoder
 from maxminddb.errors import InvalidDatabaseError
 from maxminddb.file import FileBuffer
+from maxminddb.types import Record
 
 
-class Reader(object):
+class Reader:
     """
     Instances of this class provide a reader for the MaxMind DB format. IP
     addresses can be looked up using the ``get`` method.
@@ -31,9 +33,12 @@ class Reader(object):
     _DATA_SECTION_SEPARATOR_SIZE = 16
     _METADATA_START_MARKER = b"\xAB\xCD\xEFMaxMind.com"
 
-    _ipv4_start = None
+    _buffer: Union[bytes, FileBuffer, "mmap.mmap"]
+    _ipv4_start: Optional[int] = None
 
-    def __init__(self, database, mode=MODE_AUTO):
+    def __init__(
+        self, database: Union[AnyStr, int, PathLike, IO], mode: int = MODE_AUTO
+    ) -> None:
         """Reader for the MaxMind DB file format
 
         Arguments:
@@ -47,24 +52,25 @@ class Reader(object):
             * MODE_FD - the param passed via database is a file descriptor, not
                         a path. This mode implies MODE_MEMORY.
         """
+        filename: Any
         if (mode == MODE_AUTO and mmap) or mode == MODE_MMAP:
-            with open(database, "rb") as db_file:
+            with open(database, "rb") as db_file:  # type: ignore
                 self._buffer = mmap.mmap(db_file.fileno(), 0, access=mmap.ACCESS_READ)
                 self._buffer_size = self._buffer.size()
             filename = database
         elif mode in (MODE_AUTO, MODE_FILE):
-            self._buffer = FileBuffer(database)
+            self._buffer = FileBuffer(database)  # type: ignore
             self._buffer_size = self._buffer.size()
             filename = database
         elif mode == MODE_MEMORY:
-            with open(database, "rb") as db_file:
+            with open(database, "rb") as db_file:  # type: ignore
                 self._buffer = db_file.read()
                 self._buffer_size = len(self._buffer)
             filename = database
         elif mode == MODE_FD:
-            self._buffer = database.read()
-            self._buffer_size = len(self._buffer)
-            filename = database.name
+            self._buffer = database.read()  # type: ignore
+            self._buffer_size = len(self._buffer)  # type: ignore
+            filename = database.name  # type: ignore
         else:
             raise ValueError(
                 "Unsupported open mode ({0}). Only MODE_AUTO, MODE_FILE, "
@@ -87,6 +93,12 @@ class Reader(object):
         metadata_start += len(self._METADATA_START_MARKER)
         metadata_decoder = Decoder(self._buffer, metadata_start)
         (metadata, _) = metadata_decoder.decode(metadata_start)
+
+        if not isinstance(metadata, dict):
+            raise InvalidDatabaseError(
+                "Error reading metadata in database file ({0}).".format(filename)
+            )
+
         self._metadata = Metadata(**metadata)  # pylint: disable=bad-option-value
 
         self._decoder = Decoder(
@@ -95,11 +107,11 @@ class Reader(object):
         )
         self.closed = False
 
-    def metadata(self):
+    def metadata(self) -> "Metadata":
         """Return the metadata associated with the MaxMind DB file"""
         return self._metadata
 
-    def get(self, ip_address):
+    def get(self, ip_address: Union[str, IPv6Address, IPv4Address]) -> Optional[Record]:
         """Return the record for the ip_address in the MaxMind DB
 
 
@@ -109,15 +121,17 @@ class Reader(object):
         (record, _) = self.get_with_prefix_len(ip_address)
         return record
 
-    def get_with_prefix_len(self, ip_address):
+    def get_with_prefix_len(
+        self, ip_address: Union[str, IPv6Address, IPv4Address]
+    ) -> Tuple[Optional[Record], int]:
         """Return a tuple with the record and the associated prefix length
 
 
         Arguments:
         ip_address -- an IP address in the standard string notation
         """
-        if isinstance(ip_address, string_type):
-            address = compat_ip_address(ip_address)
+        if isinstance(ip_address, str):
+            address = ipaddress.ip_address(ip_address)
         else:
             address = ip_address
 
@@ -138,7 +152,7 @@ class Reader(object):
             return self._resolve_data_pointer(pointer), prefix_len
         return None, prefix_len
 
-    def _find_address_in_tree(self, packed):
+    def _find_address_in_tree(self, packed: bytearray) -> Tuple[int, int]:
         bit_count = len(packed) * 8
         node = self._start_node(bit_count)
         node_count = self._metadata.node_count
@@ -157,7 +171,7 @@ class Reader(object):
 
         raise InvalidDatabaseError("Invalid node in search tree")
 
-    def _start_node(self, length):
+    def _start_node(self, length: int) -> int:
         if self._metadata.ip_version != 6 or length == 128:
             return 0
 
@@ -174,7 +188,7 @@ class Reader(object):
         self._ipv4_start = node
         return node
 
-    def _read_node(self, node_number, index):
+    def _read_node(self, node_number: int, index: int) -> int:
         base_offset = node_number * self._metadata.node_byte_size
 
         record_size = self._metadata.record_size
@@ -196,7 +210,7 @@ class Reader(object):
             raise InvalidDatabaseError("Unknown record size: {0}".format(record_size))
         return struct.unpack(b"!I", node_bytes)[0]
 
-    def _resolve_data_pointer(self, pointer):
+    def _resolve_data_pointer(self, pointer: int) -> Record:
         resolved = pointer - self._metadata.node_count + self._metadata.search_tree_size
 
         if resolved >= self._buffer_size:
@@ -205,23 +219,24 @@ class Reader(object):
         (data, _) = self._decoder.decode(resolved)
         return data
 
-    def close(self):
+    def close(self) -> None:
         """Closes the MaxMind DB file and returns the resources to the system"""
-        # pylint: disable=unidiomatic-typecheck
-        if type(self._buffer) not in (str, bytes):
-            self._buffer.close()
+        try:
+            self._buffer.close()  # type: ignore
+        except AttributeError:
+            pass
         self.closed = True
 
-    def __exit__(self, *args):
+    def __exit__(self, *args) -> None:
         self.close()
 
-    def __enter__(self):
+    def __enter__(self) -> "Reader":
         if self.closed:
             raise ValueError("Attempt to reopen a closed MaxMind DB")
         return self
 
 
-class Metadata(object):
+class Metadata:
     """Metadata for the MaxMind DB reader
 
 
@@ -286,7 +301,7 @@ class Metadata(object):
     """
 
     # pylint: disable=too-many-instance-attributes
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         """Creates new Metadata object. kwargs are key/value pairs from spec"""
         # Although I could just update __dict__, that is less obvious and it
         # doesn't work well with static analysis tools and some IDEs
@@ -301,7 +316,7 @@ class Metadata(object):
         self.description = kwargs["description"]
 
     @property
-    def node_byte_size(self):
+    def node_byte_size(self) -> int:
         """The size of a node in bytes
 
         :type: int
@@ -309,7 +324,7 @@ class Metadata(object):
         return self.record_size // 4
 
     @property
-    def search_tree_size(self):
+    def search_tree_size(self) -> int:
         """The size of the search tree
 
         :type: int

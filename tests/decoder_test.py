@@ -1,19 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import unicode_literals
-
 import mmap
-import sys
 
-from maxminddb.compat import byte_from_int, int_from_byte
 from maxminddb.decoder import Decoder
 
 import unittest
-
-if sys.version_info[0] == 2:
-    unittest.TestCase.assertRaisesRegex = unittest.TestCase.assertRaisesRegexp
-    unittest.TestCase.assertRegex = unittest.TestCase.assertRegexpMatches
 
 
 class TestDecoder(unittest.TestCase):
@@ -147,11 +139,10 @@ class TestDecoder(unittest.TestCase):
         self.validate_type_decoding("string", self.strings)
 
     def test_byte(self):
-        # Python 2.6 doesn't support dictionary comprehension
-        b = dict(
-            (byte_from_int(0xC0 ^ int_from_byte(k[0])) + k[1:], v.encode("utf-8"))
+        b = {
+            bytes([0xC0 ^ k[0]]) + k[1:]: v.encode("utf-8")
             for k, v in self.strings.items()
-        )
+        }
         self.validate_type_decoding("byte", b)
 
     def test_uint16(self):
@@ -185,7 +176,7 @@ class TestDecoder(unittest.TestCase):
         }
         for power in range(bits // 8 + 1):
             expected = 2 ** (8 * power) - 1
-            input = byte_from_int(power) + ctrl_byte + (b"\xff" * power)
+            input = bytes([power]) + ctrl_byte + (b"\xff" * power)
             uints[input] = expected
         return uints
 

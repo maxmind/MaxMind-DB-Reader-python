@@ -1,12 +1,13 @@
 # pylint:disable=C0111
 import os
+from typing import AnyStr, IO, Union
 
 import maxminddb.reader
 
 try:
     import maxminddb.extension
 except ImportError:
-    maxminddb.extension = None
+    maxminddb.extension = None  # type: ignore
 
 from maxminddb.const import (
     MODE_AUTO,
@@ -17,10 +18,13 @@ from maxminddb.const import (
     MODE_FD,
 )
 from maxminddb.decoder import InvalidDatabaseError
+from maxminddb.reader import Reader as PyReader
 
 
-def open_database(database, mode=MODE_AUTO):
-    """Open a Maxmind DB database
+def open_database(
+    database: Union[AnyStr, int, os.PathLike, IO], mode: int = MODE_AUTO
+) -> Union[PyReader, "maxminddb.extension.Reader"]:
+    """Open a MaxMind DB database
 
     Arguments:
         database -- A path to a valid MaxMind DB file such as a GeoIP2 database
@@ -43,7 +47,7 @@ def open_database(database, mode=MODE_AUTO):
             )
         return maxminddb.extension.Reader(database)
     if mode in (MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY, MODE_FD):
-        return maxminddb.reader.Reader(database, mode)
+        return PyReader(database, mode)
     raise ValueError("Unsupported open mode: {0}".format(mode))
 
 
@@ -56,4 +60,4 @@ __title__ = "maxminddb"
 __version__ = "1.5.4"
 __author__ = "Gregory Oschwald"
 __license__ = "Apache License, Version 2.0"
-__copyright__ = "Copyright 2013-2019 Maxmind, Inc."
+__copyright__ = "Copyright 2013-2020 MaxMind, Inc."

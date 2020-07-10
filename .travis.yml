@@ -1,22 +1,11 @@
 language: python
 matrix:
   include:
-    - python: 2.7
-      dist: trusty
-      env: RUN_SNYK=1
-    - python: 3.5
-      dist: trusty
     - python: 3.6
-      dist: trusty
     - python: 3.7
-      dist: xenial
     - python: 3.8
-      dist: xenial
       env: RUN_LINTER=1
     - python: nightly
-      dist: xenial
-    - python: pypy
-      dist: trusty
   allow_failures:
     - python: nightly
 
@@ -31,7 +20,7 @@ before_install:
   - sudo ldconfig
   - cd ..
   - pip install coverage coveralls
-  - if [[ $RUN_LINTER ]]; then pip install pylint black; fi
+  - if [[ $RUN_LINTER ]]; then pip install pylint black mypy; fi
   - |
     if [[ $RUN_SNYK && $SNYK_TOKEN ]]; then
       sudo apt-get install -y nodejs;
@@ -39,9 +28,9 @@ before_install:
     fi
 
 script:
-  - if [[ $TRAVIS_PYTHON_VERSION != 'pypy' ]]; then export MM_FORCE_EXT_TESTS=1; fi
-  - CFLAGS="-Werror -Wall -Wextra" coverage run --source maxminddb setup.py test
+  - MM_FORCE_EXT_TESTS=1 CFLAGS="-Werror -Wall -Wextra" coverage run --source maxminddb setup.py test
   - if [[ $RUN_SNYK && $SNYK_TOKEN ]]; then snyk test --org=maxmind --file=requirements.txt; fi
+  - if [[ $RUN_LINTER ]]; then mypy maxminddb tests; fi
   - if [[ $RUN_LINTER ]]; then pylint --rcfile .pylintrc maxminddb/*.py; fi
   - if [[ $RUN_LINTER ]]; then ./.travis-black.sh; fi
 

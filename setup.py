@@ -15,17 +15,7 @@ PYPY = hasattr(sys, "pypy_version_info")
 JYTHON = sys.platform.startswith("java")
 requirements = []
 
-if sys.version_info[0] == 2 or (sys.version_info[0] == 3 and sys.version_info[1] < 3):
-    requirements.append("ipaddress")
-    if os.environ.get("SNYK_TOKEN"):
-        with open("requirements.txt", "w") as f:
-            for r in requirements:
-                f.write(r + "\n")
-
 compile_args = ["-Wall", "-Wextra"]
-
-if sys.version_info[0] == 2:
-    compile_args.append("-fno-strict-aliasing")
 
 ext_module = [
     Extension(
@@ -132,11 +122,10 @@ def run_setup(with_cext):
             "Intended Audience :: Developers",
             "Intended Audience :: System Administrators",
             "License :: OSI Approved :: Apache Software License",
-            "Programming Language :: Python :: 2.7",
             "Programming Language :: Python :: 3",
-            "Programming Language :: Python :: 3.5",
             "Programming Language :: Python :: 3.6",
             "Programming Language :: Python :: 3.7",
+            "Programming Language :: Python :: 3.8",
             "Programming Language :: Python",
             "Topic :: Internet :: Proxy Servers",
             "Topic :: Internet",
