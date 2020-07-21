@@ -5,10 +5,9 @@ import ipaddress
 import os
 import threading
 import unittest
+import unittest.mock as mock
 from multiprocessing import Process, Pipe
 from typing import Union, Type
-
-import mock
 
 import maxminddb
 
