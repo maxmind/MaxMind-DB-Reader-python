@@ -73,15 +73,13 @@ Example
 
     >>> import maxminddb
     >>>
-    >>> reader = maxminddb.open_database('GeoLite2-City.mmdb')
+    >>> with maxminddb.open_database('GeoLite2-City.mmdb') as reader:
     >>>
-    >>> reader.get('1.1.1.1')
+    >>>     reader.get('152.216.7.110')
     {'country': ... }
     >>>
-    >>> reader.get_with_prefix_len('1.1.1.1')
+    >>>     reader.get_with_prefix_len('152.216.7.110')
     ({'country': ... }, 24)
-    >>>
-    >>> reader.close()
 
 Exceptions
 ----------
