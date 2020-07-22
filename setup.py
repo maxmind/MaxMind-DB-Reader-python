@@ -109,7 +109,7 @@ def run_setup(with_cext):
         packages=find_packages("."),
         package_data={"": ["LICENSE"]},
         package_dir={"maxminddb": "maxminddb"},
-        python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
+        python_requires=">=3.6",
         include_package_data=True,
         install_requires=requirements,
         tests_require=["nose"],
