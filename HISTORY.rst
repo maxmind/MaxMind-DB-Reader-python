@@ -3,6 +3,12 @@
 History
 -------
 
+2.0.1 (2020-07-22)
+++++++++++++++++++
+
+* Fix minimum required python version in ``setup.py``. Pull request by
+  Boros Gábor. GitHub #69 & #70.
+
 2.0.0 (2020-07-21)
 ++++++++++++++++++
 
