@@ -78,7 +78,12 @@ class BaseTestReader(object):
             "double": 42.123456,
             "float": 1.100000023841858,
             "int32": -268435456,
-            "map": {"mapX": {"arrayX": [7, 8, 9], "utf8_stringX": "hello",},},
+            "map": {
+                "mapX": {
+                    "arrayX": [7, 8, 9],
+                    "utf8_stringX": "hello",
+                },
+            },
             "uint128": 1329227995784915872903807060280344576,
             "uint16": 0x64,
             "uint32": 0x10000000,
@@ -196,7 +201,10 @@ class BaseTestReader(object):
         self.assertAlmostEqual(record["float"], 1.1)
         self.assertEqual(record["int32"], -268435456)
         self.assertEqual(
-            {"mapX": {"arrayX": [7, 8, 9], "utf8_stringX": "hello"},}, record["map"]
+            {
+                "mapX": {"arrayX": [7, 8, 9], "utf8_stringX": "hello"},
+            },
+            record["map"],
         )
 
         self.assertEqual(record["uint16"], 100)

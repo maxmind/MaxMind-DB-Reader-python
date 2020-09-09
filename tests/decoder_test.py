@@ -197,7 +197,10 @@ class TestDecoder(unittest.TestCase):
         db.write(input)
 
         decoder = Decoder(db, pointer_test=True)
-        (actual, _,) = decoder.decode(0)
+        (
+            actual,
+            _,
+        ) = decoder.decode(0)
 
         if type in ("float", "double"):
             self.assertAlmostEqual(expected, actual, places=3, msg=type)
