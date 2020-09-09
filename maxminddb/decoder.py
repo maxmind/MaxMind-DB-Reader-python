@@ -147,10 +147,10 @@ class Decoder:  # pylint: disable=too-few-public-methods
 
         try:
             decoder = self._type_decoder[type_num]
-        except KeyError:
+        except KeyError as ex:
             raise InvalidDatabaseError(
                 "Unexpected type number ({type}) " "encountered".format(type=type_num)
-            )
+            ) from ex
 
         (size, new_offset) = self._size_from_ctrl_byte(ctrl_byte, new_offset, type_num)
         return decoder(self, size, new_offset)

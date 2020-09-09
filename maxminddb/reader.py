@@ -137,8 +137,8 @@ class Reader:
 
         try:
             packed_address = bytearray(address.packed)
-        except AttributeError:
-            raise TypeError("argument 1 must be a string or ipaddress object")
+        except AttributeError as ex:
+            raise TypeError("argument 1 must be a string or ipaddress object") from ex
 
         if address.version == 6 and self._metadata.ip_version == 4:
             raise ValueError(
