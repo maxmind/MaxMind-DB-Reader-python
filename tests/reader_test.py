@@ -175,12 +175,8 @@ class BaseTestReader(object):
                 self.assertEqual(
                     prefix_len,
                     test["expected_prefix_len"],
-                    "expected prefix_len of {} for {} in {} but got {}".format(
-                        test["expected_prefix_len"],
-                        test["ip"],
-                        test["file_name"],
-                        prefix_len,
-                    ),
+                    f"expected prefix_len of {test['expected_prefix_len']} for {test['ip']}"
+                    + f" in {test['file_name']} but got {prefix_len}",
                 )
                 self.assertEqual(
                     record,
@@ -442,7 +438,7 @@ class BaseTestReader(object):
         def lookup(pipe):
             try:
                 for i in range(32):
-                    reader.get(self.ipf("65.115.240.{i}".format(i=i)))
+                    reader.get(self.ipf(f"65.115.240.{i}"))
                 pipe.send(1)
             except:
                 pipe.send(0)

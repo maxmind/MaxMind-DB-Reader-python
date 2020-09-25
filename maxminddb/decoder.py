@@ -149,7 +149,7 @@ class Decoder:  # pylint: disable=too-few-public-methods
             decoder = self._type_decoder[type_num]
         except KeyError as ex:
             raise InvalidDatabaseError(
-                "Unexpected type number ({type}) " "encountered".format(type=type_num)
+                f"Unexpected type number ({type_num}) encountered"
             ) from ex
 
         (size, new_offset) = self._size_from_ctrl_byte(ctrl_byte, new_offset, type_num)
@@ -161,8 +161,7 @@ class Decoder:  # pylint: disable=too-few-public-methods
         if type_num < 7:
             raise InvalidDatabaseError(
                 "Something went horribly wrong in the decoder. An "
-                "extended type resolved to a type number < 8 "
-                "({type})".format(type=type_num)
+                f"extended type resolved to a type number < 8 ({type_num})"
             )
         return type_num, offset + 1
 
