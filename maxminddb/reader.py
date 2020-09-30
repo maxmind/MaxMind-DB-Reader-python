@@ -73,9 +73,9 @@ class Reader:
             filename = database.name  # type: ignore
         else:
             raise ValueError(
-                "Unsupported open mode ({0}). Only MODE_AUTO, MODE_FILE, "
+                f"Unsupported open mode ({mode}). Only MODE_AUTO, MODE_FILE, "
                 "MODE_MEMORY and MODE_FD are supported by the pure Python "
-                "Reader".format(mode)
+                "Reader"
             )
 
         metadata_start = self._buffer.rfind(
@@ -85,9 +85,8 @@ class Reader:
         if metadata_start == -1:
             self.close()
             raise InvalidDatabaseError(
-                "Error opening database file ({0}). "
+                f"Error opening database file ({filename}). "
                 "Is this a valid MaxMind DB file?"
-                "".format(filename)
             )
 
         metadata_start += len(self._METADATA_START_MARKER)
@@ -96,7 +95,7 @@ class Reader:
 
         if not isinstance(metadata, dict):
             raise InvalidDatabaseError(
-                "Error reading metadata in database file ({0}).".format(filename)
+                f"Error reading metadata in database file ({filename})."
             )
 
         self._metadata = Metadata(**metadata)  # pylint: disable=bad-option-value
@@ -142,8 +141,8 @@ class Reader:
 
         if address.version == 6 and self._metadata.ip_version == 4:
             raise ValueError(
-                "Error looking up {0}. You attempted to look up "
-                "an IPv6 address in an IPv4-only database.".format(ip_address)
+                f"Error looking up {ip_address}. You attempted to look up "
+                "an IPv6 address in an IPv4-only database."
             )
 
         (pointer, prefix_len) = self._find_address_in_tree(packed_address)
@@ -207,7 +206,7 @@ class Reader:
             offset = base_offset + index * 4
             node_bytes = self._buffer[offset : offset + 4]
         else:
-            raise InvalidDatabaseError("Unknown record size: {0}".format(record_size))
+            raise InvalidDatabaseError(f"Unknown record size: {record_size}")
         return struct.unpack(b"!I", node_bytes)[0]
 
     def _resolve_data_pointer(self, pointer: int) -> Record:
@@ -333,6 +332,4 @@ class Metadata:
 
     def __repr__(self):
         args = ", ".join("%s=%r" % x for x in self.__dict__.items())
-        return "{module}.{class_name}({data})".format(
-            module=self.__module__, class_name=self.__class__.__name__, data=args
-        )
+        return f"{self.__module__}.{self.__class__.__name__}({args})"

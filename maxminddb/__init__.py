@@ -48,7 +48,7 @@ def open_database(
         return maxminddb.extension.Reader(database)
     if mode in (MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY, MODE_FD):
         return PyReader(database, mode)
-    raise ValueError("Unsupported open mode: {0}".format(mode))
+    raise ValueError(f"Unsupported open mode: {mode}")
 
 
 def Reader(database):  # pylint: disable=invalid-name
