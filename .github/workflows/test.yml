@@ -26,13 +26,7 @@ jobs:
           submodules: true
 
       - name: Install libmaxminddb
-        run: |
-              git clone --recursive git://github.com/maxmind/libmaxminddb libmaxminddb-src
-              cd libmaxminddb-src
-              ./bootstrap
-              ./configure
-              make
-              sudo make install
+        run: sudo apt install libmaxminddb-dev
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
