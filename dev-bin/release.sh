@@ -66,5 +66,5 @@ hub release create -m "$message" "$tag"
 git push --tags
 
 rm -fr dist
-python setup.py sdist
+python setup.py build_html sdist
 twine upload dist/*
