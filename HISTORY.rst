@@ -3,6 +3,13 @@
 History
 -------
 
+2.0.3
+++++++++++++++++++
+
+* The 2.0.0 release unintentionally required Python to be compiled with
+  ``mmap`` support for the module to work. ``mmap`` is now optional
+  again. Reported by john-heasman-cg. GitHub #76.
+
 2.0.2 (2020-07-28)
 ++++++++++++++++++
 
