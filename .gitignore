@@ -13,6 +13,7 @@ build
 core
 dist
 docs/_build
+docs/doctrees
 docs/html
 env/
 MANIFEST
