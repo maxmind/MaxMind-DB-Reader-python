@@ -38,7 +38,7 @@ fi
 perl -pi -e "s/(?<=__version__ = \").+?(?=\")/$version/gsm" maxminddb/__init__.py
 
 echo $"Test results:"
-python setup.py test
+tox
 
 echo $'\nDiff:'
 git diff
