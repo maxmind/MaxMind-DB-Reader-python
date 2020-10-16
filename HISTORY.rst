@@ -3,7 +3,7 @@
 History
 -------
 
-2.0.3
+2.0.3 (2020-10-16)
 ++++++++++++++++++
 
 * The 2.0.0 release unintentionally required Python to be compiled with
