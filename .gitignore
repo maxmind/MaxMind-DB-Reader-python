@@ -8,6 +8,7 @@
 .eggs
 .idea
 .pyre
+.tox
 build
 core
 dist
