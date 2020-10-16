@@ -6,9 +6,15 @@ This package contains code for decoding the MaxMind DB data section.
 
 """
 import struct
-
-from mmap import mmap
 from typing import cast, Dict, List, Tuple, Union
+
+try:
+    # pylint: disable=unused-import
+    import mmap
+except ImportError:
+    # pylint: disable=invalid-name
+    mmap = None  # type: ignore
+
 
 from maxminddb.errors import InvalidDatabaseError
 from maxminddb.file import FileBuffer
@@ -20,7 +26,7 @@ class Decoder:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        database_buffer: Union[FileBuffer, mmap, bytes],
+        database_buffer: Union[FileBuffer, "mmap.mmap", bytes],
         pointer_base: int = 0,
         pointer_test: bool = False,
     ) -> None:
