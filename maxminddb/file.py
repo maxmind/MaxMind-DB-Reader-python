@@ -14,6 +14,7 @@ class FileBuffer:
     """A slice-able file reader"""
 
     def __init__(self, database: str) -> None:
+        # pylint: disable=consider-using-with
         self._handle = open(database, "rb")
         self._size = os.fstat(self._handle.fileno()).st_size
         if not hasattr(os, "pread"):
