@@ -211,6 +211,15 @@ class BaseTestReader(object):
         self.assertEqual(1329227995784915872903807060280344576, record["uint128"])
         reader.close()
 
+    def test_metadata_pointers(self):
+        with open_database(
+            "tests/data/test-data/MaxMind-DB-test-metadata-pointers.mmdb", self.mode
+        ) as reader:
+            self.assertEqual(
+                "Lots of pointers in metadata",
+                reader.metadata().database_type,
+            )
+
     def test_no_ipv4_search_tree(self):
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-no-ipv4-search-tree.mmdb", self.mode
