@@ -37,8 +37,8 @@ Usage
 
 To use this module, you must first download or create a MaxMind DB file. We
 provide `free GeoLite2 databases
-<https://dev.maxmind.com/geoip/geoip2/geolite2>`_. These files must be
-decompressed with ``gunzip``.
+<https://dev.maxmind.com/geoip/geolocate-an-ip/databases?lang=en>`_. These
+files must be decompressed with ``gunzip``.
 
 After you have obtained a database and imported the module, call
 ``open_database`` with a path, or file descriptor (in the case of ``MODE_FD``),
