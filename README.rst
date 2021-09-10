@@ -17,7 +17,9 @@ Installation
 If you want to use the C extension, you must first install `libmaxminddb
 <https://github.com/maxmind/libmaxminddb>`_ C library installed before
 installing this extension. If the library is not available, the module will
-fall-back to a pure Python implementation.
+fall-back to a pure Python implementation. Note that when installing the C
+library from a package, you may be required to install additonal packages
+containing build requirements such as `libmaxminddb-dev` on Debian.
 
 To install maxminddb, type:
 
