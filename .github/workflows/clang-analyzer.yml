@@ -1,0 +1,26 @@
+name: Clang Static Analysis
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '3 15 * * SUN'
+
+jobs:
+  clang-analyzer:
+    name: Clang Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Install libmaxminddb
+        run: sudo apt install clang-tools libmaxminddb-dev
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.x
+
+      - name: Build and run analyzer
+        run: CFLAGS="-Werror -Wall -Wextra" scan-build --status-bugs python setup.py build
