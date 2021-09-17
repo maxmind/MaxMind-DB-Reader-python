@@ -3,6 +3,7 @@
 
 import ipaddress
 import os
+import pathlib
 import threading
 import unittest
 import unittest.mock as mock
@@ -241,6 +242,12 @@ class BaseTestReader(object):
         ):
             reader.get(self.ipf("2001::"))
         reader.close()
+
+    def test_opening_path(self):
+        with open_database(
+            pathlib.Path("tests/data/test-data/MaxMind-DB-test-decoder.mmdb"), self.mode
+        ) as reader:
+            self.assertEqual(reader.metadata().database_type, "MaxMind DB Decoder Test")
 
     def test_no_extension_exception(self):
         real_extension = maxminddb.extension

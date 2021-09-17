@@ -3,6 +3,18 @@
 History
 -------
 
+2.1.0
+++++++++++++++++++
+
+* The C extension now correctly supports objects that implement the
+  ``os.PathLike`` interface.
+* When opening a database fails due to an access issue, the correct
+  ``OSError`` subclass will now be thrown.
+* The ``Metadata`` class object is now available from the C extension
+  module as ``maxminddb.extension.Metadata`` rather than
+  ``maxminddb.extension.extension``.
+* Type stubs have been added for ``maxminddb.extension``.
+
 2.0.3 (2020-10-16)
 ++++++++++++++++++
 
