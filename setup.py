@@ -107,7 +107,7 @@ def run_setup(with_cext):
         long_description=README,
         url="http://www.maxmind.com/",
         packages=find_packages("."),
-        package_data={"": ["LICENSE"], "maxminddb": ["py.typed"]},
+        package_data={"": ["LICENSE"], "maxminddb": ["extension.pyi", "py.typed"]},
         package_dir={"maxminddb": "maxminddb"},
         python_requires=">=3.6",
         include_package_data=True,
