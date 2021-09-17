@@ -48,16 +48,27 @@ static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address);
 #endif
 
 static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
-    char *filename;
+    PyObject *filepath = NULL;
     int mode = 0;
 
     static char *kwlist[] = {"database", "mode", NULL};
-    if (!PyArg_ParseTupleAndKeywords(
-            args, kwds, "s|i", kwlist, &filename, &mode)) {
+    if (!PyArg_ParseTupleAndKeywords(args,
+                                     kwds,
+                                     "O&|i",
+                                     kwlist,
+                                     PyUnicode_FSConverter,
+                                     &filepath,
+                                     &mode)) {
+        return -1;
+    }
+
+    char *filename = PyBytes_AS_STRING(filepath);
+    if (filename == NULL) {
         return -1;
     }
 
     if (mode != 0 && mode != 1) {
+        Py_XDECREF(filepath);
         PyErr_Format(
             PyExc_ValueError,
             "Unsupported open mode (%i). Only "
@@ -67,6 +78,7 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
     }
 
     if (0 != access(filename, R_OK)) {
+        Py_XDECREF(filepath);
         PyErr_Format(PyExc_FileNotFoundError,
                      "No such file or directory: '%s'",
                      filename);
@@ -75,18 +87,21 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
 
     MMDB_s *mmdb = (MMDB_s *)malloc(sizeof(MMDB_s));
     if (NULL == mmdb) {
+        Py_XDECREF(filepath);
         PyErr_NoMemory();
         return -1;
     }
 
     Reader_obj *mmdb_obj = (Reader_obj *)self;
     if (!mmdb_obj) {
+        Py_XDECREF(filepath);
         free(mmdb);
         PyErr_NoMemory();
         return -1;
     }
 
     uint16_t status = MMDB_open(filename, MMDB_MODE_MMAP, mmdb);
+    Py_XDECREF(filepath);
 
     if (MMDB_SUCCESS != status) {
         free(mmdb);

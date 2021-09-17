@@ -3,6 +3,12 @@
 History
 -------
 
+2.1.0
+++++++++++++++++++
+
+* The C extension now correctly supports objects that implement the
+  ``os.PathLike`` interface.
+
 2.0.3 (2020-10-16)
 ++++++++++++++++++
 
