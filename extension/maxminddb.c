@@ -738,7 +738,7 @@ PyMODINIT_FUNC PyInit_extension(void) {
     if (PyType_Ready(&Metadata_Type)) {
         return NULL;
     }
-    PyModule_AddObject(m, "extension", (PyObject *)&Metadata_Type);
+    PyModule_AddObject(m, "Metadata", (PyObject *)&Metadata_Type);
 
     PyObject *error_mod = PyImport_ImportModule("maxminddb.errors");
     if (error_mod == NULL) {

@@ -8,6 +8,9 @@ History
 
 * The C extension now correctly supports objects that implement the
   ``os.PathLike`` interface.
+* The ``Metadata`` class object is now available from the C extension
+  module as ``maxminddb.extension.Metadata`` rather than
+  ``maxminddb.extension.extension``.
 
 2.0.3 (2020-10-16)
 ++++++++++++++++++
