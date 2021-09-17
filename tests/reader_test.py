@@ -243,7 +243,7 @@ class BaseTestReader(object):
             reader.get(self.ipf("2001::"))
         reader.close()
 
-    def test_openning_path(self):
+    def test_opening_path(self):
         with open_database(
             pathlib.Path("tests/data/test-data/MaxMind-DB-test-decoder.mmdb"), self.mode
         ) as reader:
