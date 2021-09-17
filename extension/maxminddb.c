@@ -78,10 +78,9 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
     }
 
     if (0 != access(filename, R_OK)) {
+
+        PyErr_SetFromErrnoWithFilenameObject(PyExc_OSError, filepath);
         Py_XDECREF(filepath);
-        PyErr_Format(PyExc_FileNotFoundError,
-                     "No such file or directory: '%s'",
-                     filename);
         return -1;
     }
 
