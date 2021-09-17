@@ -331,5 +331,5 @@ class Metadata:
         return self.node_count * self.node_byte_size
 
     def __repr__(self):
-        args = ", ".join("%s=%r" % x for x in self.__dict__.items())
+        args = ", ".join(f"{k}={v}" for k, v in self.__dict__.items())
         return f"{self.__module__}.{self.__class__.__name__}({args})"
