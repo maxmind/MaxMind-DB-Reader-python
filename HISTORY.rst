@@ -3,7 +3,7 @@
 History
 -------
 
-2.1.0
+2.1.0 (2021-09-18)
 ++++++++++++++++++
 
 * The C extension now correctly supports objects that implement the
