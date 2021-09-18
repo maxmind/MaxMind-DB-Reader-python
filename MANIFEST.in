@@ -1,3 +1,3 @@
-include HISTORY.rst README.rst LICENSE
+include HISTORY.rst README.rst LICENSE maxminddb/py.typed maxminddb/extension.pyi
 recursive-include tests/ *.mmdb *.py *.raw
 graft docs/html
