@@ -20,6 +20,19 @@ from maxminddb.const import (
 from maxminddb.decoder import InvalidDatabaseError
 from maxminddb.reader import Reader as PyReader
 
+__all__ = [
+    "InvalidDatabaseError",
+    "MODE_AUTO",
+    "MODE_FD",
+    "MODE_FILE",
+    "MODE_MEMORY",
+    "MODE_MMAP",
+    "MODE_MMAP_EXT",
+    "PyReader",  # Exposed for type checking b/c return type of open_database()
+    "Reader",
+    "open_database",
+]
+
 
 def open_database(
     database: Union[AnyStr, int, os.PathLike, IO], mode: int = MODE_AUTO
