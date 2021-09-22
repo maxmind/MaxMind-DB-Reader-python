@@ -250,8 +250,8 @@ class BaseTestReader(object):
             self.assertEqual(reader.metadata().database_type, "MaxMind DB Decoder Test")
 
     def test_no_extension_exception(self):
-        real_extension = maxminddb.extension
-        maxminddb.extension = None
+        real_extension = maxminddb._extension
+        maxminddb._extension = None
         with self.assertRaisesRegex(
             ValueError,
             "MODE_MMAP_EXT requires the maxminddb.extension module to be available",
@@ -259,7 +259,7 @@ class BaseTestReader(object):
             open_database(
                 "tests/data/test-data/MaxMind-DB-test-decoder.mmdb", MODE_MMAP_EXT
             )
-        maxminddb.extension = real_extension
+        maxminddb._extension = real_extension
 
     def test_broken_database(self):
         reader = open_database(

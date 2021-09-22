@@ -2,12 +2,7 @@
 import os
 from typing import IO, AnyStr, Union, cast
 
-try:
-    import maxminddb.extension
-except ImportError:
-    maxminddb.extension = None  # type: ignore
-
-from maxminddb.const import (
+from .const import (
     MODE_AUTO,
     MODE_FD,
     MODE_FILE,
@@ -15,8 +10,15 @@ from maxminddb.const import (
     MODE_MMAP,
     MODE_MMAP_EXT,
 )
-from maxminddb.decoder import InvalidDatabaseError
-from maxminddb.reader import Reader
+from .decoder import InvalidDatabaseError
+from .reader import Reader
+
+try:
+    # pylint: disable=import-self
+    from . import extension as _extension
+except ImportError:
+    _extension = None  # type: ignore[assignment]
+
 
 __all__ = [
     "InvalidDatabaseError",
@@ -60,7 +62,7 @@ def open_database(
     ):
         raise ValueError(f"Unsupported open mode: {mode}")
 
-    has_extension = maxminddb.extension and hasattr(maxminddb.extension, "Reader")
+    has_extension = _extension and hasattr(_extension, "Reader")
     use_extension = has_extension if mode == MODE_AUTO else mode == MODE_MMAP_EXT
 
     if not use_extension:
@@ -75,7 +77,7 @@ def open_database(
     # checking purposes, pretend it is one. (Ideally this would be a subclass
     # of, or share a common parent class with, the Python Reader
     # implementation.)
-    return cast(Reader, maxminddb.extension.Reader(database, mode))
+    return cast(Reader, _extension.Reader(database, mode))
 
 
 __title__ = "maxminddb"
