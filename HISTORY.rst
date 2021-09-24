@@ -3,9 +3,18 @@
 History
 -------
 
-2.1.1
+2.2.0 (2021-09-24)
 ++++++++++++++++++
 
+* The return type for ``maxminddb.open_database()`` has been simplified
+  to be just the ``Reader`` class as opposed to a union of that with
+  the extension class. This is done by casting the extension to
+  ``Reader``. The extension class has the same public API as the
+  pure Python implementation. This simplifies type checking for users of
+  this library. The ``Reader`` class is exposed as ``maxminddb.Reader``.
+  Pull request by wouter bolsterlee. GitHub #88.
+* ``maxminddb.__all__`` is now set to define a public API. Pull request
+  by wouter bolsterlee. GitHub #88.
 * Fix minor regression in ``repr`` output of ``maxminddb.reader.Metadata``
   in 2.1.0.
 
