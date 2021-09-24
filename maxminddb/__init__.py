@@ -1,29 +1,42 @@
 # pylint:disable=C0111
 import os
-from typing import AnyStr, IO, Union
+from typing import IO, AnyStr, Union, cast
 
-import maxminddb.reader
-
-try:
-    import maxminddb.extension
-except ImportError:
-    maxminddb.extension = None  # type: ignore
-
-from maxminddb.const import (
+from .const import (
     MODE_AUTO,
-    MODE_MMAP,
-    MODE_MMAP_EXT,
+    MODE_FD,
     MODE_FILE,
     MODE_MEMORY,
-    MODE_FD,
+    MODE_MMAP,
+    MODE_MMAP_EXT,
 )
-from maxminddb.decoder import InvalidDatabaseError
-from maxminddb.reader import Reader as PyReader
+from .decoder import InvalidDatabaseError
+from .reader import Reader
+
+try:
+    # pylint: disable=import-self
+    from . import extension as _extension
+except ImportError:
+    _extension = None  # type: ignore[assignment]
+
+
+__all__ = [
+    "InvalidDatabaseError",
+    "MODE_AUTO",
+    "MODE_FD",
+    "MODE_FILE",
+    "MODE_MEMORY",
+    "MODE_MMAP",
+    "MODE_MMAP_EXT",
+    "Reader",
+    "open_database",
+]
 
 
 def open_database(
-    database: Union[AnyStr, int, os.PathLike, IO], mode: int = MODE_AUTO
-) -> Union[PyReader, "maxminddb.extension.Reader"]:
+    database: Union[AnyStr, int, os.PathLike, IO],
+    mode: int = MODE_AUTO,
+) -> Reader:
     """Open a MaxMind DB database
 
     Arguments:
@@ -39,21 +52,32 @@ def open_database(
             * MODE_AUTO - tries MODE_MMAP_EXT, MODE_MMAP, MODE_FILE in that
                           order. Default mode.
     """
-    has_extension = maxminddb.extension and hasattr(maxminddb.extension, "Reader")
-    if (mode == MODE_AUTO and has_extension) or mode == MODE_MMAP_EXT:
-        if not has_extension:
-            raise ValueError(
-                "MODE_MMAP_EXT requires the maxminddb.extension module to be available"
-            )
-        return maxminddb.extension.Reader(database)
-    if mode in (MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY, MODE_FD):
-        return PyReader(database, mode)
-    raise ValueError(f"Unsupported open mode: {mode}")
+    if mode not in (
+        MODE_AUTO,
+        MODE_FD,
+        MODE_FILE,
+        MODE_MEMORY,
+        MODE_MMAP,
+        MODE_MMAP_EXT,
+    ):
+        raise ValueError(f"Unsupported open mode: {mode}")
 
+    has_extension = _extension and hasattr(_extension, "Reader")
+    use_extension = has_extension if mode == MODE_AUTO else mode == MODE_MMAP_EXT
 
-def Reader(database):  # pylint: disable=invalid-name
-    """This exists for backwards compatibility. Use open_database instead"""
-    return open_database(database)
+    if not use_extension:
+        return Reader(database, mode)
+
+    if not has_extension:
+        raise ValueError(
+            "MODE_MMAP_EXT requires the maxminddb.extension module to be available"
+        )
+
+    # The C type exposes the same API as the Python Reader, so for type
+    # checking purposes, pretend it is one. (Ideally this would be a subclass
+    # of, or share a common parent class with, the Python Reader
+    # implementation.)
+    return cast(Reader, _extension.Reader(database, mode))
 
 
 __title__ = "maxminddb"
