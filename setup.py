@@ -41,7 +41,7 @@ ext_errors = (CCompilerError, DistutilsExecError, DistutilsPlatformError)
 
 class BuildFailed(Exception):
     def __init__(self):
-        self.cause = sys.exc_info()[1]  # work around py 2/3 different syntax
+        self.cause = sys.exc_info()[1]
 
 
 class ve_build_ext(build_ext):
@@ -60,7 +60,7 @@ class ve_build_ext(build_ext):
             raise BuildFailed()
         except ValueError:
             # this can happen on Windows 64 bit, see Python issue 7511
-            if "'path'" in str(sys.exc_info()[1]):  # works with both py 2/3
+            if "'path'" in str(sys.exc_info()[1]):
                 raise BuildFailed()
             raise
 
