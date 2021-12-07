@@ -5,10 +5,18 @@ import sys
 # This import is apparently needed for Nose on Red Hat's Python
 import multiprocessing
 
-from distutils.command.build_ext import build_ext
-from distutils.errors import CCompilerError, DistutilsExecError, DistutilsPlatformError
-
 from setuptools import setup, Extension
+from setuptools.command.build_ext import build_ext
+
+# These were only added to setuptools in 59.0.1.
+try:
+    from setuptools.errors import CCompilerError
+    from setuptools.errors import DistutilsExecError
+    from setuptools.errors import DistutilsPlatformError
+except ImportError:
+    from distutils.errors import CCompilerError
+    from distutils.errors import DistutilsExecError
+    from distutils.errors import DistutilsPlatformError
 
 cmdclass = {}
 PYPY = hasattr(sys, "pypy_version_info")
