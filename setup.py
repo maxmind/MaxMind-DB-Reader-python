@@ -2,9 +2,6 @@ import os
 import re
 import sys
 
-# This import is apparently needed for Nose on Red Hat's Python
-import multiprocessing
-
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 
@@ -120,8 +117,6 @@ def run_setup(with_cext):
         python_requires=">=3.6",
         include_package_data=True,
         install_requires=requirements,
-        tests_require=["nose"],
-        test_suite="nose.collector",
         license=LICENSE,
         cmdclass=cmdclass,
         classifiers=[
