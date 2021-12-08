@@ -2,13 +2,18 @@ import os
 import re
 import sys
 
-# This import is apparently needed for Nose on Red Hat's Python
-import multiprocessing
-
-from distutils.command.build_ext import build_ext
-from distutils.errors import CCompilerError, DistutilsExecError, DistutilsPlatformError
-
 from setuptools import setup, Extension
+from setuptools.command.build_ext import build_ext
+
+# These were only added to setuptools in 59.0.1.
+try:
+    from setuptools.errors import CCompilerError
+    from setuptools.errors import DistutilsExecError
+    from setuptools.errors import DistutilsPlatformError
+except ImportError:
+    from distutils.errors import CCompilerError
+    from distutils.errors import DistutilsExecError
+    from distutils.errors import DistutilsPlatformError
 
 cmdclass = {}
 PYPY = hasattr(sys, "pypy_version_info")
@@ -33,7 +38,7 @@ ext_errors = (CCompilerError, DistutilsExecError, DistutilsPlatformError)
 
 class BuildFailed(Exception):
     def __init__(self):
-        self.cause = sys.exc_info()[1]  # work around py 2/3 different syntax
+        self.cause = sys.exc_info()[1]
 
 
 class ve_build_ext(build_ext):
@@ -52,7 +57,7 @@ class ve_build_ext(build_ext):
             raise BuildFailed()
         except ValueError:
             # this can happen on Windows 64 bit, see Python issue 7511
-            if "'path'" in str(sys.exc_info()[1]):  # works with both py 2/3
+            if "'path'" in str(sys.exc_info()[1]):
                 raise BuildFailed()
             raise
 
@@ -112,8 +117,6 @@ def run_setup(with_cext):
         python_requires=">=3.6",
         include_package_data=True,
         install_requires=requirements,
-        tests_require=["nose"],
-        test_suite="nose.collector",
         license=LICENSE,
         cmdclass=cmdclass,
         classifiers=[
@@ -127,6 +130,7 @@ def run_setup(with_cext):
             "Programming Language :: Python :: 3.7",
             "Programming Language :: Python :: 3.8",
             "Programming Language :: Python :: 3.9",
+            "Programming Language :: Python :: 3.10",
             "Programming Language :: Python",
             "Topic :: Internet :: Proxy Servers",
             "Topic :: Internet",

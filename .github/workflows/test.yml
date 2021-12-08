@@ -14,7 +14,7 @@ jobs:
         # We don't test on Windows and macOS currently due to issues
         # build libmaxminddb there.
         platform: [ubuntu-latest]
-        python-version: [3.6, 3.7, 3.8, 3.9]
+        python-version: [3.6, 3.7, 3.8, 3.9, "3.10"]
 
     name: Python ${{ matrix.python-version }} on ${{ matrix.platform }}
     runs-on: ${{ matrix.platform }}

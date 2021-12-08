@@ -3,6 +3,11 @@
 History
 -------
 
+2.3.0
+++++++++++++++++++
+
+* ``distutils`` is no longer used for building the C extension.
+
 2.2.0 (2021-09-24)
 ++++++++++++++++++
 
