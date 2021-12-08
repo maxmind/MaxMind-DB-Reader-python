@@ -1,0 +1,37 @@
+name: Run Address Sanitizer
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '13 15 * * SUN'
+jobs:
+  build:
+    name: Address Sanitizer
+    runs-on: ubuntu-latest
+    env:
+      CFLAGS: -fsanitize=address
+      LDFLAGS: -fsanitize=address
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - name: Install libmaxminddb
+        run: sudo apt install libmaxminddb-dev
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.x
+
+      - name: Install dependencies
+        run: |
+              python -m pip install --upgrade pip
+              pip install tox tox-gh-actions
+
+      - name: Build
+        run: python setup.py build
+
+      - name: Test with tox
+        run: MM_FORCE_EXT_TESTS=1 tox
