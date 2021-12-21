@@ -9,6 +9,7 @@ jobs:
     name: Address Sanitizer
     runs-on: ubuntu-latest
     env:
+      CC: clang
       CFLAGS: -fsanitize=address
       LDFLAGS: -fsanitize=address
     steps:
