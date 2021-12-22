@@ -276,14 +276,14 @@ static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address) {
         case 16: {
             ip_address->ss_family = AF_INET6;
             struct sockaddr_in6 *sin = (struct sockaddr_in6 *)ip_address;
-            memcpy(sin->sin6_addr.s6_addr, bytes, len);
+            memcpy(sin->sin6_addr.s6_addr, bytes, (size_t)len);
             Py_DECREF(packed);
             return 1;
         }
         case 4: {
             ip_address->ss_family = AF_INET;
             struct sockaddr_in *sin = (struct sockaddr_in *)ip_address;
-            memcpy(&(sin->sin_addr.s_addr), bytes, len);
+            memcpy(&(sin->sin_addr.s_addr), bytes, (size_t)len);
             Py_DECREF(packed);
             return 1;
         }
