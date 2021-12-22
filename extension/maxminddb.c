@@ -99,7 +99,7 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
         return -1;
     }
 
-    uint16_t status = MMDB_open(filename, MMDB_MODE_MMAP, mmdb);
+    int const status = MMDB_open(filename, MMDB_MODE_MMAP, mmdb);
     Py_XDECREF(filepath);
 
     if (MMDB_SUCCESS != status) {
