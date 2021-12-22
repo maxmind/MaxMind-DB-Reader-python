@@ -526,7 +526,7 @@ static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list) {
         *entry_data_list = (*entry_data_list)->next;
 
         PyObject *key = PyUnicode_FromStringAndSize(
-            (char *)(*entry_data_list)->entry_data.utf8_string,
+            (*entry_data_list)->entry_data.utf8_string,
             (*entry_data_list)->entry_data.data_size);
         if (!key) {
             // PyUnicode_FromStringAndSize will set an appropriate exception
