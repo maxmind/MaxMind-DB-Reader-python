@@ -99,7 +99,7 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
         return -1;
     }
 
-    uint16_t status = MMDB_open(filename, MMDB_MODE_MMAP, mmdb);
+    int const status = MMDB_open(filename, MMDB_MODE_MMAP, mmdb);
     Py_XDECREF(filepath);
 
     if (MMDB_SUCCESS != status) {
@@ -276,14 +276,14 @@ static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address) {
         case 16: {
             ip_address->ss_family = AF_INET6;
             struct sockaddr_in6 *sin = (struct sockaddr_in6 *)ip_address;
-            memcpy(sin->sin6_addr.s6_addr, bytes, len);
+            memcpy(sin->sin6_addr.s6_addr, bytes, (size_t)len);
             Py_DECREF(packed);
             return 1;
         }
         case 4: {
             ip_address->ss_family = AF_INET;
             struct sockaddr_in *sin = (struct sockaddr_in *)ip_address;
-            memcpy(&(sin->sin_addr.s_addr), bytes, len);
+            memcpy(&(sin->sin_addr.s_addr), bytes, (size_t)len);
             Py_DECREF(packed);
             return 1;
         }
@@ -526,7 +526,7 @@ static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list) {
         *entry_data_list = (*entry_data_list)->next;
 
         PyObject *key = PyUnicode_FromStringAndSize(
-            (char *)(*entry_data_list)->entry_data.utf8_string,
+            (*entry_data_list)->entry_data.utf8_string,
             (*entry_data_list)->entry_data.data_size);
         if (!key) {
             // PyUnicode_FromStringAndSize will set an appropriate exception
