@@ -64,8 +64,9 @@ class Reader:
             filename = database
         elif mode == MODE_MEMORY:
             with open(database, "rb") as db_file:  # type: ignore
-                self._buffer = db_file.read()
-                self._buffer_size = len(self._buffer)
+                buf = db_file.read()
+                self._buffer = buf
+                self._buffer_size = len(buf)
             filename = database
         elif mode == MODE_FD:
             self._buffer = database.read()  # type: ignore
