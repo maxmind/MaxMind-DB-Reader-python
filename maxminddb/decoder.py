@@ -48,9 +48,7 @@ class Decoder:  # pylint: disable=too-few-public-methods
             array.append(value)
         return array, offset
 
-    def _decode_boolean(  # pylint: disable=no-self-use
-        self, size: int, offset: int
-    ) -> Tuple[bool, int]:
+    def _decode_boolean(self, size: int, offset: int) -> Tuple[bool, int]:
         return size != 0, offset
 
     def _decode_bytes(self, size: int, offset: int) -> Tuple[bytes, int]:
