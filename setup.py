@@ -114,6 +114,11 @@ def run_setup(with_cext):
         packages=find_packages("."),
         package_data={"": ["LICENSE"], "maxminddb": ["extension.pyi", "py.typed"]},
         package_dir={"maxminddb": "maxminddb"},
+        project_urls={
+            "Documentation": "https://maxminddb.readthedocs.org/",
+            "Source Code": "https://github.com/maxmind/MaxMind-DB-Reader-python",
+            "Issue Tracker": "https://github.com/maxmind/MaxMind-DB-Reader-python/issues",
+        },
         python_requires=">=3.6",
         include_package_data=True,
         install_requires=requirements,
