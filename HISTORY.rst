@@ -6,6 +6,8 @@ History
 2.3.0
 ++++++++++++++++++
 
+* IMPORTANT: Python 3.7 or greater is required. If you are using an older
+  version, please use an earlier release.
 * ``distutils`` is no longer used for building the C extension.
 
 2.2.0 (2021-09-24)
