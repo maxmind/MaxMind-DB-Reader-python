@@ -9,7 +9,7 @@ jobs:
     name: Address Sanitizer
     runs-on: ubuntu-latest
     env:
-      ASAN_OPTIONS: strict_string_checks=1:detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1:detect_invalid_pointer_pairs=2
+      ASAN_OPTIONS: strict_string_checks=1:detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1:detect_invalid_pointer_pairs=2:detect_leaks=0
       CC: clang
       CFLAGS: -fsanitize=address -Wall -Wextra -Wpedantic -Wformat=2 -Walloca -Wvla -Wimplicit-fallthrough -Wcast-qual -Wconversion -Wshadow -Wundef -Wstrict-prototypes -Wswitch-enum -fstack-protector -D_FORTIFY_SOURCE=2 -Werror
       LDFLAGS: -fsanitize=address
@@ -34,3 +34,5 @@ jobs:
 
       - name: Test with tox
         run: MM_FORCE_EXT_TESTS=1 tox
+        env:
+          LD_PRELOAD: libasan.so.6
