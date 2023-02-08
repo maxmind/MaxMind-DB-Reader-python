@@ -191,7 +191,6 @@ class TestDecoder(unittest.TestCase):
             self.check_decoding(type, input, expected)
 
     def check_decoding(self, type, input, expected, name=None):
-
         name = name or expected
         db = mmap.mmap(-1, len(input))
         db.write(input)
