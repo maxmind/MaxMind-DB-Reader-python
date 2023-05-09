@@ -3,7 +3,7 @@
 History
 -------
 
-2.3.0
+2.3.0 (2023-05-09)
 ++++++++++++++++++
 
 * IMPORTANT: Python 3.7 or greater is required. If you are using an older
