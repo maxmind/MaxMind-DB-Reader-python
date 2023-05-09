@@ -53,7 +53,9 @@ if [ "$should_push" != "y" ]; then
     exit 1
 fi
 
-git commit -m "Update for $tag" -a
+if [ -n "$(git status --porcelain)" ]; then
+    git commit -m "Update for $tag" -a
+fi
 
 git push
 
