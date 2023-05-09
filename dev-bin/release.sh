@@ -63,6 +63,7 @@ gh release create --target "$(git branch --show-current)" -t "$version" -n "$not
 
 git push --tags
 
-rm -fr dist
-python setup.py build_html sdist
+rm -fr build dist
+python -m sphinx -M html ./docs ./build/sphinx -W
+python setup.py sdist
 twine upload dist/*
