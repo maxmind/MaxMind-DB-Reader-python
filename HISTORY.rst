@@ -3,12 +3,14 @@
 History
 -------
 
-2.3.0
+2.3.0 (2023-05-09)
 ++++++++++++++++++
 
 * IMPORTANT: Python 3.7 or greater is required. If you are using an older
   version, please use an earlier release.
 * ``distutils`` is no longer used for building the C extension.
+* Missing ``Py_INCREF`` was added to module initialization for the C
+  extension. Pull request by R. Christian McDonald. GitHub #106.
 
 2.2.0 (2021-09-24)
 ++++++++++++++++++
