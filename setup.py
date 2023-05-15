@@ -18,7 +18,6 @@ except ImportError:
 cmdclass = {}
 PYPY = hasattr(sys, "pypy_version_info")
 JYTHON = sys.platform.startswith("java")
-requirements = []
 
 compile_args = ["-Wall", "-Wextra"]
 
@@ -73,9 +72,6 @@ with open(os.path.join(ROOT, "README.rst"), "rb") as fd:
 
 with open(os.path.join(ROOT, "maxminddb", "__init__.py"), "rb") as fd:
     maxminddb_text = fd.read().decode("utf8")
-    LICENSE = (
-        re.compile(r".*__license__ = \"(.*?)\"", re.S).match(maxminddb_text).group(1)
-    )
     VERSION = (
         re.compile(r".*__version__ = \"(.*?)\"", re.S).match(maxminddb_text).group(1)
     )
@@ -103,45 +99,7 @@ def run_setup(with_cext):
     if with_cext:
         kwargs["ext_modules"] = ext_module
 
-    setup(
-        name="maxminddb",
-        version=VERSION,
-        author="Gregory Oschwald",
-        author_email="goschwald@maxmind.com",
-        description="Reader for the MaxMind DB format",
-        long_description=README,
-        url="http://www.maxmind.com/",
-        packages=find_packages("."),
-        package_data={"": ["LICENSE"], "maxminddb": ["extension.pyi", "py.typed"]},
-        package_dir={"maxminddb": "maxminddb"},
-        project_urls={
-            "Documentation": "https://maxminddb.readthedocs.org/",
-            "Source Code": "https://github.com/maxmind/MaxMind-DB-Reader-python",
-            "Issue Tracker": "https://github.com/maxmind/MaxMind-DB-Reader-python/issues",
-        },
-        python_requires=">=3.7",
-        include_package_data=True,
-        install_requires=requirements,
-        license=LICENSE,
-        cmdclass=cmdclass,
-        classifiers=[
-            "Development Status :: 5 - Production/Stable",
-            "Environment :: Web Environment",
-            "Intended Audience :: Developers",
-            "Intended Audience :: System Administrators",
-            "License :: OSI Approved :: Apache Software License",
-            "Programming Language :: Python :: 3",
-            "Programming Language :: Python :: 3.7",
-            "Programming Language :: Python :: 3.8",
-            "Programming Language :: Python :: 3.9",
-            "Programming Language :: Python :: 3.10",
-            "Programming Language :: Python :: 3.11",
-            "Programming Language :: Python",
-            "Topic :: Internet :: Proxy Servers",
-            "Topic :: Internet",
-        ],
-        **kwargs
-    )
+    setup(version=VERSION, cmdclass=cmdclass, **kwargs)
 
 
 if PYPY or JYTHON:
