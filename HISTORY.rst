@@ -3,6 +3,15 @@
 History
 -------
 
+2.4.0 (2023-06-28)
+++++++++++++++++++
+
+* Package metadata was migrated from ``setup.py`` to ``setup.cfg``. GitHub
+  #113.
+* The C extension now decrements the reference count on an object
+  containing the database filename after its use in an error message rather
+  than before. Pull request by Lumír 'Frenzy' Balhar. GitHub #114.
+
 2.3.0 (2023-05-09)
 ++++++++++++++++++
 
