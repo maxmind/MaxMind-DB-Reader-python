@@ -100,7 +100,6 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
     }
 
     int const status = MMDB_open(filename, MMDB_MODE_MMAP, mmdb);
-    Py_XDECREF(filepath);
 
     if (MMDB_SUCCESS != status) {
         free(mmdb);
@@ -108,8 +107,11 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
                      "Error opening database file (%s). Is this a valid "
                      "MaxMind DB file?",
                      filename);
+        Py_XDECREF(filepath);
         return -1;
     }
+
+    Py_XDECREF(filepath);
 
     mmdb_obj->mmdb = mmdb;
     mmdb_obj->closed = Py_False;
