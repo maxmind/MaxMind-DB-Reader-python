@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import ipaddress
+import multiprocessing
 import os
 import pathlib
 import threading
@@ -45,6 +46,7 @@ class BaseTestReader(object):
         Type["maxminddb.extension.Reader"], Type["maxminddb.reader.Reader"]
     ]
     use_ip_objects = False
+    mp = multiprocessing.get_context("fork")
 
     def ipf(self, ip):
         if self.use_ip_objects:
@@ -441,7 +443,7 @@ class BaseTestReader(object):
             self.assertIsNotNone(metadata, "pure Python implementation returns value")
 
     def test_multiprocessing(self):
-        self._check_concurrency(Process)
+        self._check_concurrency(self.mp.Process)
 
     def test_threading(self):
         self._check_concurrency(threading.Thread)
@@ -459,11 +461,11 @@ class BaseTestReader(object):
             except:
                 pipe.send(0)
             finally:
-                if worker_class is Process:
+                if worker_class is self.mp.Process:
                     reader.close()
                 pipe.close()
 
-        pipes = [Pipe() for _ in range(32)]
+        pipes = [self.mp.Pipe() for _ in range(32)]
         procs = [worker_class(target=lookup, args=(c,)) for (p, c) in pipes]
         for proc in procs:
             proc.start()
