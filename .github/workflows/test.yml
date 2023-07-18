@@ -11,9 +11,9 @@ jobs:
 
     strategy:
       matrix:
-        # We don't test on Windows and macOS currently due to issues
+        # We don't test on Windows currently due to issues
         # build libmaxminddb there.
-        platform: [ubuntu-latest]
+        platform: [macos-latest, ubuntu-latest]
         python-version: [3.7, 3.8, 3.9, "3.10", 3.11]
 
     name: Python ${{ matrix.python-version }} on ${{ matrix.platform }}
@@ -27,6 +27,11 @@ jobs:
 
       - name: Install libmaxminddb
         run: sudo apt install libmaxminddb-dev
+        if: matrix.platform == 'ubuntu-latest'
+
+      - name: Install libmaxminddb
+        run: brew install libmaxminddb
+        if: matrix.platform == 'macos-latest'
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
