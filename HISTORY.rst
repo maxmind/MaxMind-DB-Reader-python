@@ -3,6 +3,12 @@
 History
 -------
 
+2.4.1
+++++++++++++++++++
+
+* The multiprocessing test now explicitly uses ``fork``. This allows it
+  to run successfully on macOS. Pull request by Theodore Ni. GitHub #116.
+
 2.4.0 (2023-06-28)
 ++++++++++++++++++
 
