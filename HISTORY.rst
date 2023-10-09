@@ -3,9 +3,13 @@
 History
 -------
 
-2.4.1
+2.5.0
 ++++++++++++++++++
 
+* The ``Reader`` class now implements the ``__iter__`` method. This will
+  return an iterator that iterates over all records in the database,
+  excluding repeated aliased of the IPv4 network. Requested by
+  Jean-Baptiste Braun and others. GitHub #23.
 * The multiprocessing test now explicitly uses ``fork``. This allows it
   to run successfully on macOS. Pull request by Theodore Ni. GitHub #116.
 
