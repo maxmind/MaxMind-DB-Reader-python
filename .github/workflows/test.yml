@@ -41,7 +41,7 @@ jobs:
       - name: Install dependencies
         run: |
               python -m pip install --upgrade pip
-              pip install tox tox-gh-actions
+              pip install setuptools tox tox-gh-actions
 
       - name: Build with Werror and Wall
         run: CFLAGS="-Werror -Wall -Wextra" python setup.py build

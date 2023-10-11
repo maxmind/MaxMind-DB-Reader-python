@@ -40,9 +40,13 @@ jobs:
     #    and modify them (or add more) to build your code if your project
     #    uses a compiled language
 
-    - run: |
-           sudo apt install libmaxminddb-dev
-           python setup.py build
+    - name: Install dependencies
+      run: |
+            sudo apt install libmaxminddb-dev
+            python -m pip install --upgrade pip
+            pip install setuptools
+
+    - run: python setup.py build
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
