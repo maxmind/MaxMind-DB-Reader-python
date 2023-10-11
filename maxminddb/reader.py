@@ -36,6 +36,10 @@ class Reader:
     _METADATA_START_MARKER = b"\xAB\xCD\xEFMaxMind.com"
 
     _buffer: Union[bytes, FileBuffer, "mmap.mmap"]
+    _buffer_size: int
+    closed: bool
+    _decoder: Decoder
+    _metadata: "Metadata"
     _ipv4_start: int
 
     def __init__(
