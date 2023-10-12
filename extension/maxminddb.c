@@ -408,24 +408,27 @@ static void Reader_dealloc(PyObject *self) {
     PyObject_Del(self);
 }
 
-static PyObject *Reader_iter(PyObject *reader) {
+static PyObject *Reader_iter(PyObject *obj) {
+    Reader_obj *reader = (Reader_obj *)obj;
+    if (reader->closed == Py_True) {
+        PyErr_SetString(PyExc_ValueError,
+                        "Attempt to iterate over a closed MaxMind DB.");
+        return NULL;
+    }
+
     ReaderIter_obj *ri = PyObject_New(ReaderIter_obj, &ReaderIter_Type);
     if (ri == NULL) {
         return NULL;
     }
 
-    ri->reader = (Reader_obj *)reader;
-    if (ri->reader->closed == Py_True) {
-        PyErr_SetString(PyExc_ValueError,
-                        "Attempt to iterate over a closed MaxMind DB.");
-        return NULL;
-    }
+    ri->reader = reader;
     Py_INCREF(reader);
 
     // Currently, we are always starting from the 0 node with the 0 IP
     ri->next = calloc(1, sizeof(record));
     if (ri->next == NULL) {
-        Py_DECREF(reader);
+        // ReaderIter_dealloc will decrement the reference count on reader
+        Py_DECREF(ri);
         PyErr_NoMemory();
         return NULL;
     }
