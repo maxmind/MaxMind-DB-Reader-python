@@ -115,8 +115,9 @@ class Reader:
 
         ipv4_start = 0
         if self._metadata.ip_version == 6:
-            # We are looking up an IPv4 address in an IPv6 tree. Skip over the
-            # first 96 nodes.
+            # We store the IPv4 starting node as an optimization for IPv4 lookups
+            # in IPv6 trees. This allows us to skip over the first 96 nodes in
+            # this case.
             node = 0
             for _ in range(96):
                 if node >= self._metadata.node_count:
