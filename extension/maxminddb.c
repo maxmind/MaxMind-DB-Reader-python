@@ -104,7 +104,7 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
     }
 
     MMDB_s *mmdb = (MMDB_s *)malloc(sizeof(MMDB_s));
-    if (NULL == mmdb) {
+    if (mmdb == NULL) {
         Py_XDECREF(filepath);
         PyErr_NoMemory();
         return -1;
@@ -120,7 +120,7 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
 
     int const status = MMDB_open(filename, MMDB_MODE_MMAP, mmdb);
 
-    if (MMDB_SUCCESS != status) {
+    if (status != MMDB_SUCCESS) {
         free(mmdb);
         PyErr_Format(MaxMindDB_error,
                      "Error opening database file (%s). Is this a valid "
@@ -160,7 +160,7 @@ static PyObject *Reader_get_with_prefix_len(PyObject *self, PyObject *args) {
 
 static int get_record(PyObject *self, PyObject *args, PyObject **record) {
     MMDB_s *mmdb = ((Reader_obj *)self)->mmdb;
-    if (NULL == mmdb) {
+    if (mmdb == NULL) {
         PyErr_SetString(PyExc_ValueError,
                         "Attempt to read from a closed MaxMind DB.");
         return -1;
@@ -181,7 +181,7 @@ static int get_record(PyObject *self, PyObject *args, PyObject **record) {
     MMDB_lookup_result_s result =
         MMDB_lookup_sockaddr(mmdb, ip_address, &mmdb_error);
 
-    if (MMDB_SUCCESS != mmdb_error) {
+    if (mmdb_error != MMDB_SUCCESS) {
         PyObject *exception;
         if (MMDB_IPV6_LOOKUP_IN_IPV4_DATABASE_ERROR == mmdb_error) {
             exception = PyExc_ValueError;
@@ -213,7 +213,7 @@ static int get_record(PyObject *self, PyObject *args, PyObject **record) {
 
     MMDB_entry_data_list_s *entry_data_list = NULL;
     int status = MMDB_get_entry_data_list(&result.entry, &entry_data_list);
-    if (MMDB_SUCCESS != status) {
+    if (status != MMDB_SUCCESS) {
         char ipstr[INET6_ADDRSTRLEN] = {0};
         if (format_sockaddr(ip_address, ipstr)) {
             PyErr_Format(MaxMindDB_error,
@@ -337,7 +337,7 @@ static bool format_sockaddr(struct sockaddr *sa, char *dst) {
 static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args)) {
     Reader_obj *mmdb_obj = (Reader_obj *)self;
 
-    if (NULL == mmdb_obj->mmdb) {
+    if (mmdb_obj->mmdb == NULL) {
         PyErr_SetString(PyExc_IOError,
                         "Attempt to read from a closed MaxMind DB.");
         return NULL;
@@ -349,13 +349,13 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args)) {
 
     PyObject *metadata_dict = from_entry_data_list(&entry_data_list);
     MMDB_free_entry_data_list(original_entry_data_list);
-    if (NULL == metadata_dict || !PyDict_Check(metadata_dict)) {
+    if (metadata_dict == NULL || !PyDict_Check(metadata_dict)) {
         PyErr_SetString(MaxMindDB_error, "Error decoding metadata.");
         return NULL;
     }
 
     PyObject *args = PyTuple_New(0);
-    if (NULL == args) {
+    if (args == NULL) {
         Py_DECREF(metadata_dict);
         return NULL;
     }
@@ -370,7 +370,7 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args)) {
 static PyObject *Reader_close(PyObject *self, PyObject *UNUSED(args)) {
     Reader_obj *mmdb_obj = (Reader_obj *)self;
 
-    if (NULL != mmdb_obj->mmdb) {
+    if (mmdb_obj->mmdb != NULL) {
         MMDB_close(mmdb_obj->mmdb);
         free(mmdb_obj->mmdb);
         mmdb_obj->mmdb = NULL;
@@ -401,7 +401,7 @@ static PyObject *Reader__exit__(PyObject *self, PyObject *UNUSED(args)) {
 
 static void Reader_dealloc(PyObject *self) {
     Reader_obj *obj = (Reader_obj *)self;
-    if (NULL != obj->mmdb) {
+    if (obj->mmdb != NULL) {
         Reader_close(self, NULL);
     }
 
@@ -514,7 +514,7 @@ static PyObject *ReaderIter_next(PyObject *self) {
                 MMDB_entry_data_list_s *entry_data_list = NULL;
                 int status =
                     MMDB_get_entry_data_list(&cur->entry, &entry_data_list);
-                if (MMDB_SUCCESS != status) {
+                if (status != MMDB_SUCCESS) {
                     PyErr_Format(
                         MaxMindDB_error,
                         "Error looking up data while iterating over tree: %s",
@@ -676,7 +676,7 @@ static void Metadata_dealloc(PyObject *self) {
 
 static PyObject *
 from_entry_data_list(MMDB_entry_data_list_s **entry_data_list) {
-    if (NULL == entry_data_list || NULL == *entry_data_list) {
+    if (entry_data_list == NULL || *entry_data_list == NULL) {
         PyErr_SetString(MaxMindDB_error,
                         "Error while looking up data. Your database may be "
                         "corrupt or you have found a bug in libmaxminddb.");
@@ -726,7 +726,7 @@ from_entry_data_list(MMDB_entry_data_list_s **entry_data_list) {
 
 static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list) {
     PyObject *py_obj = PyDict_New();
-    if (NULL == py_obj) {
+    if (py_obj == NULL) {
         PyErr_NoMemory();
         return NULL;
     }
@@ -752,7 +752,7 @@ static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list) {
         *entry_data_list = (*entry_data_list)->next;
 
         PyObject *value = from_entry_data_list(entry_data_list);
-        if (NULL == value) {
+        if (value == NULL) {
             Py_DECREF(key);
             Py_DECREF(py_obj);
             return NULL;
@@ -769,7 +769,7 @@ static PyObject *from_array(MMDB_entry_data_list_s **entry_data_list) {
     const uint32_t size = (*entry_data_list)->entry_data.data_size;
 
     PyObject *py_obj = PyList_New(size);
-    if (NULL == py_obj) {
+    if (py_obj == NULL) {
         PyErr_NoMemory();
         return NULL;
     }
@@ -781,7 +781,7 @@ static PyObject *from_array(MMDB_entry_data_list_s **entry_data_list) {
     for (i = 0; i < size && entry_data_list; i++) {
         *entry_data_list = (*entry_data_list)->next;
         PyObject *value = from_entry_data_list(entry_data_list);
-        if (NULL == value) {
+        if (value == NULL) {
             Py_DECREF(py_obj);
             return NULL;
         }
@@ -809,7 +809,7 @@ static PyObject *from_uint128(const MMDB_entry_data_list_s *entry_data_list) {
 #endif
 
     char *num_str = malloc(33);
-    if (NULL == num_str) {
+    if (num_str == NULL) {
         PyErr_NoMemory();
         return NULL;
     }
