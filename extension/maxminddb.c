@@ -880,7 +880,7 @@ static PyTypeObject ReaderIter_Type = {
     .tp_iter = PyObject_SelfIter,
     .tp_iternext = ReaderIter_next,
     .tp_methods = ReaderIter_methods,
-    .tp_name = "odict_iterator",
+    .tp_name = "ReaderIter",
 };
 // clang-format on
 
