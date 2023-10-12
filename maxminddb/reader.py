@@ -170,11 +170,11 @@ class Reader:
             return self._resolve_data_pointer(pointer), prefix_len
         return None, prefix_len
 
-    def __iter__(self, include_aliased_nodes=False):
-        return self._generate_children(0, 0, 0, include_aliased_nodes)
+    def __iter__(self):
+        return self._generate_children(0, 0, 0)
 
-    def _generate_children(self, node, depth, ip_acc, include_aliased_nodes):
-        if not include_aliased_nodes and ip_acc != 0 and node == self._ipv4_start:
+    def _generate_children(self, node, depth, ip_acc):
+        if ip_acc != 0 and node == self._ipv4_start:
             # Skip nodes aliased to IPv4
             return
 
@@ -191,13 +191,9 @@ class Reader:
             left = self._read_node(node, 0)
             ip_acc <<= 1
             depth += 1
-            yield from self._generate_children(
-                left, depth, ip_acc, include_aliased_nodes
-            )
+            yield from self._generate_children(left, depth, ip_acc)
             right = self._read_node(node, 1)
-            yield from self._generate_children(
-                right, depth, ip_acc | 1, include_aliased_nodes
-            )
+            yield from self._generate_children(right, depth, ip_acc | 1)
 
     def _find_address_in_tree(self, packed: bytearray) -> Tuple[int, int]:
         bit_count = len(packed) * 8
