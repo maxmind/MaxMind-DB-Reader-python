@@ -989,7 +989,7 @@ PyMODINIT_FUNC PyInit_extension(void) {
     Py_INCREF(MaxMindDB_error);
 
     PyObject *ipaddress_mod = PyImport_ImportModule("ipaddress");
-    if (error_mod == NULL) {
+    if (ipaddress_mod == NULL) {
         return NULL;
     }
 
