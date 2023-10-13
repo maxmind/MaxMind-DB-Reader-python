@@ -187,6 +187,54 @@ class BaseTestReader(object):
                     "expected_record for " + test["ip"] + " in " + test["file_name"],
                 )
 
+    def test_iterator(self):
+        tests = (
+            {
+                "database": "ipv4",
+                "expected": [
+                    "1.1.1.1/32",
+                    "1.1.1.2/31",
+                    "1.1.1.4/30",
+                    "1.1.1.8/29",
+                    "1.1.1.16/28",
+                    "1.1.1.32/32",
+                ],
+            },
+            {
+                "database": "ipv6",
+                "expected": [
+                    "::1:ffff:ffff/128",
+                    "::2:0:0/122",
+                    "::2:0:40/124",
+                    "::2:0:50/125",
+                    "::2:0:58/127",
+                ],
+            },
+            {
+                "database": "mixed",
+                "expected": [
+                    "1.1.1.1/32",
+                    "1.1.1.2/31",
+                    "1.1.1.4/30",
+                    "1.1.1.8/29",
+                    "1.1.1.16/28",
+                    "1.1.1.32/32",
+                    "::1:ffff:ffff/128",
+                    "::2:0:0/122",
+                    "::2:0:40/124",
+                    "::2:0:50/125",
+                    "::2:0:58/127",
+                ],
+            },
+        )
+
+        for record_size in [24, 28, 32]:
+            for test in tests:
+                f = f'tests/data/test-data/MaxMind-DB-test-{test["database"]}-{record_size}.mmdb'
+                reader = open_database(f, self.mode)
+                networks = [str(n) for (n, _) in reader]
+                self.assertEqual(networks, test["expected"], f)
+
     def test_decoder(self):
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb", self.mode

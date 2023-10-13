@@ -69,6 +69,10 @@ If you wish to also retrieve the prefix length for the record, use the
 ``get_with_prefix_len`` method. This returns a tuple containing the record
 followed by the network prefix length associated with the record.
 
+You may also iterate over the whole database. The ``Reader`` class implements
+the ``__iter__`` method that returns an iterator. This iterator yields a
+tuple containing the network and the record.
+
 Example
 -------
 
@@ -83,6 +87,9 @@ Example
     >>>
     >>>     reader.get_with_prefix_len('152.216.7.110')
     ({'country': ... }, 24)
+    >>>
+    >>>     for network, record in reader:
+    >>>         ...
 
 Exceptions
 ----------

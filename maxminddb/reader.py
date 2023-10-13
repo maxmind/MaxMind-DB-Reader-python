@@ -23,6 +23,8 @@ from maxminddb.errors import InvalidDatabaseError
 from maxminddb.file import FileBuffer
 from maxminddb.types import Record
 
+_IPV4_MAX_NUM = 2**32
+
 
 class Reader:
     """
@@ -34,7 +36,11 @@ class Reader:
     _METADATA_START_MARKER = b"\xAB\xCD\xEFMaxMind.com"
 
     _buffer: Union[bytes, FileBuffer, "mmap.mmap"]
-    _ipv4_start: Optional[int] = None
+    _buffer_size: int
+    closed: bool
+    _decoder: Decoder
+    _metadata: "Metadata"
+    _ipv4_start: int
 
     def __init__(
         self, database: Union[AnyStr, int, PathLike, IO], mode: int = MODE_AUTO
@@ -107,6 +113,19 @@ class Reader:
         )
         self.closed = False
 
+        ipv4_start = 0
+        if self._metadata.ip_version == 6:
+            # We store the IPv4 starting node as an optimization for IPv4 lookups
+            # in IPv6 trees. This allows us to skip over the first 96 nodes in
+            # this case.
+            node = 0
+            for _ in range(96):
+                if node >= self._metadata.node_count:
+                    break
+                node = self._read_node(node, 0)
+            ipv4_start = node
+        self._ipv4_start = ipv4_start
+
     def metadata(self) -> "Metadata":
         """Return the metadata associated with the MaxMind DB file"""
         return self._metadata
@@ -152,6 +171,31 @@ class Reader:
             return self._resolve_data_pointer(pointer), prefix_len
         return None, prefix_len
 
+    def __iter__(self):
+        return self._generate_children(0, 0, 0)
+
+    def _generate_children(self, node, depth, ip_acc):
+        if ip_acc != 0 and node == self._ipv4_start:
+            # Skip nodes aliased to IPv4
+            return
+
+        node_count = self._metadata.node_count
+        if node > node_count:
+            bits = 128 if self._metadata.ip_version == 6 else 32
+            ip_acc <<= bits - depth
+            if ip_acc <= _IPV4_MAX_NUM and bits == 128:
+                depth -= 96
+            yield ipaddress.ip_network((ip_acc, depth)), self._resolve_data_pointer(
+                node
+            )
+        elif node < node_count:
+            left = self._read_node(node, 0)
+            ip_acc <<= 1
+            depth += 1
+            yield from self._generate_children(left, depth, ip_acc)
+            right = self._read_node(node, 1)
+            yield from self._generate_children(right, depth, ip_acc | 1)
+
     def _find_address_in_tree(self, packed: bytearray) -> Tuple[int, int]:
         bit_count = len(packed) * 8
         node = self._start_node(bit_count)
@@ -172,21 +216,9 @@ class Reader:
         raise InvalidDatabaseError("Invalid node in search tree")
 
     def _start_node(self, length: int) -> int:
-        if self._metadata.ip_version != 6 or length == 128:
-            return 0
-
-        # We are looking up an IPv4 address in an IPv6 tree. Skip over the
-        # first 96 nodes.
-        if self._ipv4_start:
+        if self._metadata.ip_version == 6 and length == 32:
             return self._ipv4_start
-
-        node = 0
-        for _ in range(96):
-            if node >= self._metadata.node_count:
-                break
-            node = self._read_node(node, 0)
-        self._ipv4_start = node
-        return node
+        return 0
 
     def _read_node(self, node_number: int, index: int) -> int:
         base_offset = node_number * self._metadata.node_byte_size

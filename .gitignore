@@ -10,6 +10,7 @@
 .pyre
 .tox
 build
+compile_flags.txt
 core
 dist
 docs/_build
