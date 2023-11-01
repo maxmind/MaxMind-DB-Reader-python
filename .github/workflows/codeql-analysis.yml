@@ -44,7 +44,7 @@ jobs:
       run: |
             sudo apt install libmaxminddb-dev
             python -m pip install --upgrade pip
-            pip install setuptools
+            pip install setuptools wheel
 
     - run: python setup.py build
 

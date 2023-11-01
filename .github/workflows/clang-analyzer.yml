@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: |
               python -m pip install --upgrade pip
-              pip install setuptools
+              pip install setuptools wheel
 
       - name: Build and run analyzer
         run: CFLAGS="-Werror -Wall -Wextra" scan-build --status-bugs python setup.py build

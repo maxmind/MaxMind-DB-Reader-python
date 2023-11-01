@@ -4,6 +4,8 @@ import sys
 
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
+from wheel.bdist_wheel import bdist_wheel
+
 
 # These were only added to setuptools in 59.0.1.
 try:
@@ -96,10 +98,12 @@ def find_packages(location):
 
 def run_setup(with_cext):
     kwargs = {}
+    loc_cmdclass = cmdclass.copy()
     if with_cext:
         kwargs["ext_modules"] = ext_module
+        loc_cmdclass["bdist_wheel"] = bdist_wheel
 
-    setup(version=VERSION, cmdclass=cmdclass, **kwargs)
+    setup(version=VERSION, cmdclass=loc_cmdclass, **kwargs)
 
 
 if PYPY or JYTHON:
