@@ -14,9 +14,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+        with:
+          submodules: true
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.16.2
+        env:
+          MAXMINDDB_REQUIRE_EXTENSION: 1
 
       - uses: actions/upload-artifact@v2
         with:

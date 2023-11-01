@@ -21,13 +21,32 @@ cmdclass = {}
 PYPY = hasattr(sys, "pypy_version_info")
 JYTHON = sys.platform.startswith("java")
 
-compile_args = ["-Wall", "-Wextra"]
+compile_args = ["-Wall", "-Wextra", "-Wno-unknown-pragmas"]
 
 ext_module = [
     Extension(
         "maxminddb.extension",
-        libraries=["maxminddb"],
-        sources=["extension/maxminddb.c"],
+        sources=[
+            "extension/maxminddb.c",
+            "extension/libmaxminddb/src/data-pool.c",
+            "extension/libmaxminddb/src/maxminddb.c",
+        ],
+        define_macros=[
+            ("HAVE_CONFIG_H", 0),
+            ("MMDB_LITTLE_ENDIAN", 1 if sys.byteorder == "little" else 0),
+            # We define these for maximum compatibility. The extension
+            # itself supports all variations currently, but probing to
+            # see what the compiler supports is a bit annoying to do
+            # here, and we aren't using uint128 for much.
+            ("MMDB_UINT128_USING_MODE", 0),
+            ("MMDB_UINT128_IS_BYTE_ARRAY", 1),
+            ("PACKAGE_VERSION", '"maxminddb-python"'),
+        ],
+        include_dirs=[
+            "extension",
+            "extension/libmaxminddb/include",
+            "extension/libmaxminddb/src",
+        ],
         extra_compile_args=compile_args,
     )
 ]
@@ -116,6 +135,8 @@ else:
     try:
         run_setup(True)
     except BuildFailed as exc:
+        if os.getenv("MAXMINDDB_REQUIRE_EXTENSION"):
+            raise exc
         status_msgs(
             exc.cause,
             "WARNING: The C extension could not be compiled, "

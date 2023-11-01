@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Install libmaxminddb
         run: sudo apt install clang-tools libmaxminddb-dev
@@ -28,4 +30,7 @@ jobs:
               pip install setuptools wheel
 
       - name: Build and run analyzer
-        run: CFLAGS="-Werror -Wall -Wextra" scan-build --status-bugs python setup.py build
+        run: scan-build --status-bugs python setup.py build
+        env:
+          CFLAGS: "-Werror -Wall -Wextra"
+          MAXMINDDB_REQUIRE_EXTENSION: 1

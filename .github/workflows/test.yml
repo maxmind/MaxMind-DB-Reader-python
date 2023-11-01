@@ -44,7 +44,13 @@ jobs:
               pip install setuptools tox tox-gh-actions wheel
 
       - name: Build with Werror and Wall
-        run: CFLAGS="-Werror -Wall -Wextra" python setup.py build
+        run: python setup.py build
+        env:
+          CFLAGS: "-Werror -Wall -Wextra"
+          MAXMINDDB_REQUIRE_EXTENSION: 1
 
       - name: Test with tox
         run: MM_FORCE_EXT_TESTS=1 tox
+        env:
+          MAXMINDDB_REQUIRE_EXTENSION: 1
+          MM_FORCE_EXT_TESTS: 1

@@ -33,6 +33,8 @@ jobs:
               pip install setuptools tox tox-gh-actions wheel
 
       - name: Test with tox
-        run: MM_FORCE_EXT_TESTS=1 tox
+        run: tox
         env:
           LD_PRELOAD: libasan.so.6
+          MAXMINDDB_REQUIRE_EXTENSION: 1
+          MM_FORCE_EXT_TESTS: 1
