@@ -6,6 +6,8 @@ History
 2.5.0
 ++++++++++++++++++
 
+* IMPORTANT: Python 3.8 or greater is required. If you are using an older
+  version, please use an earlier release.
 * The ``Reader`` class now implements the ``__iter__`` method. This will
   return an iterator that iterates over all records in the database,
   excluding repeated aliased of the IPv4 network. Requested by
