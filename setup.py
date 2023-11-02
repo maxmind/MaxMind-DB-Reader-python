@@ -21,7 +21,10 @@ cmdclass = {}
 PYPY = hasattr(sys, "pypy_version_info")
 JYTHON = sys.platform.startswith("java")
 
-compile_args = ["-Wall", "-Wextra", "-Wno-unknown-pragmas"]
+if os.name == "nt":
+    compile_args = []
+else:
+    compile_args = ["-Wall", "-Wextra", "-Wno-unknown-pragmas"]
 
 ext_module = [
     Extension(
