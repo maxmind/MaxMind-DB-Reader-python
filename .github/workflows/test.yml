@@ -50,7 +50,7 @@ jobs:
           MAXMINDDB_REQUIRE_EXTENSION: 1
 
       - name: Test with tox
-        run: MM_FORCE_EXT_TESTS=1 tox
+        run: tox
         env:
           MAXMINDDB_REQUIRE_EXTENSION: 1
           MM_FORCE_EXT_TESTS: 1
