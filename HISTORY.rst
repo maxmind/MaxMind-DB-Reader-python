@@ -15,6 +15,7 @@ History
 * The multiprocessing test now explicitly uses ``fork``. This allows it
   to run successfully on macOS. Pull request by Theodore Ni. GitHub #116.
 * The C extension now builds on Python 3.13.
+* The C extension will now be built for PyPy.
 
 2.4.0 (2023-06-28)
 ++++++++++++++++++

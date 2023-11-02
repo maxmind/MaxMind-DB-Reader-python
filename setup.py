@@ -125,7 +125,7 @@ def run_setup(with_cext):
     setup(version=VERSION, cmdclass=loc_cmdclass, **kwargs)
 
 
-if PYPY or JYTHON:
+if JYTHON:
     run_setup(False)
     status_msgs(
         "WARNING: Disabling C extension due to Python platform.",
