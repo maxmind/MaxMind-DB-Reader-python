@@ -16,8 +16,8 @@ jobs:
         with:
           submodules: true
 
-      - name: Install libmaxminddb
-        run: sudo apt install clang-tools libmaxminddb-dev
+      - name: Install clang-tools
+        run: sudo apt install clang-tools
 
       - name: Set up Python
         uses: actions/setup-python@v4

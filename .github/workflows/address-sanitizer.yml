@@ -19,9 +19,6 @@ jobs:
         with:
           submodules: true
 
-      - name: Install libmaxminddb
-        run: sudo apt install libmaxminddb-dev
-
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
