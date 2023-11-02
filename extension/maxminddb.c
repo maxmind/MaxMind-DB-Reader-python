@@ -1,7 +1,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <arpa/inet.h>
-#include "libmaxminddb/include/maxminddb.h"
+#include <maxminddb.h>
 #include <netinet/in.h>
 #include <structmember.h>
 #include <sys/socket.h>

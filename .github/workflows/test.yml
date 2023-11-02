@@ -25,14 +25,6 @@ jobs:
         with:
           submodules: true
 
-      - name: Install libmaxminddb
-        run: sudo apt install libmaxminddb-dev
-        if: matrix.platform == 'ubuntu-latest'
-
-      - name: Install libmaxminddb
-        run: brew install libmaxminddb
-        if: matrix.platform == 'macos-latest'
-
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
@@ -49,8 +41,23 @@ jobs:
           CFLAGS: "-Werror -Wall -Wextra"
           MAXMINDDB_REQUIRE_EXTENSION: 1
 
-      - name: Test with tox
+      - name: Test with tox (vendored libmaxminddb)
         run: tox
         env:
           MAXMINDDB_REQUIRE_EXTENSION: 1
+          MM_FORCE_EXT_TESTS: 1
+
+      - name: Install libmaxminddb
+        run: sudo apt install libmaxminddb-dev
+        if: matrix.platform == 'ubuntu-latest'
+
+      - name: Install libmaxminddb
+        run: brew install libmaxminddb
+        if: matrix.platform == 'macos-latest'
+
+      - name: Test with tox (system libmaxminddb)
+        run: tox
+        env:
+          MAXMINDDB_REQUIRE_EXTENSION: 1
+          MAXMINDDB_USE_SYSTEM_LIBMAXMINDDB: 1
           MM_FORCE_EXT_TESTS: 1

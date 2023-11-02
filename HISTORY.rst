@@ -14,6 +14,10 @@ History
   Jean-Baptiste Braun and others. GitHub #23.
 * The multiprocessing test now explicitly uses ``fork``. This allows it
   to run successfully on macOS. Pull request by Theodore Ni. GitHub #116.
+* A vendored copy of ``libmaxminddb`` will now be used by default when
+  building the extension. If you wish to continue using the system shared
+  library, you may set the ``MAXMINDDB_USE_SYSTEM_LIBMAXMINDDB`` environment
+  variable to a true value when building the extension. 
 * The C extension now builds on Python 3.13.
 * The C extension will now be built for PyPy.
 
