@@ -30,7 +30,9 @@ jobs:
               pip install setuptools wheel
 
       - name: Build and run analyzer
-        run: scan-build --status-bugs python setup.py build
+        # We exclude extension/libmaxminddb/ as libmaxminddb has its own workflow
+        # for this and we are not able to correct any issues with that code here.
+        run: scan-build --exclude extension/libmaxminddb/ --status-bugs python setup.py build
         env:
           CFLAGS: "-Werror -Wall -Wextra"
           MAXMINDDB_REQUIRE_EXTENSION: 1
