@@ -4,6 +4,8 @@ import sys
 
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
+from wheel.bdist_wheel import bdist_wheel
+
 
 # These were only added to setuptools in 59.0.1.
 try:
@@ -19,16 +21,49 @@ cmdclass = {}
 PYPY = hasattr(sys, "pypy_version_info")
 JYTHON = sys.platform.startswith("java")
 
-compile_args = ["-Wall", "-Wextra"]
+if os.name == "nt":
+    compile_args = []
+else:
+    compile_args = ["-Wall", "-Wextra", "-Wno-unknown-pragmas"]
 
-ext_module = [
-    Extension(
-        "maxminddb.extension",
-        libraries=["maxminddb"],
-        sources=["extension/maxminddb.c"],
-        extra_compile_args=compile_args,
-    )
-]
+
+if os.getenv("MAXMINDDB_USE_SYSTEM_LIBMAXMINDDB"):
+    ext_module = [
+        Extension(
+            "maxminddb.extension",
+            libraries=["maxminddb"],
+            sources=["extension/maxminddb.c"],
+            extra_compile_args=compile_args,
+        )
+    ]
+else:
+    ext_module = [
+        Extension(
+            "maxminddb.extension",
+            sources=[
+                "extension/maxminddb.c",
+                "extension/libmaxminddb/src/data-pool.c",
+                "extension/libmaxminddb/src/maxminddb.c",
+            ],
+            define_macros=[
+                ("HAVE_CONFIG_H", 0),
+                ("MMDB_LITTLE_ENDIAN", 1 if sys.byteorder == "little" else 0),
+                # We define these for maximum compatibility. The extension
+                # itself supports all variations currently, but probing to
+                # see what the compiler supports is a bit annoying to do
+                # here, and we aren't using uint128 for much.
+                ("MMDB_UINT128_USING_MODE", 0),
+                ("MMDB_UINT128_IS_BYTE_ARRAY", 1),
+                ("PACKAGE_VERSION", '"maxminddb-python"'),
+            ],
+            include_dirs=[
+                "extension",
+                "extension/libmaxminddb/include",
+                "extension/libmaxminddb/src",
+            ],
+            extra_compile_args=compile_args,
+        )
+    ]
 
 # Cargo cult code for installing extension with pure Python fallback.
 # Taken from SQLAlchemy, but this same basic code exists in many modules.
@@ -96,13 +131,15 @@ def find_packages(location):
 
 def run_setup(with_cext):
     kwargs = {}
+    loc_cmdclass = cmdclass.copy()
     if with_cext:
         kwargs["ext_modules"] = ext_module
+        loc_cmdclass["bdist_wheel"] = bdist_wheel
 
-    setup(version=VERSION, cmdclass=cmdclass, **kwargs)
+    setup(version=VERSION, cmdclass=loc_cmdclass, **kwargs)
 
 
-if PYPY or JYTHON:
+if JYTHON:
     run_setup(False)
     status_msgs(
         "WARNING: Disabling C extension due to Python platform.",
@@ -112,6 +149,8 @@ else:
     try:
         run_setup(True)
     except BuildFailed as exc:
+        if os.getenv("MAXMINDDB_REQUIRE_EXTENSION"):
+            raise exc
         status_msgs(
             exc.cause,
             "WARNING: The C extension could not be compiled, "

@@ -6,13 +6,20 @@ History
 2.5.0
 ++++++++++++++++++
 
+* IMPORTANT: Python 3.8 or greater is required. If you are using an older
+  version, please use an earlier release.
 * The ``Reader`` class now implements the ``__iter__`` method. This will
   return an iterator that iterates over all records in the database,
   excluding repeated aliased of the IPv4 network. Requested by
   Jean-Baptiste Braun and others. GitHub #23.
 * The multiprocessing test now explicitly uses ``fork``. This allows it
   to run successfully on macOS. Pull request by Theodore Ni. GitHub #116.
+* A vendored copy of ``libmaxminddb`` will now be used by default when
+  building the extension. If you wish to continue using the system shared
+  library, you may set the ``MAXMINDDB_USE_SYSTEM_LIBMAXMINDDB`` environment
+  variable to a true value when building the extension. 
 * The C extension now builds on Python 3.13.
+* The C extension will now be built for PyPy.
 
 2.4.0 (2023-06-28)
 ++++++++++++++++++

@@ -36,6 +36,7 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 perl -pi -e "s/(?<=__version__ = \").+?(?=\")/$version/gsm" maxminddb/__init__.py
+perl -pi -e "s/(?<=^version = \").+?(?=\")/$version/gsm" pyproject.toml
 
 echo $"Test results:"
 tox

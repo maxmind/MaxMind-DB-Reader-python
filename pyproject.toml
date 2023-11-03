@@ -1,4 +1,42 @@
-# We should probably migrate most of setup.cfg here
+[build-system]
+requires = ["setuptools", "setuptools-scm", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "maxminddb"
+version = "2.4.0"
+description = "Reader for the MaxMind DB format"
+authors = [
+    {name = "Gregory Oschwald", email = "goschwald@maxmind.com"},
+]
+dependencies = [
+    "setuptools>=68.2.2",
+]
+requires-python = ">=3.8"
+readme = "README.rst"
+license = {text = "Apache License, Version 2.0"}
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Web Environment",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet",
+    "Topic :: Internet :: Proxy Servers",
+]
+
+[project.urls]
+Homepage = "https://www.maxmind.com/"
+Documentation = "https://maxminddb.readthedocs.org/"
+"Source Code" = "https://github.com/maxmind/MaxMind-DB-Reader-python"
+"Issue Tracker" = "https://github.com/maxmind/MaxMind-DB-Reader-python/issues"
 
 [tool.black]
 # src is showing up in our GitHub linting builds. It seems to

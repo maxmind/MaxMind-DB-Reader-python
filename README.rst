@@ -14,13 +14,6 @@ subnets (IPv4 or IPv6).
 Installation
 ------------
 
-If you want to use the C extension, you must first install `libmaxminddb
-<https://github.com/maxmind/libmaxminddb>`_ C library installed before
-installing this extension. If the library is not available, the module will
-fall-back to a pure Python implementation. Note that when installing the C
-library from a package, you may be required to install additonal packages
-containing build requirements such as `libmaxminddb-dev` on Debian.
-
 To install maxminddb, type:
 
 .. code-block:: bash
@@ -33,6 +26,9 @@ source directory:
 .. code-block:: bash
 
     $ easy_install .
+
+The installer will attempt to build the C extension. If this fails, the
+module will fall-back to the pure Python implementation.
 
 Usage
 -----
@@ -101,7 +97,7 @@ invalid IP address or an IPv6 address in an IPv4 database.
 Requirements
 ------------
 
-This code requires Python 3.7+. Older versions are not supported. The C
+This code requires Python 3.8+. Older versions are not supported. The C
 extension requires CPython.
 
 Versioning
