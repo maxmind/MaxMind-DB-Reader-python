@@ -47,7 +47,7 @@ class FileBuffer:
         def _read(self, buffersize: int, offset: int) -> bytes:
             """read that uses pread"""
             # pylint: disable=no-member
-            return os.pread(self._handle.fileno(), buffersize, offset)
+            return os.pread(self._handle.fileno(), buffersize, offset)  # type: ignore
 
     else:
 

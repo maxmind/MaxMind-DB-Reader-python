@@ -8,6 +8,7 @@ History
 
 * IMPORTANT: Python 3.8 or greater is required. If you are using an older
   version, please use an earlier release.
+* Windows is now supported by the C extension.
 * The ``Reader`` class now implements the ``__iter__`` method. This will
   return an iterator that iterates over all records in the database,
   excluding repeated aliased of the IPv4 network. Requested by

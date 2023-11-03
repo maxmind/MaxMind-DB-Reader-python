@@ -22,16 +22,19 @@ PYPY = hasattr(sys, "pypy_version_info")
 JYTHON = sys.platform.startswith("java")
 
 if os.name == "nt":
-    compile_args = []
+    # Disable unknown pragma warning
+    compile_args = ["-wd4068"]
+    libraries = ["Ws2_32"]
 else:
     compile_args = ["-Wall", "-Wextra", "-Wno-unknown-pragmas"]
+    libraries = []
 
 
 if os.getenv("MAXMINDDB_USE_SYSTEM_LIBMAXMINDDB"):
     ext_module = [
         Extension(
             "maxminddb.extension",
-            libraries=["maxminddb"],
+            libraries=["maxminddb"] + libraries,
             sources=["extension/maxminddb.c"],
             extra_compile_args=compile_args,
         )
@@ -40,6 +43,7 @@ else:
     ext_module = [
         Extension(
             "maxminddb.extension",
+            libraries=libraries,
             sources=[
                 "extension/maxminddb.c",
                 "extension/libmaxminddb/src/data-pool.c",
