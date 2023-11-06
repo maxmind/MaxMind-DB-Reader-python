@@ -1,0 +1,57 @@
+name: Python tests (system libmaxminddb)
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '3 15 * * SUN'
+
+jobs:
+  build:
+
+    strategy:
+      matrix:
+        # We don't test on Windows currently due to issues
+        # build libmaxminddb there.
+        platform: [macos-latest, ubuntu-latest]
+        python-version: [3.8, 3.9, "3.10", 3.11, 3.12]
+
+    name: Python ${{ matrix.python-version }} on ${{ matrix.platform }}
+    runs-on: ${{ matrix.platform }}
+    env:
+      MAXMINDDB_REQUIRE_EXTENSION: 1
+      MAXMINDDB_USE_SYSTEM_LIBMAXMINDDB: 1
+      MM_FORCE_EXT_TESTS: 1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+              python -m pip install --upgrade pip
+              pip install setuptools tox tox-gh-actions wheel
+
+
+      - name: Install libmaxminddb
+        run: sudo apt install libmaxminddb-dev
+        if: matrix.platform == 'ubuntu-latest'
+
+      - name: Install libmaxminddb
+        run: brew install libmaxminddb
+        if: matrix.platform == 'macos-latest'
+
+      - name: Build with Werror and Wall
+        run: python setup.py build
+        env:
+          CFLAGS: "-Werror -Wall -Wextra"
+
+      - name: Test with tox (system libmaxminddb)
+        run: tox

@@ -46,7 +46,11 @@ class BaseTestReader(object):
         Type["maxminddb.extension.Reader"], Type["maxminddb.reader.Reader"]
     ]
     use_ip_objects = False
-    mp = multiprocessing.get_context("fork")
+
+    # fork doesn't work on Windows and spawn would involve pickling the reader,
+    # which isn't possible.
+    if os.name != "nt":
+        mp = multiprocessing.get_context("fork")
 
     def ipf(self, ip):
         if self.use_ip_objects:
@@ -490,41 +494,43 @@ class BaseTestReader(object):
         else:
             self.assertIsNotNone(metadata, "pure Python implementation returns value")
 
-    def test_multiprocessing(self):
-        self._check_concurrency(self.mp.Process)
+    if os.name != "nt":
 
-    def test_threading(self):
-        self._check_concurrency(threading.Thread)
+        def test_multiprocessing(self):
+            self._check_concurrency(self.mp.Process)
 
-    def _check_concurrency(self, worker_class):
-        reader = open_database(
-            "tests/data/test-data/GeoIP2-Domain-Test.mmdb", self.mode
-        )
+        def test_threading(self):
+            self._check_concurrency(threading.Thread)
 
-        def lookup(pipe):
-            try:
-                for i in range(32):
-                    reader.get(self.ipf(f"65.115.240.{i}"))
-                pipe.send(1)
-            except:
-                pipe.send(0)
-            finally:
-                if worker_class is self.mp.Process:
-                    reader.close()
-                pipe.close()
+        def _check_concurrency(self, worker_class):
+            reader = open_database(
+                "tests/data/test-data/GeoIP2-Domain-Test.mmdb", self.mode
+            )
 
-        pipes = [self.mp.Pipe() for _ in range(32)]
-        procs = [worker_class(target=lookup, args=(c,)) for (p, c) in pipes]
-        for proc in procs:
-            proc.start()
-        for proc in procs:
-            proc.join()
+            def lookup(pipe):
+                try:
+                    for i in range(32):
+                        reader.get(self.ipf(f"65.115.240.{i}"))
+                    pipe.send(1)
+                except:
+                    pipe.send(0)
+                finally:
+                    if worker_class is self.mp.Process:
+                        reader.close()
+                    pipe.close()
 
-        reader.close()
+            pipes = [self.mp.Pipe() for _ in range(32)]
+            procs = [worker_class(target=lookup, args=(c,)) for (p, c) in pipes]
+            for proc in procs:
+                proc.start()
+            for proc in procs:
+                proc.join()
 
-        count = sum([p.recv() for (p, c) in pipes])
+            reader.close()
 
-        self.assertEqual(count, 32, "expected number of successful lookups")
+            count = sum([p.recv() for (p, c) in pipes])
+
+            self.assertEqual(count, 32, "expected number of successful lookups")
 
     def _check_metadata(self, reader, ip_version, record_size):
         metadata = reader.metadata()

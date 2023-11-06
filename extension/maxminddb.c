@@ -1,11 +1,17 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#ifdef MS_WINDOWS
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
 #include <arpa/inet.h>
-#include <maxminddb.h>
 #include <netinet/in.h>
-#include <structmember.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#endif
+#include <maxminddb.h>
+#include <stdbool.h>
+#include <structmember.h>
 
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
@@ -53,6 +59,7 @@ typedef struct {
 } Metadata_obj;
 // clang-format on
 
+static bool can_read(const char *path);
 static int get_record(PyObject *self, PyObject *args, PyObject **record);
 static bool format_sockaddr(struct sockaddr *addr, char *dst);
 static PyObject *from_entry_data_list(MMDB_entry_data_list_s **entry_data_list);
@@ -97,8 +104,7 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
         return -1;
     }
 
-    if (0 != access(filename, R_OK)) {
-
+    if (!can_read(filename)) {
         PyErr_SetFromErrnoWithFilenameObject(PyExc_OSError, filepath);
         Py_XDECREF(filepath);
         return -1;
@@ -737,7 +743,7 @@ static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list) {
 
     const uint32_t map_size = (*entry_data_list)->entry_data.data_size;
 
-    uint i;
+    uint32_t i;
     // entry_data_list cannot start out NULL (see from_entry_data_list). We
     // check it in the loop because it may become NULL.
     // coverity[check_after_deref]
@@ -778,7 +784,7 @@ static PyObject *from_array(MMDB_entry_data_list_s **entry_data_list) {
         return NULL;
     }
 
-    uint i;
+    uint32_t i;
     // entry_data_list cannot start out NULL (see from_entry_data_list). We
     // check it in the loop because it may become NULL.
     // coverity[check_after_deref]
@@ -824,6 +830,16 @@ static PyObject *from_uint128(const MMDB_entry_data_list_s *entry_data_list) {
 
     free(num_str);
     return py_obj;
+}
+
+static bool can_read(const char *path) {
+#ifdef MS_WINDOWS
+    int rv = _access(path, 04);
+#else
+    int rv = access(path, R_OK);
+#endif
+
+    return rv == 0;
 }
 
 static PyMethodDef Reader_methods[] = {
@@ -873,7 +889,7 @@ static PyMethodDef ReaderIter_methods[] = {{NULL, NULL, 0, NULL}};
 
 // clang-format off
 static PyTypeObject ReaderIter_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0)
+    PyVarObject_HEAD_INIT(NULL, 0)
     .tp_basicsize = sizeof(ReaderIter_obj),
     .tp_dealloc = ReaderIter_dealloc,
     .tp_doc = "Iterator for Reader object",
