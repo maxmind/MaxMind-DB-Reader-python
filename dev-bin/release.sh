@@ -63,8 +63,3 @@ git push
 gh release create --target "$(git branch --show-current)" -t "$version" -n "$notes" "$tag"
 
 git push --tags
-
-rm -fr build dist
-python -m sphinx -M html ./docs ./build/sphinx -W
-python setup.py sdist
-twine upload dist/*
