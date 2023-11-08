@@ -81,7 +81,7 @@ def open_database(
 
 
 __title__ = "maxminddb"
-__version__ = "2.4.0"
+__version__ = "2.5.0"
 __author__ = "Gregory Oschwald"
 __license__ = "Apache License, Version 2.0"
 __copyright__ = "Copyright 2013-2023 MaxMind, Inc."
