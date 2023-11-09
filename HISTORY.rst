@@ -3,6 +3,12 @@
 History
 -------
 
+2.5.1 (2023-11-09)
+++++++++++++++++++
+
+* This is a re-release of 2.5.0 to address missing files from the sdist.
+  Reported by Lumír 'Frenzy' Balhar. GitHub #132.
+
 2.5.0 (2023-11-08)
 ++++++++++++++++++
 
