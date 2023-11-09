@@ -1,3 +1,4 @@
+exclude .* .github/**/* dev-bin/*
 include HISTORY.rst README.rst LICENSE maxminddb/py.typed maxminddb/extension.pyi
 recursive-include extension/libmaxminddb/include *.h
 recursive-include extension/libmaxminddb/src *.c *.h
