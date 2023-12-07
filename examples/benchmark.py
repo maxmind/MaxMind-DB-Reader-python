@@ -30,4 +30,4 @@ elapsed = timeit.timeit(
     number=args.count,
 )
 
-print(args.count / elapsed, "lookups per second")
+print("{:,}".format(int(args.count / elapsed)), "lookups per second")
