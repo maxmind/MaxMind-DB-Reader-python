@@ -27,11 +27,16 @@ jobs:
       - name: Install dependencies
         run: |
               python -m pip install --upgrade pip
-              pip install setuptools tox tox-gh-actions wheel
+              pip install pytest setuptools wheel
 
-      - name: Test with tox
-        run: tox
+      - name: Install
+        run: pip install .
+        env:
+          CFLAGS: "-Werror -Wall -Wextra"
+          MAXMINDDB_REQUIRE_EXTENSION: 1
+
+      - name: Test
+        run: pytest
         env:
           LD_PRELOAD: libasan.so.6
-          MAXMINDDB_REQUIRE_EXTENSION: 1
           MM_FORCE_EXT_TESTS: 1
