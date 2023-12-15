@@ -675,7 +675,7 @@ class TestMemoryReader(BaseTestReader, unittest.TestCase):
 
 class TestFDReader(BaseTestReader, unittest.TestCase):
     def setUp(self):
-        self.open_database_patcher = mock.patch("reader_test.open_database")
+        self.open_database_patcher = mock.patch(__name__ + ".open_database")
         self.addCleanup(self.open_database_patcher.stop)
         self.open_database = self.open_database_patcher.start()
         self.open_database.side_effect = get_reader_from_file_descriptor
