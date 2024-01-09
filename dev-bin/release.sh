@@ -2,8 +2,6 @@
 
 set -eu -o pipefail
 
-pip install twine sphinx
-
 changelog=$(cat HISTORY.rst)
 
 regex='
