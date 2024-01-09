@@ -3,6 +3,13 @@
 History
 -------
 
+2.5.2 (2024-01-09)
+++++++++++++++++++
+
+* The vendored ``libmaxminddb`` version was updated to 1.9.0. This fixes
+  an issue when reading databases with a search tree exceeding 2 GB.
+  Reported by Sami Salonen. GitHub #146.
+
 2.5.1 (2023-11-09)
 ++++++++++++++++++
 
