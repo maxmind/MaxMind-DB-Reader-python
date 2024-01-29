@@ -5,6 +5,7 @@ maxminddb.decoder
 This package contains code for decoding the MaxMind DB data section.
 
 """
+
 import struct
 from typing import cast, Dict, List, Tuple, Union
 

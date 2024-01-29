@@ -5,6 +5,7 @@ maxminddb.reader
 This module contains the pure Python database reader and related classes.
 
 """
+
 try:
     import mmap
 except ImportError:

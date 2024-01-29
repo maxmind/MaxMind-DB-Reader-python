@@ -4,6 +4,7 @@ maxminddb.types
 
 This module provides a Record type that represents a database record.
 """
+
 from typing import AnyStr, Dict, List, Union
 
 Primitive = Union[AnyStr, bool, float, int]
