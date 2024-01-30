@@ -24,7 +24,7 @@ jobs:
           submodules: true
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.16.2
+        uses: pypa/cibuildwheel@v2.16.4
         env:
           CIBW_BUILD_VERBOSITY: 1
           MAXMINDDB_REQUIRE_EXTENSION: 1
