@@ -7,6 +7,7 @@ History
 ++++++++++++++++++
 
 * Added type annotations for instance variables on ``Metadata``
+* Updated type stubs for ``maxminddb.extension``.
 
 2.5.2 (2024-01-09)
 ++++++++++++++++++

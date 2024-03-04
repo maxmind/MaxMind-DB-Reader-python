@@ -29,7 +29,7 @@ _IPV4_MAX_NUM = 2**32
 
 class Reader:
     """
-    Instances of this class provide a reader for the MaxMind DB format. IP
+    A pure Python implementation of a reader for the MaxMind DB format. IP
     addresses can be looked up using the ``get`` method.
     """
 
@@ -269,6 +269,7 @@ class Reader:
         return self
 
 
+# pylint: disable=too-many-instance-attributes,R0801
 class Metadata:
     """Metadata for the MaxMind DB reader"""
 
@@ -321,7 +322,6 @@ class Metadata:
     The bit size of a record in the search tree.
     """
 
-    # pylint: disable=too-many-instance-attributes
     def __init__(self, **kwargs) -> None:
         """Creates new Metadata object. kwargs are key/value pairs from spec"""
         # Although I could just update __dict__, that is less obvious and it
