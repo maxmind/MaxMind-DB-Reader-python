@@ -3,6 +3,11 @@
 History
 -------
 
+2.6.0
+++++++++++++++++++
+
+* Added type annotations for instance variables on ``Metadata``
+
 2.5.2 (2024-01-09)
 ++++++++++++++++++
 
