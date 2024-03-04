@@ -16,7 +16,7 @@ import ipaddress
 import struct
 from ipaddress import IPv4Address, IPv6Address
 from os import PathLike
-from typing import Any, AnyStr, IO, Optional, Tuple, Union
+from typing import Any, AnyStr, Dict, IO, List, Optional, Tuple, Union
 
 from maxminddb.const import MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY, MODE_FD
 from maxminddb.decoder import Decoder
@@ -29,7 +29,7 @@ _IPV4_MAX_NUM = 2**32
 
 class Reader:
     """
-    Instances of this class provide a reader for the MaxMind DB format. IP
+    A pure Python implementation of a reader for the MaxMind DB format. IP
     addresses can be looked up using the ``get`` method.
     """
 
@@ -269,71 +269,59 @@ class Reader:
         return self
 
 
+# pylint: disable=too-many-instance-attributes,R0801
 class Metadata:
-    """Metadata for the MaxMind DB reader
+    """Metadata for the MaxMind DB reader"""
 
-
-    .. attribute:: binary_format_major_version
-
-      The major version number of the binary format used when creating the
-      database.
-
-      :type: int
-
-    .. attribute:: binary_format_minor_version
-
-      The minor version number of the binary format used when creating the
-      database.
-
-      :type: int
-
-    .. attribute:: build_epoch
-
-      The Unix epoch for the build time of the database.
-
-      :type: int
-
-    .. attribute:: database_type
-
-      A string identifying the database type, e.g., "GeoIP2-City".
-
-      :type: str
-
-    .. attribute:: description
-
-      A map from locales to text descriptions of the database.
-
-      :type: dict(str, str)
-
-    .. attribute:: ip_version
-
-      The IP version of the data in a database. A value of "4" means the
-      database only supports IPv4. A database with a value of "6" may support
-      both IPv4 and IPv6 lookups.
-
-      :type: int
-
-    .. attribute:: languages
-
-      A list of locale codes supported by the databse.
-
-      :type: list(str)
-
-    .. attribute:: node_count
-
-      The number of nodes in the database.
-
-      :type: int
-
-    .. attribute:: record_size
-
-      The bit size of a record in the search tree.
-
-      :type: int
-
+    binary_format_major_version: int
+    """
+    The major version number of the binary format used when creating the
+    database.
     """
 
-    # pylint: disable=too-many-instance-attributes
+    binary_format_minor_version: int
+    """
+    The minor version number of the binary format used when creating the
+    database.
+    """
+
+    build_epoch: int
+    """
+    The Unix epoch for the build time of the database.
+    """
+
+    database_type: str
+    """
+    A string identifying the database type, e.g., "GeoIP2-City".
+    """
+
+    description: Dict[str, str]
+    """
+    A map from locales to text descriptions of the database.
+    """
+
+    ip_version: int
+    """
+    The IP version of the data in a database. A value of "4" means the
+    database only supports IPv4. A database with a value of "6" may support
+    both IPv4 and IPv6 lookups.
+    """
+
+    languages: List[str]
+    """
+    A list of locale codes supported by the databse.
+    """
+
+    node_count: int
+    """
+    The number of nodes in the database.
+    """
+
+    record_size: int
+    """
+    The bit size of a record in the search tree.
+    """
+
     def __init__(self, **kwargs) -> None:
         """Creates new Metadata object. kwargs are key/value pairs from spec"""
         # Although I could just update __dict__, that is less obvious and it
