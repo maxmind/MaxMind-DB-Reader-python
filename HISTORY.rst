@@ -8,6 +8,8 @@ History
 
 * Added type annotations for instance variables on ``Metadata``
 * Updated type stubs for ``maxminddb.extension``.
+* ``setuptools`` is no longer listed as a runtime dependency. Pull request
+  by Lewis Collard. GitHub #155.
 
 2.5.2 (2024-01-09)
 ++++++++++++++++++
