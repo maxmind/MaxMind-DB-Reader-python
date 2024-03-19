@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "setuptools-scm", "wheel"]
+requires = ["setuptools>=68.2.2", "setuptools-scm", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,9 +8,6 @@ version = "2.5.2"
 description = "Reader for the MaxMind DB format"
 authors = [
     {name = "Gregory Oschwald", email = "goschwald@maxmind.com"},
-]
-dependencies = [
-    "setuptools>=68.2.2",
 ]
 requires-python = ">=3.8"
 readme = "README.rst"
