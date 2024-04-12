@@ -3,6 +3,16 @@
 History
 -------
 
+2.6.1 (2024-04-12)
+++++++++++++++++++
+
+* This release includes no source code changes. The only changes are to
+  the release workflow.
+* Binary wheels are now built on Linux for aarch64. Pull request by Kevin
+  Park. GitHub #160.
+* Binary wheels are now built on macOS for Apple silicon. Requested by
+  Kevin Park. GitHub #152.
+
 2.6.0 (2024-03-19)
 ++++++++++++++++++
 
