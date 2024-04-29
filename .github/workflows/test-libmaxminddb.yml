@@ -45,7 +45,9 @@ jobs:
         if: matrix.platform == 'ubuntu-latest'
 
       - name: Install libmaxminddb
-        run: brew install libmaxminddb
+        run: |
+              brew upgrade
+              brew install libmaxminddb
         if: matrix.platform == 'macos-latest'
 
       - name: Build with Werror and Wall
