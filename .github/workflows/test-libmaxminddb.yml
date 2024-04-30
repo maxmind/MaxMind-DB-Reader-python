@@ -48,10 +48,16 @@ jobs:
         run: brew install libmaxminddb
         if: matrix.platform == 'macos-latest'
 
+      - name: "Work around macos arm64 homebrew directory changes"
+        if: runner.os == 'macOS' && runner.arch == 'ARM64'
+        run: |
+          echo "CFLAGS=-I/opt/homebrew/include" >> "$GITHUB_ENV"
+          echo "LDFLAGS=-L/opt/homebrew/lib" >> "$GITHUB_ENV"
+
       - name: Build with Werror and Wall
         run: python setup.py build
         env:
-          CFLAGS: "-Werror -Wall -Wextra"
+          CFLAGS: "${{ env.CFLAGS }} -Werror -Wall -Wextra"
 
       - name: Test with tox (system libmaxminddb)
         run: tox
