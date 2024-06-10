@@ -3,6 +3,13 @@
 History
 -------
 
+2.6.2 (2024-06-10)
+++++++++++++++++++
+
+* The vendored ``libmaxminddb`` has been updated to 1.10.0. This fixes a
+  bug that would result in incorrect results on databases that had search
+  trees greater than 4 GB.
+
 2.6.1 (2024-04-12)
 ++++++++++++++++++
 
