@@ -3,6 +3,12 @@
 History
 -------
 
+2.6.3
+++++++++++++++++++
+
+* The vendored ``libmaxminddb`` has been updated to 1.12.0. This fixes a
+  memory leak when opening a database fails.
+
 2.6.2 (2024-06-10)
 ++++++++++++++++++
 
