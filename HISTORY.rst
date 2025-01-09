@@ -3,11 +3,12 @@
 History
 -------
 
-2.6.3
+2.6.3 (2025-01-09)
 ++++++++++++++++++
 
 * The vendored ``libmaxminddb`` has been updated to 1.12.0. This fixes a
   memory leak when opening a database fails.
+* Binary wheels are now built for Python 3.13.
 
 2.6.2 (2024-06-10)
 ++++++++++++++++++
