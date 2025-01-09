@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "maxminddb"
-version = "2.6.2"
+version = "2.6.3"
 description = "Reader for the MaxMind DB format"
 authors = [
     {name = "Gregory Oschwald", email = "goschwald@maxmind.com"},
