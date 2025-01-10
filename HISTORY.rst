@@ -3,6 +3,11 @@
 History
 -------
 
+2.6.4
+++++++++++++++++++
+
+* The vendored ``libmaxminddb`` has been updated to 1.12.2.
+
 2.6.3 (2025-01-09)
 ++++++++++++++++++
 
