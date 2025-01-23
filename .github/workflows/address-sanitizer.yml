@@ -4,6 +4,9 @@ on:
   pull_request:
   schedule:
     - cron: '13 15 * * SUN'
+
+permissions: {}
+
 jobs:
   build:
     name: Address Sanitizer
