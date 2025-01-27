@@ -351,7 +351,14 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args)) {
     }
 
     MMDB_entry_data_list_s *entry_data_list;
-    MMDB_get_metadata_as_entry_data_list(mmdb_obj->mmdb, &entry_data_list);
+    int status =
+        MMDB_get_metadata_as_entry_data_list(mmdb_obj->mmdb, &entry_data_list);
+    if (status != MMDB_SUCCESS) {
+        PyErr_Format(MaxMindDB_error,
+                     "Error decoding metadata. %s",
+                     MMDB_strerror(status));
+        return NULL;
+    }
     MMDB_entry_data_list_s *original_entry_data_list = entry_data_list;
 
     PyObject *metadata_dict = from_entry_data_list(&entry_data_list);
