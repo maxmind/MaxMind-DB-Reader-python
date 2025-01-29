@@ -42,7 +42,7 @@ def get_reader_from_file_descriptor(filepath, mode) -> Reader:
 
 class BaseTestReader(unittest.TestCase):
     mode: int
-    readerClass: Union[
+    reader_class: Union[
         Type["maxminddb.extension.Reader"],
         Type["maxminddb.reader.Reader"],
     ]
@@ -375,11 +375,11 @@ class BaseTestReader(unittest.TestCase):
 
     def test_too_many_constructor_args(self) -> None:
         with self.assertRaises(TypeError):
-            self.readerClass("README.md", self.mode, 1)  # type: ignore
+            self.reader_class("README.md", self.mode, 1)  # type: ignore
 
     def test_bad_constructor_mode(self) -> None:
         with self.assertRaisesRegex(ValueError, r"Unsupported open mode \(100\)"):
-            self.readerClass("README.md", mode=100)  # type:  ignore
+            self.reader_class("README.md", mode=100)  # type:  ignore
 
     def test_no_constructor_args(self) -> None:
         with self.assertRaisesRegex(
@@ -389,7 +389,7 @@ class BaseTestReader(unittest.TestCase):
             r"takes at least 2 arguments|"
             r"function missing required argument \'database\' \(pos 1\)",
         ):
-            self.readerClass()  # type:  ignore
+            self.reader_class()  # type:  ignore
 
     def test_too_many_get_args(self) -> None:
         reader = open_database(
@@ -654,7 +654,7 @@ class TestExtensionReader(BaseTestReader):
     mode = MODE_MMAP_EXT
 
     if has_maxminddb_extension():
-        readerClass = maxminddb.extension.Reader
+        reader_class = maxminddb.extension.Reader
 
 
 @unittest.skipIf(
@@ -666,25 +666,25 @@ class TestExtensionReaderWithIPObjects(BaseTestReader):
     use_ip_objects = True
 
     if has_maxminddb_extension():
-        readerClass = maxminddb.extension.Reader
+        reader_class = maxminddb.extension.Reader
 
 
 class TestAutoReader(BaseTestReader):
     mode = MODE_AUTO
 
-    readerClass: Union[
+    reader_class: Union[
         Type["maxminddb.extension.Reader"],
         Type["maxminddb.reader.Reader"],
     ]
     if has_maxminddb_extension():
-        readerClass = maxminddb.extension.Reader
+        reader_class = maxminddb.extension.Reader
     else:
-        readerClass = maxminddb.reader.Reader
+        reader_class = maxminddb.reader.Reader
 
 
 class TestMMAPReader(BaseTestReader):
     mode = MODE_MMAP
-    readerClass = maxminddb.reader.Reader
+    reader_class = maxminddb.reader.Reader
 
 
 # We want one pure Python test to use IP objects, it doesn't
@@ -692,17 +692,17 @@ class TestMMAPReader(BaseTestReader):
 class TestMMAPReaderWithIPObjects(BaseTestReader):
     mode = MODE_MMAP
     use_ip_objects = True
-    readerClass = maxminddb.reader.Reader
+    reader_class = maxminddb.reader.Reader
 
 
 class TestFileReader(BaseTestReader):
     mode = MODE_FILE
-    readerClass = maxminddb.reader.Reader
+    reader_class = maxminddb.reader.Reader
 
 
 class TestMemoryReader(BaseTestReader):
     mode = MODE_MEMORY
-    readerClass = maxminddb.reader.Reader
+    reader_class = maxminddb.reader.Reader
 
 
 class TestFDReader(BaseTestReader):
@@ -713,7 +713,7 @@ class TestFDReader(BaseTestReader):
         self.open_database.side_effect = get_reader_from_file_descriptor
 
     mode = MODE_FD
-    readerClass = maxminddb.reader.Reader
+    reader_class = maxminddb.reader.Reader
 
 
 class TestOldReader(unittest.TestCase):
