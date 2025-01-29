@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 import ipaddress
 import multiprocessing
@@ -7,9 +6,8 @@ import os
 import pathlib
 import threading
 import unittest
-import unittest.mock as mock
-from multiprocessing import Process, Pipe
-from typing import Union, Type
+from typing import Type, Union
+from unittest import mock
 
 import maxminddb
 
@@ -18,14 +16,14 @@ try:
 except ImportError:
     maxminddb.extension = None  # type: ignore
 
-from maxminddb import open_database, InvalidDatabaseError
+from maxminddb import InvalidDatabaseError, open_database
 from maxminddb.const import (
     MODE_AUTO,
-    MODE_MMAP_EXT,
-    MODE_MMAP,
+    MODE_FD,
     MODE_FILE,
     MODE_MEMORY,
-    MODE_FD,
+    MODE_MMAP,
+    MODE_MMAP_EXT,
 )
 
 
@@ -41,9 +39,10 @@ def get_reader_from_file_descriptor(filepath, mode):
         return maxminddb.open_database(filepath, mode)
 
 
-class BaseTestReader(object):
+class BaseTestReader:
     readerClass: Union[
-        Type["maxminddb.extension.Reader"], Type["maxminddb.reader.Reader"]
+        Type["maxminddb.extension.Reader"],
+        Type["maxminddb.reader.Reader"],
     ]
     use_ip_objects = False
 
@@ -175,7 +174,8 @@ class BaseTestReader(object):
 
         for test in tests:
             with open_database(
-                "tests/data/test-data/" + test["file_name"], self.mode
+                "tests/data/test-data/" + test["file_name"],
+                self.mode,
             ) as reader:
                 (record, prefix_len) = reader.get_with_prefix_len(test["ip"])
 
@@ -241,7 +241,8 @@ class BaseTestReader(object):
 
     def test_decoder(self):
         reader = open_database(
-            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb", self.mode
+            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
+            self.mode,
         )
         record = reader.get(self.ipf("::1.1.1.0"))
 
@@ -268,7 +269,8 @@ class BaseTestReader(object):
 
     def test_metadata_pointers(self):
         with open_database(
-            "tests/data/test-data/MaxMind-DB-test-metadata-pointers.mmdb", self.mode
+            "tests/data/test-data/MaxMind-DB-test-metadata-pointers.mmdb",
+            self.mode,
         ) as reader:
             self.assertEqual(
                 "Lots of pointers in metadata",
@@ -277,7 +279,8 @@ class BaseTestReader(object):
 
     def test_no_ipv4_search_tree(self):
         reader = open_database(
-            "tests/data/test-data/MaxMind-DB-no-ipv4-search-tree.mmdb", self.mode
+            "tests/data/test-data/MaxMind-DB-no-ipv4-search-tree.mmdb",
+            self.mode,
         )
 
         self.assertEqual(reader.get(self.ipf("1.1.1.1")), "::0/64")
@@ -286,7 +289,8 @@ class BaseTestReader(object):
 
     def test_ipv6_address_in_ipv4_database(self):
         reader = open_database(
-            "tests/data/test-data/MaxMind-DB-test-ipv4-24.mmdb", self.mode
+            "tests/data/test-data/MaxMind-DB-test-ipv4-24.mmdb",
+            self.mode,
         )
         with self.assertRaisesRegex(
             ValueError,
@@ -299,7 +303,8 @@ class BaseTestReader(object):
 
     def test_opening_path(self):
         with open_database(
-            pathlib.Path("tests/data/test-data/MaxMind-DB-test-decoder.mmdb"), self.mode
+            pathlib.Path("tests/data/test-data/MaxMind-DB-test-decoder.mmdb"),
+            self.mode,
         ) as reader:
             self.assertEqual(reader.metadata().database_type, "MaxMind DB Decoder Test")
 
@@ -311,13 +316,14 @@ class BaseTestReader(object):
             "MODE_MMAP_EXT requires the maxminddb.extension module to be available",
         ):
             open_database(
-                "tests/data/test-data/MaxMind-DB-test-decoder.mmdb", MODE_MMAP_EXT
+                "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
+                MODE_MMAP_EXT,
             )
         maxminddb._extension = real_extension
 
     def test_broken_database(self):
         reader = open_database(
-            "tests/data/test-data/" "GeoIP2-City-Test-Broken-Double-Format.mmdb",
+            "tests/data/test-data/GeoIP2-City-Test-Broken-Double-Format.mmdb",
             self.mode,
         )
         with self.assertRaisesRegex(
@@ -331,10 +337,12 @@ class BaseTestReader(object):
 
     def test_ip_validation(self):
         reader = open_database(
-            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb", self.mode
+            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
+            self.mode,
         )
         with self.assertRaisesRegex(
-            ValueError, "'not_ip' does not appear to be an IPv4 or " "IPv6 address"
+            ValueError,
+            "'not_ip' does not appear to be an IPv4 or IPv6 address",
         ):
             reader.get("not_ip")
         reader.close()
@@ -380,7 +388,8 @@ class BaseTestReader(object):
 
     def test_too_many_get_args(self):
         reader = open_database(
-            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb", self.mode
+            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
+            self.mode,
         )
         with self.assertRaises(TypeError):
             reader.get(self.ipf("1.1.1.1"), "blah")
@@ -388,7 +397,8 @@ class BaseTestReader(object):
 
     def test_no_get_args(self):
         reader = open_database(
-            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb", self.mode
+            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
+            self.mode,
         )
         with self.assertRaises(TypeError):
             reader.get()
@@ -397,14 +407,16 @@ class BaseTestReader(object):
     def test_incorrect_get_arg_type(self):
         reader = open_database("tests/data/test-data/GeoIP2-City-Test.mmdb", self.mode)
         with self.assertRaisesRegex(
-            TypeError, "argument 1 must be a string or ipaddress object"
+            TypeError,
+            "argument 1 must be a string or ipaddress object",
         ):
             reader.get(1)
         reader.close()
 
     def test_metadata_args(self):
         reader = open_database(
-            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb", self.mode
+            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
+            self.mode,
         )
         with self.assertRaises(TypeError):
             reader.metadata("blah")
@@ -412,24 +424,28 @@ class BaseTestReader(object):
 
     def test_metadata_unknown_attribute(self):
         reader = open_database(
-            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb", self.mode
+            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
+            self.mode,
         )
         metadata = reader.metadata()
         with self.assertRaisesRegex(
-            AttributeError, "'Metadata' object has no " "attribute 'blah'"
+            AttributeError,
+            "'Metadata' object has no attribute 'blah'",
         ):
             metadata.blah
         reader.close()
 
     def test_close(self):
         reader = open_database(
-            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb", self.mode
+            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
+            self.mode,
         )
         reader.close()
 
     def test_double_close(self):
         reader = open_database(
-            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb", self.mode
+            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
+            self.mode,
         )
         reader.close()
         self.assertIsNone(reader.close(), "Double close does not throw an exception")
@@ -438,11 +454,13 @@ class BaseTestReader(object):
         if self.mode in [MODE_MEMORY, MODE_FD]:
             return
         reader = open_database(
-            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb", self.mode
+            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
+            self.mode,
         )
         reader.close()
         with self.assertRaisesRegex(
-            ValueError, "Attempt to read from a closed MaxMind DB.|closed"
+            ValueError,
+            "Attempt to read from a closed MaxMind DB.|closed",
         ):
             reader.get(self.ipf("1.1.1.1"))
 
@@ -458,14 +476,16 @@ class BaseTestReader(object):
         reader.close()
 
         with self.assertRaisesRegex(
-            ValueError, "Attempt to reopen a closed MaxMind DB"
+            ValueError,
+            "Attempt to reopen a closed MaxMind DB",
         ):
             with reader:
                 pass
 
     def test_closed(self):
         reader = open_database(
-            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb", self.mode
+            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
+            self.mode,
         )
         self.assertEqual(reader.closed, False)
         reader.close()
@@ -477,7 +497,8 @@ class BaseTestReader(object):
     #       to keep the metadata in memory.
     def test_closed_metadata(self):
         reader = open_database(
-            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb", self.mode
+            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
+            self.mode,
         )
         reader.close()
 
@@ -485,7 +506,7 @@ class BaseTestReader(object):
         # segfault
         try:
             metadata = reader.metadata()
-        except IOError as ex:
+        except OSError as ex:
             self.assertEqual(
                 "Attempt to read from a closed MaxMind DB.",
                 str(ex),
@@ -504,7 +525,8 @@ class BaseTestReader(object):
 
         def _check_concurrency(self, worker_class):
             reader = open_database(
-                "tests/data/test-data/GeoIP2-Domain-Test.mmdb", self.mode
+                "tests/data/test-data/GeoIP2-Domain-Test.mmdb",
+                self.mode,
             )
 
             def lookup(pipe):
@@ -541,7 +563,8 @@ class BaseTestReader(object):
         self.assertEqual(metadata.database_type, "Test")
 
         self.assertEqual(
-            {"en": "Test Database", "zh": "Test Database Chinese"}, metadata.description
+            {"en": "Test Database", "zh": "Test Database Chinese"},
+            metadata.description,
         )
         self.assertEqual(metadata.ip_version, ip_version)
         self.assertEqual(metadata.languages, ["en", "zh"])
@@ -642,7 +665,8 @@ class TestAutoReader(BaseTestReader, unittest.TestCase):
     mode = MODE_AUTO
 
     readerClass: Union[
-        Type["maxminddb.extension.Reader"], Type["maxminddb.reader.Reader"]
+        Type["maxminddb.extension.Reader"],
+        Type["maxminddb.reader.Reader"],
     ]
     if has_maxminddb_extension():
         readerClass = maxminddb.extension.Reader

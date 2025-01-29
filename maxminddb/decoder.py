@@ -7,7 +7,7 @@ This package contains code for decoding the MaxMind DB data section.
 """
 
 import struct
-from typing import cast, Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Union, cast
 
 try:
     # pylint: disable=unused-import
@@ -37,6 +37,7 @@ class Decoder:  # pylint: disable=too-few-public-methods
         database_buffer -- an mmap'd MaxMind DB file.
         pointer_base -- the base number to use when decoding a pointer
         pointer_test -- used for internal unit testing of pointer code
+
         """
         self._pointer_test = pointer_test
         self._buffer = database_buffer
@@ -142,6 +143,7 @@ class Decoder:  # pylint: disable=too-few-public-methods
 
         Arguments:
         offset -- the location of the data structure to decode
+
         """
         new_offset = offset + 1
         ctrl_byte = self._buffer[offset]
@@ -154,7 +156,7 @@ class Decoder:  # pylint: disable=too-few-public-methods
             decoder = self._type_decoder[type_num]
         except KeyError as ex:
             raise InvalidDatabaseError(
-                f"Unexpected type number ({type_num}) encountered"
+                f"Unexpected type number ({type_num}) encountered",
             ) from ex
 
         (size, new_offset) = self._size_from_ctrl_byte(ctrl_byte, new_offset, type_num)
@@ -166,7 +168,7 @@ class Decoder:  # pylint: disable=too-few-public-methods
         if type_num < 7:
             raise InvalidDatabaseError(
                 "Something went horribly wrong in the decoder. An "
-                f"extended type resolved to a type number < 8 ({type_num})"
+                f"extended type resolved to a type number < 8 ({type_num})",
             )
         return type_num, offset + 1
 
@@ -175,11 +177,14 @@ class Decoder:  # pylint: disable=too-few-public-methods
         if expected != actual:
             raise InvalidDatabaseError(
                 "The MaxMind DB file's data section contains bad data "
-                "(unknown data type or corrupt data)"
+                "(unknown data type or corrupt data)",
             )
 
     def _size_from_ctrl_byte(
-        self, ctrl_byte: int, offset: int, type_num: int
+        self,
+        ctrl_byte: int,
+        offset: int,
+        type_num: int,
     ) -> Tuple[int, int]:
         size = ctrl_byte & 0x1F
         if type_num == 1 or size < 29:

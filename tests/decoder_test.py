@@ -1,11 +1,9 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 import mmap
+import unittest
 
 from maxminddb.decoder import Decoder
-
-import unittest
 
 
 class TestDecoder(unittest.TestCase):

@@ -45,14 +45,14 @@ class FileBuffer:
     if hasattr(os, "pread"):
 
         def _read(self, buffersize: int, offset: int) -> bytes:
-            """read that uses pread"""
+            """Read that uses pread"""
             # pylint: disable=no-member
             return os.pread(self._handle.fileno(), buffersize, offset)  # type: ignore
 
     else:
 
         def _read(self, buffersize: int, offset: int) -> bytes:
-            """read with a lock
+            """Read with a lock
 
             This lock is necessary as after a fork, the different processes
             will share the same file table entry, even if we dup the fd, and

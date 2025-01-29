@@ -16,9 +16,9 @@ import ipaddress
 import struct
 from ipaddress import IPv4Address, IPv6Address
 from os import PathLike
-from typing import Any, AnyStr, Dict, IO, List, Optional, Tuple, Union
+from typing import IO, Any, AnyStr, Dict, List, Optional, Tuple, Union
 
-from maxminddb.const import MODE_AUTO, MODE_MMAP, MODE_FILE, MODE_MEMORY, MODE_FD
+from maxminddb.const import MODE_AUTO, MODE_FD, MODE_FILE, MODE_MEMORY, MODE_MMAP
 from maxminddb.decoder import Decoder
 from maxminddb.errors import InvalidDatabaseError
 from maxminddb.file import FileBuffer
@@ -44,7 +44,9 @@ class Reader:
     _ipv4_start: int
 
     def __init__(
-        self, database: Union[AnyStr, int, PathLike, IO], mode: int = MODE_AUTO
+        self,
+        database: Union[AnyStr, int, PathLike, IO],
+        mode: int = MODE_AUTO,
     ) -> None:
         """Reader for the MaxMind DB file format
 
@@ -58,6 +60,7 @@ class Reader:
             * MODE_AUTO - tries MODE_MMAP and then MODE_FILE. Default.
             * MODE_FD - the param passed via database is a file descriptor, not
                         a path. This mode implies MODE_MEMORY.
+
         """
         filename: Any
         if (mode == MODE_AUTO and mmap) or mode == MODE_MMAP:
@@ -83,18 +86,19 @@ class Reader:
             raise ValueError(
                 f"Unsupported open mode ({mode}). Only MODE_AUTO, MODE_FILE, "
                 "MODE_MEMORY and MODE_FD are supported by the pure Python "
-                "Reader"
+                "Reader",
             )
 
         metadata_start = self._buffer.rfind(
-            self._METADATA_START_MARKER, max(0, self._buffer_size - 128 * 1024)
+            self._METADATA_START_MARKER,
+            max(0, self._buffer_size - 128 * 1024),
         )
 
         if metadata_start == -1:
             self.close()
             raise InvalidDatabaseError(
                 f"Error opening database file ({filename}). "
-                "Is this a valid MaxMind DB file?"
+                "Is this a valid MaxMind DB file?",
             )
 
         metadata_start += len(self._METADATA_START_MARKER)
@@ -103,7 +107,7 @@ class Reader:
 
         if not isinstance(metadata, dict):
             raise InvalidDatabaseError(
-                f"Error reading metadata in database file ({filename})."
+                f"Error reading metadata in database file ({filename}).",
             )
 
         self._metadata = Metadata(**metadata)  # pylint: disable=bad-option-value
@@ -134,21 +138,22 @@ class Reader:
     def get(self, ip_address: Union[str, IPv6Address, IPv4Address]) -> Optional[Record]:
         """Return the record for the ip_address in the MaxMind DB
 
-
         Arguments:
         ip_address -- an IP address in the standard string notation
+
         """
         (record, _) = self.get_with_prefix_len(ip_address)
         return record
 
     def get_with_prefix_len(
-        self, ip_address: Union[str, IPv6Address, IPv4Address]
+        self,
+        ip_address: Union[str, IPv6Address, IPv4Address],
     ) -> Tuple[Optional[Record], int]:
         """Return a tuple with the record and the associated prefix length
 
-
         Arguments:
         ip_address -- an IP address in the standard string notation
+
         """
         if isinstance(ip_address, str):
             address = ipaddress.ip_address(ip_address)
@@ -163,7 +168,7 @@ class Reader:
         if address.version == 6 and self._metadata.ip_version == 4:
             raise ValueError(
                 f"Error looking up {ip_address}. You attempted to look up "
-                "an IPv6 address in an IPv4-only database."
+                "an IPv6 address in an IPv4-only database.",
             )
 
         (pointer, prefix_len) = self._find_address_in_tree(packed_address)
@@ -187,7 +192,7 @@ class Reader:
             if ip_acc <= _IPV4_MAX_NUM and bits == 128:
                 depth -= 96
             yield ipaddress.ip_network((ip_acc, depth)), self._resolve_data_pointer(
-                node
+                node,
             )
         elif node < node_count:
             left = self._read_node(node, 0)

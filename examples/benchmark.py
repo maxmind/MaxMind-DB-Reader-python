@@ -1,12 +1,12 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 
 import argparse
-import maxminddb
 import random
 import socket
 import struct
 import timeit
+
+import maxminddb
 
 parser = argparse.ArgumentParser(description="Benchmark maxminddb.")
 parser.add_argument("--count", default=250000, type=int, help="number of lookups")
@@ -30,4 +30,4 @@ elapsed = timeit.timeit(
     number=args.count,
 )
 
-print("{:,}".format(int(args.count / elapsed)), "lookups per second")
+print(f"{int(args.count / elapsed):,}", "lookups per second")
