@@ -37,7 +37,7 @@ if os.getenv("MAXMINDDB_USE_SYSTEM_LIBMAXMINDDB"):
     ext_module = [
         Extension(
             "maxminddb.extension",
-            libraries=["maxminddb"] + libraries,
+            libraries=["maxminddb", *libraries],
             sources=["extension/maxminddb.c"],
             extra_compile_args=compile_args,
         ),
@@ -78,20 +78,20 @@ ext_errors = (CCompilerError, DistutilsExecError, DistutilsPlatformError)
 
 
 class BuildFailed(Exception):
-    def __init__(self):
+    def __init__(self) -> None:
         self.cause = sys.exc_info()[1]
 
 
 class ve_build_ext(build_ext):
     # This class allows C extension building to fail.
 
-    def run(self):
+    def run(self) -> None:
         try:
             build_ext.run(self)
         except DistutilsPlatformError:
             raise BuildFailed
 
-    def build_extension(self, ext):
+    def build_extension(self, ext) -> None:
         try:
             build_ext.build_extension(self, ext)
         except ext_errors:
@@ -120,24 +120,22 @@ with open(os.path.join(ROOT, "maxminddb", "__init__.py"), "rb") as fd:
     )
 
 
-def status_msgs(*msgs):
-    print("*" * 75)
-    for msg in msgs:
-        print(msg)
-    print("*" * 75)
+def status_msgs(*msgs) -> None:
+    for _msg in msgs:
+        pass
 
 
 def find_packages(location):
     packages = []
     for pkg in ["maxminddb"]:
-        for _dir, subdirectories, files in os.walk(os.path.join(location, pkg)):
+        for _dir, _subdirectories, files in os.walk(os.path.join(location, pkg)):
             if "__init__.py" in files:
                 tokens = _dir.split(os.sep)[len(location.split(os.sep)) :]
                 packages.append(".".join(tokens))
     return packages
 
 
-def run_setup(with_cext):
+def run_setup(with_cext) -> None:
     kwargs = {}
     loc_cmdclass = cmdclass.copy()
     if with_cext:
@@ -158,7 +156,7 @@ else:
         run_setup(True)
     except BuildFailed as exc:
         if os.getenv("MAXMINDDB_REQUIRE_EXTENSION"):
-            raise exc
+            raise
         status_msgs(
             exc.cause,
             "WARNING: The C extension could not be compiled, "

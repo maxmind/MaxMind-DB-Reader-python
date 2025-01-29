@@ -478,9 +478,8 @@ class BaseTestReader:
         with self.assertRaisesRegex(
             ValueError,
             "Attempt to reopen a closed MaxMind DB",
-        ):
-            with reader:
-                pass
+        ), reader:
+            pass
 
     def test_closed(self):
         reader = open_database(
@@ -523,13 +522,13 @@ class BaseTestReader:
         def test_threading(self):
             self._check_concurrency(threading.Thread)
 
-        def _check_concurrency(self, worker_class):
+        def _check_concurrency(self, worker_class) -> None:
             reader = open_database(
                 "tests/data/test-data/GeoIP2-Domain-Test.mmdb",
                 self.mode,
             )
 
-            def lookup(pipe):
+            def lookup(pipe) -> None:
                 try:
                     for i in range(32):
                         reader.get(self.ipf(f"65.115.240.{i}"))
@@ -554,7 +553,7 @@ class BaseTestReader:
 
             self.assertEqual(count, 32, "expected number of successful lookups")
 
-    def _check_metadata(self, reader, ip_version, record_size):
+    def _check_metadata(self, reader, ip_version, record_size) -> None:
         metadata = reader.metadata()
 
         self.assertEqual(2, metadata.binary_format_major_version, "major version")
@@ -572,7 +571,7 @@ class BaseTestReader:
 
         self.assertEqual(metadata.record_size, record_size)
 
-    def _check_ip_v4(self, reader, file_name):
+    def _check_ip_v4(self, reader, file_name) -> None:
         for i in range(6):
             address = "1.1.1." + str(pow(2, i))
             self.assertEqual(
@@ -602,7 +601,7 @@ class BaseTestReader:
         for ip in ["1.1.1.33", "255.254.253.123"]:
             self.assertIsNone(reader.get(self.ipf(ip)))
 
-    def _check_ip_v6(self, reader, file_name):
+    def _check_ip_v6(self, reader, file_name) -> None:
         subnets = ["::1:ffff:ffff", "::2:0:0", "::2:0:40", "::2:0:50", "::2:0:58"]
 
         for address in subnets:

@@ -37,7 +37,7 @@ def open_database(
     database: Union[AnyStr, int, os.PathLike, IO],
     mode: int = MODE_AUTO,
 ) -> Reader:
-    """Open a MaxMind DB database
+    """Open a MaxMind DB database.
 
     Arguments:
         database -- A path to a valid MaxMind DB file such as a GeoIP2 database

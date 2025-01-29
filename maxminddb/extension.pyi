@@ -9,7 +9,7 @@ This module contains the C extension database reader and related classes.
 # pylint: disable=E0601,E0602
 from ipaddress import IPv4Address, IPv6Address
 from os import PathLike
-from typing import IO, Any, AnyStr, Dict, List, Optional, Tuple, Union
+from typing import IO, Any, AnyStr, Optional, Tuple, Union
 
 from maxminddb.types import Record
 
@@ -89,7 +89,7 @@ class Metadata:
     A string identifying the database type, e.g., "GeoIP2-City".
     """
 
-    description: Dict[str, str]
+    description: dict[str, str]
     """
     A map from locales to text descriptions of the database.
     """
@@ -101,7 +101,7 @@ class Metadata:
     both IPv4 and IPv6 lookups.
     """
 
-    languages: List[str]
+    languages: list[str]
     """
     A list of locale codes supported by the databse.
     """

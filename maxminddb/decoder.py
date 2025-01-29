@@ -23,7 +23,7 @@ from maxminddb.types import Record
 
 
 class Decoder:  # pylint: disable=too-few-public-methods
-    """Decoder for the data section of the MaxMind DB"""
+    """Decoder for the data section of the MaxMind DB."""
 
     def __init__(
         self,
@@ -31,7 +31,7 @@ class Decoder:  # pylint: disable=too-few-public-methods
         pointer_base: int = 0,
         pointer_test: bool = False,
     ) -> None:
-        """Created a Decoder for a MaxMind DB
+        """Created a Decoder for a MaxMind DB.
 
         Arguments:
         database_buffer -- an mmap'd MaxMind DB file.
@@ -139,7 +139,7 @@ class Decoder:  # pylint: disable=too-few-public-methods
     }
 
     def decode(self, offset: int) -> Tuple[Record, int]:
-        """Decode a section of the data section starting at offset
+        """Decode a section of the data section starting at offset.
 
         Arguments:
         offset -- the location of the data structure to decode

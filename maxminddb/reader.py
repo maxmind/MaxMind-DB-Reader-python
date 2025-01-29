@@ -48,7 +48,7 @@ class Reader:
         database: Union[AnyStr, int, PathLike, IO],
         mode: int = MODE_AUTO,
     ) -> None:
-        """Reader for the MaxMind DB file format
+        """Reader for the MaxMind DB file format.
 
         Arguments:
         database -- A path to a valid MaxMind DB file such as a GeoIP2 database
@@ -132,11 +132,11 @@ class Reader:
         self._ipv4_start = ipv4_start
 
     def metadata(self) -> "Metadata":
-        """Return the metadata associated with the MaxMind DB file"""
+        """Return the metadata associated with the MaxMind DB file."""
         return self._metadata
 
     def get(self, ip_address: Union[str, IPv6Address, IPv4Address]) -> Optional[Record]:
-        """Return the record for the ip_address in the MaxMind DB
+        """Return the record for the ip_address in the MaxMind DB.
 
         Arguments:
         ip_address -- an IP address in the standard string notation
@@ -149,7 +149,7 @@ class Reader:
         self,
         ip_address: Union[str, IPv6Address, IPv4Address],
     ) -> Tuple[Optional[Record], int]:
-        """Return a tuple with the record and the associated prefix length
+        """Return a tuple with the record and the associated prefix length.
 
         Arguments:
         ip_address -- an IP address in the standard string notation
@@ -245,20 +245,22 @@ class Reader:
             offset = base_offset + index * 4
             node_bytes = self._buffer[offset : offset + 4]
         else:
-            raise InvalidDatabaseError(f"Unknown record size: {record_size}")
+            msg = f"Unknown record size: {record_size}"
+            raise InvalidDatabaseError(msg)
         return struct.unpack(b"!I", node_bytes)[0]
 
     def _resolve_data_pointer(self, pointer: int) -> Record:
         resolved = pointer - self._metadata.node_count + self._metadata.search_tree_size
 
         if resolved >= self._buffer_size:
-            raise InvalidDatabaseError("The MaxMind DB file's search tree is corrupt")
+            msg = "The MaxMind DB file's search tree is corrupt"
+            raise InvalidDatabaseError(msg)
 
         (data, _) = self._decoder.decode(resolved)
         return data
 
     def close(self) -> None:
-        """Closes the MaxMind DB file and returns the resources to the system"""
+        """Closes the MaxMind DB file and returns the resources to the system."""
         try:
             self._buffer.close()  # type: ignore
         except AttributeError:
@@ -270,13 +272,14 @@ class Reader:
 
     def __enter__(self) -> "Reader":
         if self.closed:
-            raise ValueError("Attempt to reopen a closed MaxMind DB")
+            msg = "Attempt to reopen a closed MaxMind DB"
+            raise ValueError(msg)
         return self
 
 
 # pylint: disable=too-many-instance-attributes,R0801
 class Metadata:
-    """Metadata for the MaxMind DB reader"""
+    """Metadata for the MaxMind DB reader."""
 
     binary_format_major_version: int
     """
@@ -328,7 +331,7 @@ class Metadata:
     """
 
     def __init__(self, **kwargs) -> None:
-        """Creates new Metadata object. kwargs are key/value pairs from spec"""
+        """Creates new Metadata object. kwargs are key/value pairs from spec."""
         # Although I could just update __dict__, that is less obvious and it
         # doesn't work well with static analysis tools and some IDEs
         self.node_count = kwargs["node_count"]
@@ -343,7 +346,7 @@ class Metadata:
 
     @property
     def node_byte_size(self) -> int:
-        """The size of a node in bytes
+        """The size of a node in bytes.
 
         :type: int
         """
@@ -351,12 +354,12 @@ class Metadata:
 
     @property
     def search_tree_size(self) -> int:
-        """The size of the search tree
+        """The size of the search tree.
 
         :type: int
         """
         return self.node_count * self.node_byte_size
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         args = ", ".join(f"{k}={v!r}" for k, v in self.__dict__.items())
         return f"{self.__module__}.{self.__class__.__name__}({args})"
