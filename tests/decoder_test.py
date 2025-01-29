@@ -7,7 +7,7 @@ from maxminddb.decoder import Decoder
 
 
 class TestDecoder(unittest.TestCase):
-    def test_arrays(self):
+    def test_arrays(self) -> None:
         arrays = {
             b"\x00\x04": [],
             b"\x01\x04\x43\x46\x6f\x6f": ["Foo"],
@@ -15,14 +15,14 @@ class TestDecoder(unittest.TestCase):
         }
         self.validate_type_decoding("arrays", arrays)
 
-    def test_boolean(self):
+    def test_boolean(self) -> None:
         booleans = {
             b"\x00\x07": False,
             b"\x01\x07": True,
         }
         self.validate_type_decoding("booleans", booleans)
 
-    def test_double(self):
+    def test_double(self) -> None:
         doubles = {
             b"\x68\x00\x00\x00\x00\x00\x00\x00\x00": 0.0,
             b"\x68\x3f\xe0\x00\x00\x00\x00\x00\x00": 0.5,
@@ -35,7 +35,7 @@ class TestDecoder(unittest.TestCase):
         }
         self.validate_type_decoding("double", doubles)
 
-    def test_float(self):
+    def test_float(self) -> None:
         floats = {
             b"\x04\x08\x00\x00\x00\x00": 0.0,
             b"\x04\x08\x3f\x80\x00\x00": 1.0,
@@ -49,7 +49,7 @@ class TestDecoder(unittest.TestCase):
         }
         self.validate_type_decoding("float", floats)
 
-    def test_int32(self):
+    def test_int32(self) -> None:
         int32 = {
             b"\x00\x01": 0,
             b"\x04\x01\xff\xff\xff\xff": -1,
@@ -66,7 +66,7 @@ class TestDecoder(unittest.TestCase):
         }
         self.validate_type_decoding("int32", int32)
 
-    def test_map(self):
+    def test_map(self) -> None:
         maps = {
             b"\xe0": {},
             b"\xe1\x42\x65\x6e\x43\x46\x6f\x6f": {"en": "Foo"},
@@ -85,7 +85,7 @@ class TestDecoder(unittest.TestCase):
         }
         self.validate_type_decoding("maps", maps)
 
-    def test_pointer(self):
+    def test_pointer(self) -> None:
         pointers = {
             b"\x20\x00": 0,
             b"\x20\x05": 5,
@@ -133,17 +133,17 @@ class TestDecoder(unittest.TestCase):
         b"\x5f\x00\x10\x53" + 70000 * b"\x78": "x" * 70000,
     }
 
-    def test_string(self):
+    def test_string(self) -> None:
         self.validate_type_decoding("string", self.strings)
 
-    def test_byte(self):
+    def test_byte(self) -> None:
         b = {
             bytes([0xC0 ^ k[0]]) + k[1:]: v.encode("utf-8")
             for k, v in self.strings.items()
         }
         self.validate_type_decoding("byte", b)
 
-    def test_uint16(self):
+    def test_uint16(self) -> None:
         uint16 = {
             b"\xa0": 0,
             b"\xa1\xff": 255,
@@ -153,7 +153,7 @@ class TestDecoder(unittest.TestCase):
         }
         self.validate_type_decoding("uint16", uint16)
 
-    def test_uint32(self):
+    def test_uint32(self) -> None:
         uint32 = {
             b"\xc0": 0,
             b"\xc1\xff": 255,
@@ -165,7 +165,7 @@ class TestDecoder(unittest.TestCase):
         }
         self.validate_type_decoding("uint32", uint32)
 
-    def generate_large_uint(self, bits):
+    def generate_large_uint(self, bits) -> dict:
         ctrl_byte = b"\x02" if bits == 64 else b"\x03"
         uints = {
             b"\x00" + ctrl_byte: 0,
@@ -178,17 +178,17 @@ class TestDecoder(unittest.TestCase):
             uints[input] = expected
         return uints
 
-    def test_uint64(self):
+    def test_uint64(self) -> None:
         self.validate_type_decoding("uint64", self.generate_large_uint(64))
 
-    def test_uint128(self):
+    def test_uint128(self) -> None:
         self.validate_type_decoding("uint128", self.generate_large_uint(128))
 
-    def validate_type_decoding(self, type, tests):
+    def validate_type_decoding(self, type, tests) -> None:
         for input, expected in tests.items():
             self.check_decoding(type, input, expected)
 
-    def check_decoding(self, type, input, expected, name=None):
+    def check_decoding(self, type, input, expected, name=None) -> None:
         name = name or expected
         db = mmap.mmap(-1, len(input))
         db.write(input)
@@ -204,7 +204,7 @@ class TestDecoder(unittest.TestCase):
         else:
             self.assertEqual(expected, actual, type)
 
-    def test_real_pointers(self):
+    def test_real_pointers(self) -> None:
         with open("tests/data/test-data/maps-with-pointers.raw", "r+b") as db_file:
             mm = mmap.mmap(db_file.fileno(), 0)
             decoder = Decoder(mm, 0)

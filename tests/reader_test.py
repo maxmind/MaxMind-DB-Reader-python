@@ -6,7 +6,7 @@ import os
 import pathlib
 import threading
 import unittest
-from typing import Type, Union
+from typing import Type, Union, cast
 from unittest import mock
 
 import maxminddb
@@ -25,9 +25,10 @@ from maxminddb.const import (
     MODE_MMAP,
     MODE_MMAP_EXT,
 )
+from maxminddb.reader import Reader
 
 
-def get_reader_from_file_descriptor(filepath, mode):
+def get_reader_from_file_descriptor(filepath, mode) -> Reader:
     """Patches open_database() for class TestFDReader()."""
     if mode == MODE_FD:
         with open(filepath, "rb") as mmdb_fh:
@@ -39,7 +40,8 @@ def get_reader_from_file_descriptor(filepath, mode):
         return maxminddb.open_database(filepath, mode)
 
 
-class BaseTestReader:
+class BaseTestReader(unittest.TestCase):
+    mode: int
     readerClass: Union[
         Type["maxminddb.extension.Reader"],
         Type["maxminddb.reader.Reader"],
@@ -51,12 +53,12 @@ class BaseTestReader:
     if os.name != "nt":
         mp = multiprocessing.get_context("fork")
 
-    def ipf(self, ip):
+    def ipf(self, ip) -> Union[ipaddress.IPv4Address, ipaddress.IPv6Address]:
         if self.use_ip_objects:
             return ipaddress.ip_address(ip)
         return ip
 
-    def test_reader(self):
+    def test_reader(self) -> None:
         for record_size in [24, 28, 32]:
             for ip_version in [4, 6]:
                 file_name = (
@@ -76,7 +78,7 @@ class BaseTestReader:
                     self._check_ip_v6(reader, file_name)
                 reader.close()
 
-    def test_get_with_prefix_len(self):
+    def test_get_with_prefix_len(self) -> None:
         decoder_record = {
             "array": [1, 2, 3],
             "boolean": True,
@@ -174,10 +176,10 @@ class BaseTestReader:
 
         for test in tests:
             with open_database(
-                "tests/data/test-data/" + test["file_name"],
+                "tests/data/test-data/" + cast(str, test["file_name"]),
                 self.mode,
             ) as reader:
-                (record, prefix_len) = reader.get_with_prefix_len(test["ip"])
+                (record, prefix_len) = reader.get_with_prefix_len(cast(str, test["ip"]))
 
                 self.assertEqual(
                     prefix_len,
@@ -188,10 +190,13 @@ class BaseTestReader:
                 self.assertEqual(
                     record,
                     test["expected_record"],
-                    "expected_record for " + test["ip"] + " in " + test["file_name"],
+                    "expected_record for "
+                    + cast(str, test["ip"])
+                    + " in "
+                    + cast(str, test["file_name"]),
                 )
 
-    def test_iterator(self):
+    def test_iterator(self) -> None:
         tests = (
             {
                 "database": "ipv4",
@@ -239,12 +244,12 @@ class BaseTestReader:
                 networks = [str(n) for (n, _) in reader]
                 self.assertEqual(networks, test["expected"], f)
 
-    def test_decoder(self):
+    def test_decoder(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
             self.mode,
         )
-        record = reader.get(self.ipf("::1.1.1.0"))
+        record = cast(dict, reader.get(self.ipf("::1.1.1.0")))
 
         self.assertEqual(record["array"], [1, 2, 3])
         self.assertEqual(record["boolean"], True)
@@ -267,7 +272,7 @@ class BaseTestReader:
         self.assertEqual(1329227995784915872903807060280344576, record["uint128"])
         reader.close()
 
-    def test_metadata_pointers(self):
+    def test_metadata_pointers(self) -> None:
         with open_database(
             "tests/data/test-data/MaxMind-DB-test-metadata-pointers.mmdb",
             self.mode,
@@ -277,7 +282,7 @@ class BaseTestReader:
                 reader.metadata().database_type,
             )
 
-    def test_no_ipv4_search_tree(self):
+    def test_no_ipv4_search_tree(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-no-ipv4-search-tree.mmdb",
             self.mode,
@@ -287,7 +292,7 @@ class BaseTestReader:
         self.assertEqual(reader.get(self.ipf("192.1.1.1")), "::0/64")
         reader.close()
 
-    def test_ipv6_address_in_ipv4_database(self):
+    def test_ipv6_address_in_ipv4_database(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-ipv4-24.mmdb",
             self.mode,
@@ -301,16 +306,16 @@ class BaseTestReader:
             reader.get(self.ipf("2001::"))
         reader.close()
 
-    def test_opening_path(self):
+    def test_opening_path(self) -> None:
         with open_database(
             pathlib.Path("tests/data/test-data/MaxMind-DB-test-decoder.mmdb"),
             self.mode,
         ) as reader:
             self.assertEqual(reader.metadata().database_type, "MaxMind DB Decoder Test")
 
-    def test_no_extension_exception(self):
+    def test_no_extension_exception(self) -> None:
         real_extension = maxminddb._extension
-        maxminddb._extension = None
+        maxminddb._extension = None  # type: ignore
         with self.assertRaisesRegex(
             ValueError,
             "MODE_MMAP_EXT requires the maxminddb.extension module to be available",
@@ -321,7 +326,7 @@ class BaseTestReader:
             )
         maxminddb._extension = real_extension
 
-    def test_broken_database(self):
+    def test_broken_database(self) -> None:
         reader = open_database(
             "tests/data/test-data/GeoIP2-City-Test-Broken-Double-Format.mmdb",
             self.mode,
@@ -335,7 +340,7 @@ class BaseTestReader:
             reader.get(self.ipf("2001:220::"))
         reader.close()
 
-    def test_ip_validation(self):
+    def test_ip_validation(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
             self.mode,
@@ -347,11 +352,11 @@ class BaseTestReader:
             reader.get("not_ip")
         reader.close()
 
-    def test_missing_database(self):
+    def test_missing_database(self) -> None:
         with self.assertRaisesRegex(FileNotFoundError, "No such file or directory"):
             open_database("file-does-not-exist.mmdb", self.mode)
 
-    def test_nondatabase(self):
+    def test_nondatabase(self) -> None:
         with self.assertRaisesRegex(
             InvalidDatabaseError,
             r"Error opening database file \(README.rst\). "
@@ -360,7 +365,7 @@ class BaseTestReader:
             open_database("README.rst", self.mode)
 
     # This is from https://github.com/maxmind/MaxMind-DB-Reader-python/issues/58
-    def test_database_with_invalid_utf8_key(self):
+    def test_database_with_invalid_utf8_key(self) -> None:
         reader = open_database(
             "tests/data/bad-data/maxminddb-python/bad-unicode-in-map-key.mmdb",
             self.mode,
@@ -368,15 +373,15 @@ class BaseTestReader:
         with self.assertRaises(UnicodeDecodeError):
             reader.get_with_prefix_len("163.254.149.39")
 
-    def test_too_many_constructor_args(self):
+    def test_too_many_constructor_args(self) -> None:
         with self.assertRaises(TypeError):
-            self.readerClass("README.md", self.mode, 1)
+            self.readerClass("README.md", self.mode, 1)  # type: ignore
 
-    def test_bad_constructor_mode(self):
+    def test_bad_constructor_mode(self) -> None:
         with self.assertRaisesRegex(ValueError, r"Unsupported open mode \(100\)"):
-            self.readerClass("README.md", mode=100)
+            self.readerClass("README.md", mode=100)  # type:  ignore
 
-    def test_no_constructor_args(self):
+    def test_no_constructor_args(self) -> None:
         with self.assertRaisesRegex(
             TypeError,
             r" 1 required positional argument|"
@@ -384,45 +389,45 @@ class BaseTestReader:
             r"takes at least 2 arguments|"
             r"function missing required argument \'database\' \(pos 1\)",
         ):
-            self.readerClass()
+            self.readerClass()  # type:  ignore
 
-    def test_too_many_get_args(self):
+    def test_too_many_get_args(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
             self.mode,
         )
         with self.assertRaises(TypeError):
-            reader.get(self.ipf("1.1.1.1"), "blah")
+            reader.get(self.ipf("1.1.1.1"), "blah")  # type:  ignore
         reader.close()
 
-    def test_no_get_args(self):
+    def test_no_get_args(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
             self.mode,
         )
         with self.assertRaises(TypeError):
-            reader.get()
+            reader.get()  # type:  ignore
         reader.close()
 
-    def test_incorrect_get_arg_type(self):
+    def test_incorrect_get_arg_type(self) -> None:
         reader = open_database("tests/data/test-data/GeoIP2-City-Test.mmdb", self.mode)
         with self.assertRaisesRegex(
             TypeError,
             "argument 1 must be a string or ipaddress object",
         ):
-            reader.get(1)
+            reader.get(1)  # type:  ignore
         reader.close()
 
-    def test_metadata_args(self):
+    def test_metadata_args(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
             self.mode,
         )
         with self.assertRaises(TypeError):
-            reader.metadata("blah")
+            reader.metadata("blah")  # type:  ignore
         reader.close()
 
-    def test_metadata_unknown_attribute(self):
+    def test_metadata_unknown_attribute(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
             self.mode,
@@ -432,25 +437,27 @@ class BaseTestReader:
             AttributeError,
             "'Metadata' object has no attribute 'blah'",
         ):
-            metadata.blah
+            metadata.blah  # type:  ignore
         reader.close()
 
-    def test_close(self):
+    def test_close(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
             self.mode,
         )
         reader.close()
 
-    def test_double_close(self):
+    def test_double_close(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
             self.mode,
         )
         reader.close()
-        self.assertIsNone(reader.close(), "Double close does not throw an exception")
+        self.assertIsNone(
+            reader.close(), "Double close does not throw an exception"  # type:  ignore
+        )
 
-    def test_closed_get(self):
+    def test_closed_get(self) -> None:
         if self.mode in [MODE_MEMORY, MODE_FD]:
             return
         reader = open_database(
@@ -464,13 +471,13 @@ class BaseTestReader:
         ):
             reader.get(self.ipf("1.1.1.1"))
 
-    def test_with_statement(self):
+    def test_with_statement(self) -> None:
         filename = "tests/data/test-data/MaxMind-DB-test-ipv4-24.mmdb"
         with open_database(filename, self.mode) as reader:
             self._check_ip_v4(reader, filename)
         self.assertEqual(reader.closed, True)
 
-    def test_with_statement_close(self):
+    def test_with_statement_close(self) -> None:
         filename = "tests/data/test-data/MaxMind-DB-test-ipv4-24.mmdb"
         reader = open_database(filename, self.mode)
         reader.close()
@@ -481,7 +488,7 @@ class BaseTestReader:
         ), reader:
             pass
 
-    def test_closed(self):
+    def test_closed(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
             self.mode,
@@ -494,7 +501,7 @@ class BaseTestReader:
     #       extension and the pure Python reader. If we do, the pure Python
     #       reader will need to throw an exception or the extension will need
     #       to keep the metadata in memory.
-    def test_closed_metadata(self):
+    def test_closed_metadata(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
             self.mode,
@@ -633,15 +640,17 @@ class BaseTestReader:
             self.assertIsNone(reader.get(self.ipf(ip)))
 
 
-def has_maxminddb_extension():
-    return maxminddb.extension and hasattr(maxminddb.extension, "Reader")
+def has_maxminddb_extension() -> bool:
+    return maxminddb.extension and hasattr(
+        maxminddb.extension, "Reader"
+    )  # type:  ignore
 
 
 @unittest.skipIf(
     not has_maxminddb_extension() and not os.environ.get("MM_FORCE_EXT_TESTS"),
     "No C extension module found. Skipping tests",
 )
-class TestExtensionReader(BaseTestReader, unittest.TestCase):
+class TestExtensionReader(BaseTestReader):
     mode = MODE_MMAP_EXT
 
     if has_maxminddb_extension():
@@ -652,7 +661,7 @@ class TestExtensionReader(BaseTestReader, unittest.TestCase):
     not has_maxminddb_extension() and not os.environ.get("MM_FORCE_EXT_TESTS"),
     "No C extension module found. Skipping tests",
 )
-class TestExtensionReaderWithIPObjects(BaseTestReader, unittest.TestCase):
+class TestExtensionReaderWithIPObjects(BaseTestReader):
     mode = MODE_MMAP_EXT
     use_ip_objects = True
 
@@ -660,7 +669,7 @@ class TestExtensionReaderWithIPObjects(BaseTestReader, unittest.TestCase):
         readerClass = maxminddb.extension.Reader
 
 
-class TestAutoReader(BaseTestReader, unittest.TestCase):
+class TestAutoReader(BaseTestReader):
     mode = MODE_AUTO
 
     readerClass: Union[
@@ -673,31 +682,31 @@ class TestAutoReader(BaseTestReader, unittest.TestCase):
         readerClass = maxminddb.reader.Reader
 
 
-class TestMMAPReader(BaseTestReader, unittest.TestCase):
+class TestMMAPReader(BaseTestReader):
     mode = MODE_MMAP
     readerClass = maxminddb.reader.Reader
 
 
 # We want one pure Python test to use IP objects, it doesn't
 # really matter which one.
-class TestMMAPReaderWithIPObjects(BaseTestReader, unittest.TestCase):
+class TestMMAPReaderWithIPObjects(BaseTestReader):
     mode = MODE_MMAP
     use_ip_objects = True
     readerClass = maxminddb.reader.Reader
 
 
-class TestFileReader(BaseTestReader, unittest.TestCase):
+class TestFileReader(BaseTestReader):
     mode = MODE_FILE
     readerClass = maxminddb.reader.Reader
 
 
-class TestMemoryReader(BaseTestReader, unittest.TestCase):
+class TestMemoryReader(BaseTestReader):
     mode = MODE_MEMORY
     readerClass = maxminddb.reader.Reader
 
 
-class TestFDReader(BaseTestReader, unittest.TestCase):
-    def setUp(self):
+class TestFDReader(BaseTestReader):
+    def setUp(self) -> None:
         self.open_database_patcher = mock.patch(__name__ + ".open_database")
         self.addCleanup(self.open_database_patcher.stop)
         self.open_database = self.open_database_patcher.start()
@@ -708,9 +717,12 @@ class TestFDReader(BaseTestReader, unittest.TestCase):
 
 
 class TestOldReader(unittest.TestCase):
-    def test_old_reader(self):
+    def test_old_reader(self) -> None:
         reader = maxminddb.Reader("tests/data/test-data/MaxMind-DB-test-decoder.mmdb")
-        record = reader.get("::1.1.1.0")
+        record = cast(dict, reader.get("::1.1.1.0"))
 
         self.assertEqual(record["array"], [1, 2, 3])
         reader.close()
+
+
+del BaseTestReader

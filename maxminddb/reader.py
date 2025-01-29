@@ -16,7 +16,7 @@ import ipaddress
 import struct
 from ipaddress import IPv4Address, IPv6Address
 from os import PathLike
-from typing import IO, Any, AnyStr, Dict, List, Optional, Tuple, Union
+from typing import IO, Any, AnyStr, Dict, Iterator, List, Optional, Tuple, Union
 
 from maxminddb.const import MODE_AUTO, MODE_FD, MODE_FILE, MODE_MEMORY, MODE_MMAP
 from maxminddb.decoder import Decoder
@@ -177,10 +177,10 @@ class Reader:
             return self._resolve_data_pointer(pointer), prefix_len
         return None, prefix_len
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator:
         return self._generate_children(0, 0, 0)
 
-    def _generate_children(self, node, depth, ip_acc):
+    def _generate_children(self, node, depth, ip_acc) -> Iterator:
         if ip_acc != 0 and node == self._ipv4_start:
             # Skip nodes aliased to IPv4
             return
