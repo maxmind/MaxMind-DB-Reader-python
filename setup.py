@@ -120,9 +120,11 @@ with open(os.path.join(ROOT, "maxminddb", "__init__.py"), "rb") as fd:
     )
 
 
-def status_msgs(*msgs) -> None:
-    for _msg in msgs:
-        pass
+def status_msgs(*msgs):
+    print("*" * 75)
+    for msg in msgs:
+        print(msg)
+    print("*" * 75)
 
 
 def find_packages(location):

@@ -11,6 +11,7 @@ from ipaddress import IPv4Address, IPv6Address
 from os import PathLike
 from typing import IO, Any, AnyStr, Optional, Tuple, Union
 
+from maxminddb import MODE_AUTO
 from maxminddb.types import Record
 
 class Reader:
@@ -23,7 +24,7 @@ class Reader:
     def __init__(
         self,
         database: Union[AnyStr, int, PathLike, IO],
-        mode: int = ...,
+        mode: int = MODE_AUTO,
     ) -> None:
         """Reader for the MaxMind DB file format
 
