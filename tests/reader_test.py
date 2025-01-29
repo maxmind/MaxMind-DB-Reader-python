@@ -543,7 +543,7 @@ class BaseTestReader(unittest.TestCase):
                 except:
                     pipe.send(0)
                 finally:
-                    if worker_class is self.mp.Process:
+                    if worker_class is self.mp.Process:  # type: ignore
                         reader.close()
                     pipe.close()
 
