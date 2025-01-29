@@ -34,7 +34,7 @@ class Reader:
     """
 
     _DATA_SECTION_SEPARATOR_SIZE = 16
-    _METADATA_START_MARKER = b"\xAB\xCD\xEFMaxMind.com"
+    _METADATA_START_MARKER = b"\xab\xcd\xefMaxMind.com"
 
     _buffer: Union[bytes, FileBuffer, "mmap.mmap"]
     _buffer_size: int
