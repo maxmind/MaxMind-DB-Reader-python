@@ -2,20 +2,23 @@ import os
 import re
 import sys
 
-from setuptools import setup, Extension
+from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 from wheel.bdist_wheel import bdist_wheel
 
-
 # These were only added to setuptools in 59.0.1.
 try:
-    from setuptools.errors import CCompilerError
-    from setuptools.errors import DistutilsExecError
-    from setuptools.errors import DistutilsPlatformError
+    from setuptools.errors import (
+        CCompilerError,
+        DistutilsExecError,
+        DistutilsPlatformError,
+    )
 except ImportError:
-    from distutils.errors import CCompilerError
-    from distutils.errors import DistutilsExecError
-    from distutils.errors import DistutilsPlatformError
+    from distutils.errors import (
+        CCompilerError,
+        DistutilsExecError,
+        DistutilsPlatformError,
+    )
 
 cmdclass = {}
 PYPY = hasattr(sys, "pypy_version_info")
@@ -34,10 +37,10 @@ if os.getenv("MAXMINDDB_USE_SYSTEM_LIBMAXMINDDB"):
     ext_module = [
         Extension(
             "maxminddb.extension",
-            libraries=["maxminddb"] + libraries,
+            libraries=["maxminddb", *libraries],
             sources=["extension/maxminddb.c"],
             extra_compile_args=compile_args,
-        )
+        ),
     ]
 else:
     ext_module = [
@@ -66,7 +69,7 @@ else:
                 "extension/libmaxminddb/src",
             ],
             extra_compile_args=compile_args,
-        )
+        ),
     ]
 
 # Cargo cult code for installing extension with pure Python fallback.
@@ -75,34 +78,33 @@ ext_errors = (CCompilerError, DistutilsExecError, DistutilsPlatformError)
 
 
 class BuildFailed(Exception):
-    def __init__(self):
+    def __init__(self) -> None:
         self.cause = sys.exc_info()[1]
 
 
 class ve_build_ext(build_ext):
     # This class allows C extension building to fail.
 
-    def run(self):
+    def run(self) -> None:
         try:
             build_ext.run(self)
         except DistutilsPlatformError:
-            raise BuildFailed()
+            raise BuildFailed
 
-    def build_extension(self, ext):
+    def build_extension(self, ext) -> None:
         try:
             build_ext.build_extension(self, ext)
         except ext_errors:
-            raise BuildFailed()
+            raise BuildFailed
         except ValueError:
             # this can happen on Windows 64 bit, see Python issue 7511
             if "'path'" in str(sys.exc_info()[1]):
-                raise BuildFailed()
+                raise BuildFailed
             raise
 
 
 cmdclass["build_ext"] = ve_build_ext
 
-#
 
 ROOT = os.path.dirname(__file__)
 
@@ -112,7 +114,9 @@ with open(os.path.join(ROOT, "README.rst"), "rb") as fd:
 with open(os.path.join(ROOT, "maxminddb", "__init__.py"), "rb") as fd:
     maxminddb_text = fd.read().decode("utf8")
     VERSION = (
-        re.compile(r".*__version__ = \"(.*?)\"", re.S).match(maxminddb_text).group(1)
+        re.compile(r".*__version__ = \"(.*?)\"", re.DOTALL)
+        .match(maxminddb_text)
+        .group(1)
     )
 
 
@@ -126,14 +130,14 @@ def status_msgs(*msgs):
 def find_packages(location):
     packages = []
     for pkg in ["maxminddb"]:
-        for _dir, subdirectories, files in os.walk(os.path.join(location, pkg)):
+        for _dir, _subdirectories, files in os.walk(os.path.join(location, pkg)):
             if "__init__.py" in files:
                 tokens = _dir.split(os.sep)[len(location.split(os.sep)) :]
                 packages.append(".".join(tokens))
     return packages
 
 
-def run_setup(with_cext):
+def run_setup(with_cext) -> None:
     kwargs = {}
     loc_cmdclass = cmdclass.copy()
     if with_cext:
@@ -154,7 +158,7 @@ else:
         run_setup(True)
     except BuildFailed as exc:
         if os.getenv("MAXMINDDB_REQUIRE_EXTENSION"):
-            raise exc
+            raise
         status_msgs(
             exc.cause,
             "WARNING: The C extension could not be compiled, "

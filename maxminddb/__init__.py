@@ -21,13 +21,13 @@ except ImportError:
 
 
 __all__ = [
-    "InvalidDatabaseError",
     "MODE_AUTO",
     "MODE_FD",
     "MODE_FILE",
     "MODE_MEMORY",
     "MODE_MMAP",
     "MODE_MMAP_EXT",
+    "InvalidDatabaseError",
     "Reader",
     "open_database",
 ]
@@ -37,7 +37,7 @@ def open_database(
     database: Union[AnyStr, int, os.PathLike, IO],
     mode: int = MODE_AUTO,
 ) -> Reader:
-    """Open a MaxMind DB database
+    """Open a MaxMind DB database.
 
     Arguments:
         database -- A path to a valid MaxMind DB file such as a GeoIP2 database
@@ -51,6 +51,7 @@ def open_database(
                         a path. This mode implies MODE_MEMORY.
             * MODE_AUTO - tries MODE_MMAP_EXT, MODE_MMAP, MODE_FILE in that
                           order. Default mode.
+
     """
     if mode not in (
         MODE_AUTO,
@@ -70,7 +71,7 @@ def open_database(
 
     if not has_extension:
         raise ValueError(
-            "MODE_MMAP_EXT requires the maxminddb.extension module to be available"
+            "MODE_MMAP_EXT requires the maxminddb.extension module to be available",
         )
 
     # The C type exposes the same API as the Python Reader, so for type

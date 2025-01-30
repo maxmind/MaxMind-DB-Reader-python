@@ -1,12 +1,12 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 
 import argparse
-import maxminddb
 import random
 import socket
 import struct
 import timeit
+
+import maxminddb
 
 parser = argparse.ArgumentParser(description="Benchmark maxminddb.")
 parser.add_argument("--count", default=250000, type=int, help="number of lookups")
@@ -19,9 +19,9 @@ random.seed(0)
 reader = maxminddb.open_database(args.file, args.mode)
 
 
-def lookup_ip_address():
+def lookup_ip_address() -> None:
     ip = socket.inet_ntoa(struct.pack("!L", random.getrandbits(32)))
-    record = reader.get(str(ip))
+    reader.get(str(ip))
 
 
 elapsed = timeit.timeit(
@@ -30,4 +30,4 @@ elapsed = timeit.timeit(
     number=args.count,
 )
 
-print("{:,}".format(int(args.count / elapsed)), "lookups per second")
+print(f"{int(args.count / elapsed):,}", "lookups per second")

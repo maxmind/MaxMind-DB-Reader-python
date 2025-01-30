@@ -1,15 +1,13 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 import mmap
+import unittest
 
 from maxminddb.decoder import Decoder
 
-import unittest
-
 
 class TestDecoder(unittest.TestCase):
-    def test_arrays(self):
+    def test_arrays(self) -> None:
         arrays = {
             b"\x00\x04": [],
             b"\x01\x04\x43\x46\x6f\x6f": ["Foo"],
@@ -17,41 +15,41 @@ class TestDecoder(unittest.TestCase):
         }
         self.validate_type_decoding("arrays", arrays)
 
-    def test_boolean(self):
+    def test_boolean(self) -> None:
         booleans = {
             b"\x00\x07": False,
             b"\x01\x07": True,
         }
         self.validate_type_decoding("booleans", booleans)
 
-    def test_double(self):
+    def test_double(self) -> None:
         doubles = {
             b"\x68\x00\x00\x00\x00\x00\x00\x00\x00": 0.0,
-            b"\x68\x3F\xE0\x00\x00\x00\x00\x00\x00": 0.5,
-            b"\x68\x40\x09\x21\xFB\x54\x44\x2E\xEA": 3.14159265359,
-            b"\x68\x40\x5E\xC0\x00\x00\x00\x00\x00": 123.0,
-            b"\x68\x41\xD0\x00\x00\x00\x07\xF8\xF4": 1073741824.12457,
-            b"\x68\xBF\xE0\x00\x00\x00\x00\x00\x00": -0.5,
-            b"\x68\xC0\x09\x21\xFB\x54\x44\x2E\xEA": -3.14159265359,
-            b"\x68\xC1\xD0\x00\x00\x00\x07\xF8\xF4": -1073741824.12457,
+            b"\x68\x3f\xe0\x00\x00\x00\x00\x00\x00": 0.5,
+            b"\x68\x40\x09\x21\xfb\x54\x44\x2e\xea": 3.14159265359,
+            b"\x68\x40\x5e\xc0\x00\x00\x00\x00\x00": 123.0,
+            b"\x68\x41\xd0\x00\x00\x00\x07\xf8\xf4": 1073741824.12457,
+            b"\x68\xbf\xe0\x00\x00\x00\x00\x00\x00": -0.5,
+            b"\x68\xc0\x09\x21\xfb\x54\x44\x2e\xea": -3.14159265359,
+            b"\x68\xc1\xd0\x00\x00\x00\x07\xf8\xf4": -1073741824.12457,
         }
         self.validate_type_decoding("double", doubles)
 
-    def test_float(self):
+    def test_float(self) -> None:
         floats = {
             b"\x04\x08\x00\x00\x00\x00": 0.0,
-            b"\x04\x08\x3F\x80\x00\x00": 1.0,
-            b"\x04\x08\x3F\x8C\xCC\xCD": 1.1,
-            b"\x04\x08\x40\x48\xF5\xC3": 3.14,
-            b"\x04\x08\x46\x1C\x3F\xF6": 9999.99,
-            b"\x04\x08\xBF\x80\x00\x00": -1.0,
-            b"\x04\x08\xBF\x8C\xCC\xCD": -1.1,
-            b"\x04\x08\xC0\x48\xF5\xC3": -3.14,
-            b"\x04\x08\xC6\x1C\x3F\xF6": -9999.99,
+            b"\x04\x08\x3f\x80\x00\x00": 1.0,
+            b"\x04\x08\x3f\x8c\xcc\xcd": 1.1,
+            b"\x04\x08\x40\x48\xf5\xc3": 3.14,
+            b"\x04\x08\x46\x1c\x3f\xf6": 9999.99,
+            b"\x04\x08\xbf\x80\x00\x00": -1.0,
+            b"\x04\x08\xbf\x8c\xcc\xcd": -1.1,
+            b"\x04\x08\xc0\x48\xf5\xc3": -3.14,
+            b"\x04\x08\xc6\x1c\x3f\xf6": -9999.99,
         }
         self.validate_type_decoding("float", floats)
 
-    def test_int32(self):
+    def test_int32(self) -> None:
         int32 = {
             b"\x00\x01": 0,
             b"\x04\x01\xff\xff\xff\xff": -1,
@@ -68,7 +66,7 @@ class TestDecoder(unittest.TestCase):
         }
         self.validate_type_decoding("int32", int32)
 
-    def test_map(self):
+    def test_map(self) -> None:
         maps = {
             b"\xe0": {},
             b"\xe1\x42\x65\x6e\x43\x46\x6f\x6f": {"en": "Foo"},
@@ -87,7 +85,7 @@ class TestDecoder(unittest.TestCase):
         }
         self.validate_type_decoding("maps", maps)
 
-    def test_pointer(self):
+    def test_pointer(self) -> None:
         pointers = {
             b"\x20\x00": 0,
             b"\x20\x05": 5,
@@ -106,7 +104,7 @@ class TestDecoder(unittest.TestCase):
     strings = {
         b"\x40": "",
         b"\x41\x31": "1",
-        b"\x43\xE4\xBA\xBA": "人",
+        b"\x43\xe4\xba\xba": "人",
         (
             b"\x5b\x31\x32\x33\x34"
             b"\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35"
@@ -135,17 +133,17 @@ class TestDecoder(unittest.TestCase):
         b"\x5f\x00\x10\x53" + 70000 * b"\x78": "x" * 70000,
     }
 
-    def test_string(self):
+    def test_string(self) -> None:
         self.validate_type_decoding("string", self.strings)
 
-    def test_byte(self):
+    def test_byte(self) -> None:
         b = {
             bytes([0xC0 ^ k[0]]) + k[1:]: v.encode("utf-8")
             for k, v in self.strings.items()
         }
         self.validate_type_decoding("byte", b)
 
-    def test_uint16(self):
+    def test_uint16(self) -> None:
         uint16 = {
             b"\xa0": 0,
             b"\xa1\xff": 255,
@@ -155,7 +153,7 @@ class TestDecoder(unittest.TestCase):
         }
         self.validate_type_decoding("uint16", uint16)
 
-    def test_uint32(self):
+    def test_uint32(self) -> None:
         uint32 = {
             b"\xc0": 0,
             b"\xc1\xff": 255,
@@ -167,7 +165,7 @@ class TestDecoder(unittest.TestCase):
         }
         self.validate_type_decoding("uint32", uint32)
 
-    def generate_large_uint(self, bits):
+    def generate_large_uint(self, bits) -> dict:
         ctrl_byte = b"\x02" if bits == 64 else b"\x03"
         uints = {
             b"\x00" + ctrl_byte: 0,
@@ -180,17 +178,17 @@ class TestDecoder(unittest.TestCase):
             uints[input] = expected
         return uints
 
-    def test_uint64(self):
+    def test_uint64(self) -> None:
         self.validate_type_decoding("uint64", self.generate_large_uint(64))
 
-    def test_uint128(self):
+    def test_uint128(self) -> None:
         self.validate_type_decoding("uint128", self.generate_large_uint(128))
 
-    def validate_type_decoding(self, type, tests):
+    def validate_type_decoding(self, type, tests) -> None:
         for input, expected in tests.items():
             self.check_decoding(type, input, expected)
 
-    def check_decoding(self, type, input, expected, name=None):
+    def check_decoding(self, type, input, expected, name=None) -> None:
         name = name or expected
         db = mmap.mmap(-1, len(input))
         db.write(input)
@@ -206,7 +204,7 @@ class TestDecoder(unittest.TestCase):
         else:
             self.assertEqual(expected, actual, type)
 
-    def test_real_pointers(self):
+    def test_real_pointers(self) -> None:
         with open("tests/data/test-data/maps-with-pointers.raw", "r+b") as db_file:
             mm = mmap.mmap(db_file.fileno(), 0)
             decoder = Decoder(mm, 0)

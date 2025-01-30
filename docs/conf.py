@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # maxminddb documentation build configuration file, created by
 # sphinx-quickstart on Tue Apr  9 13:34:57 2013.
@@ -12,8 +11,8 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.abspath(".."))
 import maxminddb
