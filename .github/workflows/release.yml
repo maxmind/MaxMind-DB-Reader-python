@@ -18,7 +18,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-13, macos-14, ubuntu-latest, windows-latest]
+        os: [macos-13, macos-14, ubuntu-24.04-arm, ubuntu-latest, windows-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +27,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up QEMU
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && runner.arch == 'X64'
         uses: docker/setup-qemu-action@v3
         with:
           platforms: all
@@ -37,9 +37,10 @@ jobs:
         env:
           CIBW_BUILD_VERBOSITY: 1
           MAXMINDDB_REQUIRE_EXTENSION: 1
-          # configure cibuildwheel to build native archs ('auto'), and some
-          # emulated ones
-          CIBW_ARCHS_LINUX: auto aarch64
+          # configure cibuildwheel on Linux to build native archs ('auto'),
+          # and to split the remaining architectures between the x86_64 and
+          # ARM runners
+          CIBW_ARCHS_LINUX: ${{ runner.arch == 'X64' && 'auto ppc64le s390x' || 'auto' }}
 
       - uses: actions/upload-artifact@v4
         with:
