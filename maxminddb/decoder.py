@@ -1,10 +1,4 @@
-"""
-maxminddb.decoder
-~~~~~~~~~~~~~~~~~
-
-This package contains code for decoding the MaxMind DB data section.
-
-"""
+"""Decoder for the MaxMind DB data section."""
 
 import struct
 from typing import Dict, List, Tuple, Union, cast

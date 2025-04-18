@@ -1,10 +1,4 @@
-"""
-maxminddb.extension
-~~~~~~~~~~~~~~~~
-
-This module contains the C extension database reader and related classes.
-
-"""
+"""C extension database reader and related classes."""
 
 # pylint: disable=E0601,E0602
 from ipaddress import IPv4Address, IPv6Address

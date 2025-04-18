@@ -1,10 +1,4 @@
-"""
-maxminddb.reader
-~~~~~~~~~~~~~~~~
-
-This module contains the pure Python database reader and related classes.
-
-"""
+"""Pure-Python reader for the MaxMind DB file format."""
 
 try:
     import mmap
