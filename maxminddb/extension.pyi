@@ -5,7 +5,7 @@ from ipaddress import IPv4Address, IPv6Address
 from os import PathLike
 from typing import IO, Any, AnyStr, Optional, Union
 
-from maxminddb import MODE_AUTO
+from maxminddb.const import MODE_AUTO
 from maxminddb.types import Record
 
 class Reader:
