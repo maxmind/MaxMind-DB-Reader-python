@@ -3,9 +3,11 @@
 History
 -------
 
-2.6.4
+2.7.0
 ++++++++++++++++++
 
+* IMPORTANT: Python 3.9 or greater is required. If you are using an older
+  version, please use an earlier release.
 * The vendored ``libmaxminddb`` has been updated to 1.12.2.
 * The C extension now checks that the database metadata lookup was
   successful.
