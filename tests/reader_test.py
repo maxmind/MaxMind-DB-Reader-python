@@ -6,7 +6,7 @@ import os
 import pathlib
 import threading
 import unittest
-from typing import Type, Union, cast
+from typing import Union, cast
 from unittest import mock
 
 import maxminddb
@@ -43,8 +43,8 @@ def get_reader_from_file_descriptor(filepath, mode) -> Reader:
 class BaseTestReader(unittest.TestCase):
     mode: int
     reader_class: Union[
-        Type["maxminddb.extension.Reader"],
-        Type["maxminddb.reader.Reader"],
+        type["maxminddb.extension.Reader"],
+        type["maxminddb.reader.Reader"],
     ]
     use_ip_objects = False
 
@@ -482,10 +482,13 @@ class BaseTestReader(unittest.TestCase):
         reader = open_database(filename, self.mode)
         reader.close()
 
-        with self.assertRaisesRegex(
-            ValueError,
-            "Attempt to reopen a closed MaxMind DB",
-        ), reader:
+        with (
+            self.assertRaisesRegex(
+                ValueError,
+                "Attempt to reopen a closed MaxMind DB",
+            ),
+            reader,
+        ):
             pass
 
     def test_closed(self) -> None:
@@ -642,7 +645,8 @@ class BaseTestReader(unittest.TestCase):
 
 def has_maxminddb_extension() -> bool:
     return maxminddb.extension and hasattr(
-        maxminddb.extension, "Reader"
+        maxminddb.extension,
+        "Reader",
     )  # type:  ignore
 
 
@@ -673,8 +677,8 @@ class TestAutoReader(BaseTestReader):
     mode = MODE_AUTO
 
     reader_class: Union[
-        Type["maxminddb.extension.Reader"],
-        Type["maxminddb.reader.Reader"],
+        type["maxminddb.extension.Reader"],
+        type["maxminddb.reader.Reader"],
     ]
     if has_maxminddb_extension():
         reader_class = maxminddb.extension.Reader

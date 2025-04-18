@@ -8,9 +8,10 @@ except ImportError:
 
 import ipaddress
 import struct
+from collections.abc import Iterator
 from ipaddress import IPv4Address, IPv6Address
 from os import PathLike
-from typing import IO, Any, AnyStr, Dict, Iterator, List, Optional, Tuple, Union
+from typing import IO, Any, AnyStr, Optional, Union
 
 from maxminddb.const import MODE_AUTO, MODE_FD, MODE_FILE, MODE_MEMORY, MODE_MMAP
 from maxminddb.decoder import Decoder
@@ -22,8 +23,7 @@ _IPV4_MAX_NUM = 2**32
 
 
 class Reader:
-    """
-    A pure Python implementation of a reader for the MaxMind DB format. IP
+    """A pure Python implementation of a reader for the MaxMind DB format. IP
     addresses can be looked up using the ``get`` method.
     """
 
@@ -142,7 +142,7 @@ class Reader:
     def get_with_prefix_len(
         self,
         ip_address: Union[str, IPv6Address, IPv4Address],
-    ) -> Tuple[Optional[Record], int]:
+    ) -> tuple[Optional[Record], int]:
         """Return a tuple with the record and the associated prefix length.
 
         Arguments:
@@ -196,7 +196,7 @@ class Reader:
             right = self._read_node(node, 1)
             yield from self._generate_children(right, depth, ip_acc | 1)
 
-    def _find_address_in_tree(self, packed: bytearray) -> Tuple[int, int]:
+    def _find_address_in_tree(self, packed: bytearray) -> tuple[int, int]:
         bit_count = len(packed) * 8
         node = self._start_node(bit_count)
         node_count = self._metadata.node_count
@@ -297,7 +297,7 @@ class Metadata:
     A string identifying the database type, e.g., "GeoIP2-City".
     """
 
-    description: Dict[str, str]
+    description: dict[str, str]
     """
     A map from locales to text descriptions of the database.
     """
@@ -309,7 +309,7 @@ class Metadata:
     both IPv4 and IPv6 lookups.
     """
 
-    languages: List[str]
+    languages: list[str]
     """
     A list of locale codes supported by the databse.
     """
