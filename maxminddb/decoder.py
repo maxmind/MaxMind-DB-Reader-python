@@ -1,13 +1,7 @@
-"""
-maxminddb.decoder
-~~~~~~~~~~~~~~~~~
-
-This package contains code for decoding the MaxMind DB data section.
-
-"""
+"""Decoder for the MaxMind DB data section."""
 
 import struct
-from typing import Dict, List, Tuple, Union, cast
+from typing import Union, cast
 
 try:
     # pylint: disable=unused-import
@@ -43,35 +37,35 @@ class Decoder:  # pylint: disable=too-few-public-methods
         self._buffer = database_buffer
         self._pointer_base = pointer_base
 
-    def _decode_array(self, size: int, offset: int) -> Tuple[List[Record], int]:
+    def _decode_array(self, size: int, offset: int) -> tuple[list[Record], int]:
         array = []
         for _ in range(size):
             (value, offset) = self.decode(offset)
             array.append(value)
         return array, offset
 
-    def _decode_boolean(self, size: int, offset: int) -> Tuple[bool, int]:
+    def _decode_boolean(self, size: int, offset: int) -> tuple[bool, int]:
         return size != 0, offset
 
-    def _decode_bytes(self, size: int, offset: int) -> Tuple[bytes, int]:
+    def _decode_bytes(self, size: int, offset: int) -> tuple[bytes, int]:
         new_offset = offset + size
         return self._buffer[offset:new_offset], new_offset
 
-    def _decode_double(self, size: int, offset: int) -> Tuple[float, int]:
+    def _decode_double(self, size: int, offset: int) -> tuple[float, int]:
         self._verify_size(size, 8)
         new_offset = offset + size
         packed_bytes = self._buffer[offset:new_offset]
         (value,) = struct.unpack(b"!d", packed_bytes)
         return value, new_offset
 
-    def _decode_float(self, size: int, offset: int) -> Tuple[float, int]:
+    def _decode_float(self, size: int, offset: int) -> tuple[float, int]:
         self._verify_size(size, 4)
         new_offset = offset + size
         packed_bytes = self._buffer[offset:new_offset]
         (value,) = struct.unpack(b"!f", packed_bytes)
         return value, new_offset
 
-    def _decode_int32(self, size: int, offset: int) -> Tuple[int, int]:
+    def _decode_int32(self, size: int, offset: int) -> tuple[int, int]:
         if size == 0:
             return 0, offset
         new_offset = offset + size
@@ -82,15 +76,15 @@ class Decoder:  # pylint: disable=too-few-public-methods
         (value,) = struct.unpack(b"!i", packed_bytes)
         return value, new_offset
 
-    def _decode_map(self, size: int, offset: int) -> Tuple[Dict[str, Record], int]:
-        container: Dict[str, Record] = {}
+    def _decode_map(self, size: int, offset: int) -> tuple[dict[str, Record], int]:
+        container: dict[str, Record] = {}
         for _ in range(size):
             (key, offset) = self.decode(offset)
             (value, offset) = self.decode(offset)
-            container[cast(str, key)] = value
+            container[cast("str", key)] = value
         return container, offset
 
-    def _decode_pointer(self, size: int, offset: int) -> Tuple[Record, int]:
+    def _decode_pointer(self, size: int, offset: int) -> tuple[Record, int]:
         pointer_size = (size >> 3) + 1
 
         buf = self._buffer[offset : offset + pointer_size]
@@ -113,12 +107,12 @@ class Decoder:  # pylint: disable=too-few-public-methods
         (value, _) = self.decode(pointer)
         return value, new_offset
 
-    def _decode_uint(self, size: int, offset: int) -> Tuple[int, int]:
+    def _decode_uint(self, size: int, offset: int) -> tuple[int, int]:
         new_offset = offset + size
         uint_bytes = self._buffer[offset:new_offset]
         return int.from_bytes(uint_bytes, "big"), new_offset
 
-    def _decode_utf8_string(self, size: int, offset: int) -> Tuple[str, int]:
+    def _decode_utf8_string(self, size: int, offset: int) -> tuple[str, int]:
         new_offset = offset + size
         return self._buffer[offset:new_offset].decode("utf-8"), new_offset
 
@@ -138,7 +132,7 @@ class Decoder:  # pylint: disable=too-few-public-methods
         15: _decode_float,
     }
 
-    def decode(self, offset: int) -> Tuple[Record, int]:
+    def decode(self, offset: int) -> tuple[Record, int]:
         """Decode a section of the data section starting at offset.
 
         Arguments:
@@ -162,7 +156,7 @@ class Decoder:  # pylint: disable=too-few-public-methods
         (size, new_offset) = self._size_from_ctrl_byte(ctrl_byte, new_offset, type_num)
         return decoder(self, size, new_offset)
 
-    def _read_extended(self, offset: int) -> Tuple[int, int]:
+    def _read_extended(self, offset: int) -> tuple[int, int]:
         next_byte = self._buffer[offset]
         type_num = next_byte + 7
         if type_num < 7:
@@ -185,7 +179,7 @@ class Decoder:  # pylint: disable=too-few-public-methods
         ctrl_byte: int,
         offset: int,
         type_num: int,
-    ) -> Tuple[int, int]:
+    ) -> tuple[int, int]:
         size = ctrl_byte & 0x1F
         if type_num == 1 or size < 29:
             return size, offset

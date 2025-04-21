@@ -1,17 +1,11 @@
-"""
-maxminddb.extension
-~~~~~~~~~~~~~~~~
-
-This module contains the C extension database reader and related classes.
-
-"""
+"""C extension database reader and related classes."""
 
 # pylint: disable=E0601,E0602
 from ipaddress import IPv4Address, IPv6Address
 from os import PathLike
-from typing import IO, Any, AnyStr, Optional, Tuple, Union
+from typing import IO, Any, AnyStr, Optional, Union
 
-from maxminddb import MODE_AUTO
+from maxminddb.const import MODE_AUTO
 from maxminddb.types import Record
 
 class Reader:
@@ -50,7 +44,7 @@ class Reader:
     def get_with_prefix_len(
         self,
         ip_address: Union[str, IPv6Address, IPv4Address],
-    ) -> Tuple[Optional[Record], int]:
+    ) -> tuple[Optional[Record], int]:
         """Return a tuple with the record and the associated prefix length
 
         Arguments:

@@ -1,3 +1,5 @@
+"""Module for reading MaxMind DB files."""
+
 # pylint:disable=C0111
 import os
 from typing import IO, AnyStr, Union, cast

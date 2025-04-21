@@ -97,7 +97,7 @@ invalid IP address or an IPv6 address in an IPv4 database.
 Requirements
 ------------
 
-This code requires Python 3.8+. Older versions are not supported. The C
+This code requires Python 3.9+. Older versions are not supported. The C
 extension requires CPython.
 
 Versioning

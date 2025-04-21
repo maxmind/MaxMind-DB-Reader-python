@@ -8,19 +8,27 @@
 
 .. include:: ../README.rst
 
-=======
-Modules
-=======
+======
+Module
+======
 
 .. automodule:: maxminddb
     :members:
     :undoc-members:
     :show-inheritance:
 
+======
+Errors
+======
+
 .. automodule:: maxminddb.errors
     :members:
     :undoc-members:
     :show-inheritance:
+
+===============
+Database Reader
+===============
 
 .. automodule:: maxminddb.reader
     :members:
