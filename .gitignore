@@ -4,6 +4,7 @@
 *.so
 *.sw?
 *~
+.clangd
 .coverage
 .eggs
 .idea
