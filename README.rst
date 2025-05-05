@@ -14,7 +14,7 @@ subnets (IPv4 or IPv6).
 Installation
 ------------
 
-To install ``maxminddb```, type:
+To install ``maxminddb``, type:
 
 .. code-block:: bash
 
