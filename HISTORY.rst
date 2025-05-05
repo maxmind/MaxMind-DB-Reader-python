@@ -11,6 +11,8 @@ History
 * The vendored ``libmaxminddb`` has been updated to 1.12.2.
 * The C extension now checks that the database metadata lookup was
   successful.
+* A theoretical segmentation fault with the C extension when doing lookups
+  on a corrupt or invalid database was fixed.
 
 2.6.3 (2025-01-09)
 ++++++++++++++++++
