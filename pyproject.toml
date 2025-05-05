@@ -1,6 +1,6 @@
 [project]
 name = "maxminddb"
-version = "2.6.3"
+version = "2.7.0"
 description = "Reader for the MaxMind DB format"
 authors = [
     {name = "Gregory Oschwald", email = "goschwald@maxmind.com"},
