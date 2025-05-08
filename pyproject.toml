@@ -36,6 +36,7 @@ dev = [
 ]
 lint = [
     "black>=25.1.0",
+    "flake8>=7.2.0",
     "mypy>=1.15.0",
     "pylint>=3.3.6",
     "ruff>=0.11.6",
@@ -49,8 +50,12 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+include-package-data = true
+packages = ["maxminddb"]
+
 [tool.setuptools.package-data]
-maxminddb = ["py.typed"]
+maxminddb = ["extension.pyi", "py.typed"]
 
 [tool.black]
 # src is showing up in our GitHub linting builds. It seems to
@@ -82,3 +87,43 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ANN201", "D"]
+
+[tool.tox]
+env_list = [
+    "3.9",
+    "3.10",
+    "3.11",
+    "3.12",
+    "3.13",
+    "lint",
+]
+skip_missing_interpreters = false
+
+[tool.tox.env_run_base]
+dependency_groups = [
+  "dev",
+]
+commands = [
+    ["pytest", "tests"],
+]
+
+[tool.tox.env.lint]
+description = "Code linting"
+python = "3.13"
+dependency_groups = [
+    "dev",
+    "lint",
+]
+commands = [
+    ["black", "--check", "--diff", "."],
+    ["flake8", "maxminddb"],
+    ["mypy", "maxminddb", "tests"],
+    ["pylint", "maxminddb"],
+]
+
+[tool.tox.gh.python]
+"3.13" = ["3.13", "lint"]
+"3.12" = ["3.12"]
+"3.11" = ["3.11"]
+"3.10" = ["3.10"]
+"3.9" = ["3.9"]
