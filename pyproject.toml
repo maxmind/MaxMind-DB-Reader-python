@@ -50,8 +50,12 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+include-package-data = true
+packages = ["maxminddb"]
+
 [tool.setuptools.package-data]
-maxminddb = ["py.typed"]
+maxminddb = ["extension.pyi", "py.typed"]
 
 [tool.black]
 # src is showing up in our GitHub linting builds. It seems to
