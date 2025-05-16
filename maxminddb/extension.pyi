@@ -79,7 +79,7 @@ class Metadata:
 
     languages: list[str]
     """
-    A list of locale codes supported by the databse.
+    A list of locale codes supported by the database.
     """
 
     node_count: int

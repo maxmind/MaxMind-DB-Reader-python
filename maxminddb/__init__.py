@@ -42,16 +42,16 @@ def open_database(
     """Open a MaxMind DB database.
 
     Arguments:
-        database -- A path to a valid MaxMind DB file such as a GeoIP2 database
-                    file, or a file descriptor in the case of MODE_FD.
-        mode -- mode to open the database with. Valid mode are:
-            * MODE_MMAP_EXT - use the C extension with memory map.
-            * MODE_MMAP - read from memory map. Pure Python.
-            * MODE_FILE - read database as standard file. Pure Python.
-            * MODE_MEMORY - load database into memory. Pure Python.
-            * MODE_FD - the param passed via database is a file descriptor, not
-                        a path. This mode implies MODE_MEMORY.
-            * MODE_AUTO - tries MODE_MMAP_EXT, MODE_MMAP, MODE_FILE in that
+        database: A path to a valid MaxMind DB file such as a GeoIP2 database
+                  file, or a file descriptor in the case of MODE_FD.
+        mode: mode to open the database with. Valid mode are:
+              * MODE_MMAP_EXT - use the C extension with memory map.
+              * MODE_MMAP - read from memory map. Pure Python.
+              * MODE_FILE - read database as standard file. Pure Python.
+              * MODE_MEMORY - load database into memory. Pure Python.
+              * MODE_FD - the param passed via database is a file descriptor, not
+                          a path. This mode implies MODE_MEMORY.
+              * MODE_AUTO - tries MODE_MMAP_EXT, MODE_MMAP, MODE_FILE in that
                           order. Default mode.
 
     """

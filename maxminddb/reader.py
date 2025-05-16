@@ -23,8 +23,9 @@ _IPV4_MAX_NUM = 2**32
 
 
 class Reader:
-    """A pure Python implementation of a reader for the MaxMind DB format. IP
-    addresses can be looked up using the ``get`` method.
+    """A pure Python implementation of a reader for the MaxMind DB format.
+
+    IP addresses can be looked up using the ``get`` method.
     """
 
     _DATA_SECTION_SEPARATOR_SIZE = 16
@@ -45,15 +46,15 @@ class Reader:
         """Reader for the MaxMind DB file format.
 
         Arguments:
-        database -- A path to a valid MaxMind DB file such as a GeoIP2 database
-                    file, or a file descriptor in the case of MODE_FD.
-        mode -- mode to open the database with. Valid mode are:
-            * MODE_MMAP - read from memory map.
-            * MODE_FILE - read database as standard file.
-            * MODE_MEMORY - load database into memory.
-            * MODE_AUTO - tries MODE_MMAP and then MODE_FILE. Default.
-            * MODE_FD - the param passed via database is a file descriptor, not
-                        a path. This mode implies MODE_MEMORY.
+            database: A path to a valid MaxMind DB file such as a GeoIP2 database
+                      file, or a file descriptor in the case of MODE_FD.
+            mode: mode to open the database with. Valid mode are:
+                  * MODE_MMAP - read from memory map.
+                  * MODE_FILE - read database as standard file.
+                  * MODE_MEMORY - load database into memory.
+                  * MODE_AUTO - tries MODE_MMAP and then MODE_FILE. Default.
+                  * MODE_FD - the param passed via database is a file descriptor, not
+                              a path. This mode implies MODE_MEMORY.
 
         """
         filename: Any
@@ -140,7 +141,7 @@ class Reader:
         """Return the record for the ip_address in the MaxMind DB.
 
         Arguments:
-        ip_address -- an IP address in the standard string notation
+            ip_address: an IP address in the standard string notation
 
         """
         (record, _) = self.get_with_prefix_len(ip_address)
@@ -153,7 +154,7 @@ class Reader:
         """Return a tuple with the record and the associated prefix length.
 
         Arguments:
-        ip_address -- an IP address in the standard string notation
+            ip_address: an IP address in the standard string notation
 
         """
         if isinstance(ip_address, str):
@@ -326,7 +327,7 @@ class Metadata:
 
     languages: list[str]
     """
-    A list of locale codes supported by the databse.
+    A list of locale codes supported by the database.
     """
 
     node_count: int
@@ -340,7 +341,7 @@ class Metadata:
     """
 
     def __init__(self, **kwargs) -> None:
-        """Creates new Metadata object. kwargs are key/value pairs from spec."""
+        """Create new Metadata object. kwargs are key/value pairs from spec."""
         # Although I could just update __dict__, that is less obvious and it
         # doesn't work well with static analysis tools and some IDEs
         self.node_count = kwargs["node_count"]

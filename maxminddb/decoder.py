@@ -25,12 +25,12 @@ class Decoder:  # pylint: disable=too-few-public-methods
         pointer_base: int = 0,
         pointer_test: bool = False,
     ) -> None:
-        """Created a Decoder for a MaxMind DB.
+        """Create a Decoder for a MaxMind DB.
 
         Arguments:
-        database_buffer -- an mmap'd MaxMind DB file.
-        pointer_base -- the base number to use when decoding a pointer
-        pointer_test -- used for internal unit testing of pointer code
+            database_buffer: an mmap'd MaxMind DB file.
+            pointer_base: the base number to use when decoding a pointer
+            pointer_test: used for internal unit testing of pointer code
 
         """
         self._pointer_test = pointer_test
@@ -136,7 +136,7 @@ class Decoder:  # pylint: disable=too-few-public-methods
         """Decode a section of the data section starting at offset.
 
         Arguments:
-        offset -- the location of the data structure to decode
+            offset: the location of the data structure to decode
 
         """
         new_offset = offset + 1
