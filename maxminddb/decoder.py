@@ -23,7 +23,7 @@ class Decoder:  # pylint: disable=too-few-public-methods
         self,
         database_buffer: Union[FileBuffer, "mmap.mmap", bytes],
         pointer_base: int = 0,
-        pointer_test: bool = False,
+        pointer_test: bool = False,  # noqa: FBT001, FBT002
     ) -> None:
         """Create a Decoder for a MaxMind DB.
 

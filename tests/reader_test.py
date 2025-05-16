@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import ipaddress
 import multiprocessing
 import os
@@ -180,14 +178,15 @@ class BaseTestReader(unittest.TestCase):
                 self.mode,
             ) as reader:
                 (record, prefix_len) = reader.get_with_prefix_len(
-                    cast("str", test["ip"])
+                    cast("str", test["ip"]),
                 )
 
                 self.assertEqual(
                     prefix_len,
                     test["expected_prefix_len"],
-                    f"expected prefix_len of {test['expected_prefix_len']} for {test['ip']}"
-                    + f" in {test['file_name']} but got {prefix_len}",
+                    f"expected prefix_len of {test['expected_prefix_len']}"
+                    f" for {test['ip']}"
+                    f" in {test['file_name']} but got {prefix_len}",
                 )
                 self.assertEqual(
                     record,
@@ -241,7 +240,10 @@ class BaseTestReader(unittest.TestCase):
 
         for record_size in [24, 28, 32]:
             for test in tests:
-                f = f"tests/data/test-data/MaxMind-DB-test-{test['database']}-{record_size}.mmdb"
+                f = (
+                    f"tests/data/test-data/MaxMind-DB-test-{test['database']}"
+                    f"-{record_size}.mmdb"
+                )
                 reader = open_database(f, self.mode)
                 networks = [str(n) for (n, _) in reader]
                 self.assertEqual(networks, test["expected"], f)
@@ -326,7 +328,7 @@ class BaseTestReader(unittest.TestCase):
                 "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
                 MODE_MMAP_EXT,
             )
-        maxminddb._extension = real_extension
+        maxminddb._extension = real_extension  # noqa: SLF001
 
     def test_broken_database(self) -> None:
         reader = open_database(
@@ -455,10 +457,8 @@ class BaseTestReader(unittest.TestCase):
             self.mode,
         )
         reader.close()
-        self.assertIsNone(
-            reader.close(),
-            "Double close does not throw an exception",  # type:  ignore
-        )
+        # Check that calling close again doesn't raise an exception
+        reader.close()
 
     def test_closed_get(self) -> None:
         if self.mode in [MODE_MEMORY, MODE_FD]:
@@ -503,10 +503,6 @@ class BaseTestReader(unittest.TestCase):
         reader.close()
         self.assertEqual(reader.closed, True)
 
-    # XXX - Figure out whether we want to have the same behavior on both the
-    #       extension and the pure Python reader. If we do, the pure Python
-    #       reader will need to throw an exception or the extension will need
-    #       to keep the metadata in memory.
     def test_closed_metadata(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
@@ -535,18 +531,18 @@ class BaseTestReader(unittest.TestCase):
         def test_threading(self):
             self._check_concurrency(threading.Thread)
 
-        def _check_concurrency(self, worker_class) -> None:
+        def _check_concurrency(self, worker_class) -> None:  # noqa: ANN001
             reader = open_database(
                 "tests/data/test-data/GeoIP2-Domain-Test.mmdb",
                 self.mode,
             )
 
-            def lookup(pipe) -> None:
+            def lookup(pipe) -> None:  # noqa: ANN001
                 try:
                     for i in range(32):
                         reader.get(self.ipf(f"65.115.240.{i}"))
                     pipe.send(1)
-                except:
+                except:  # noqa: E722
                     pipe.send(0)
                 finally:
                     if worker_class is self.mp.Process:  # type: ignore[attr-defined]
@@ -554,7 +550,7 @@ class BaseTestReader(unittest.TestCase):
                     pipe.close()
 
             pipes = [self.mp.Pipe() for _ in range(32)]
-            procs = [worker_class(target=lookup, args=(c,)) for (p, c) in pipes]
+            procs = [worker_class(target=lookup, args=(c,)) for (_, c) in pipes]
             for proc in procs:
                 proc.start()
             for proc in procs:

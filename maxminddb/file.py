@@ -18,7 +18,7 @@ class FileBuffer:
     def __init__(self, database: str) -> None:
         """Create FileBuffer."""
         # pylint: disable=consider-using-with
-        self._handle = open(database, "rb")
+        self._handle = open(database, "rb")  # noqa: SIM115
         self._size = os.fstat(self._handle.fileno()).st_size
         if not hasattr(os, "pread"):
             self._lock = Lock()

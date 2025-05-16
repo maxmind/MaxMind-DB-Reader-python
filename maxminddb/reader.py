@@ -6,6 +6,7 @@ except ImportError:
     # pylint: disable=invalid-name
     mmap = None  # type: ignore[assignment]
 
+import contextlib
 import ipaddress
 import struct
 from collections.abc import Iterator
@@ -270,14 +271,13 @@ class Reader:
         return data
 
     def close(self) -> None:
-        """Closes the MaxMind DB file and returns the resources to the system."""
-        try:
-            self._buffer.close()  # type: ignore
-        except AttributeError:
-            pass
+        """Close the MaxMind DB file and returns the resources to the system."""
+        with contextlib.suppress(AttributeError):
+            self._buffer.close()  # type: ignore[union-attr]
+
         self.closed = True
 
-    def __exit__(self, *args) -> None:
+    def __exit__(self, *_) -> None:  # noqa: ANN002
         self.close()
 
     def __enter__(self) -> "Reader":
