@@ -28,12 +28,12 @@ jobs:
 
       - name: Set up QEMU
         if: runner.os == 'Linux' && runner.arch == 'X64'
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # 3.6.0
         with:
           platforms: all
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.23.3
+        uses: pypa/cibuildwheel@faf86a6ed7efa889faf6996aa23820831055001a # 2.23.3
         env:
           CIBW_BUILD_VERBOSITY: 1
           MAXMINDDB_REQUIRE_EXTENSION: 1
@@ -78,4 +78,4 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc # 1.12.4
