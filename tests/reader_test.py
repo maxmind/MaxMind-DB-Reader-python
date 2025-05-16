@@ -239,7 +239,7 @@ class BaseTestReader(unittest.TestCase):
 
         for record_size in [24, 28, 32]:
             for test in tests:
-                f = f'tests/data/test-data/MaxMind-DB-test-{test["database"]}-{record_size}.mmdb'
+                f = f"tests/data/test-data/MaxMind-DB-test-{test['database']}-{record_size}.mmdb"
                 reader = open_database(f, self.mode)
                 networks = [str(n) for (n, _) in reader]
                 self.assertEqual(networks, test["expected"], f)
@@ -454,7 +454,8 @@ class BaseTestReader(unittest.TestCase):
         )
         reader.close()
         self.assertIsNone(
-            reader.close(), "Double close does not throw an exception"  # type:  ignore
+            reader.close(),
+            "Double close does not throw an exception",  # type:  ignore
         )
 
     def test_closed_get(self) -> None:

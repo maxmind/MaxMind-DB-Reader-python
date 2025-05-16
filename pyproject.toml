@@ -35,7 +35,6 @@ dev = [
     "pytest>=8.3.5",
 ]
 lint = [
-    "black>=25.1.0",
     "flake8>=7.2.0",
     "mypy>=1.15.0",
     "pylint>=3.3.6",
@@ -57,11 +56,6 @@ packages = ["maxminddb"]
 [tool.setuptools.package-data]
 maxminddb = ["extension.pyi", "py.typed"]
 
-[tool.black]
-# src is showing up in our GitHub linting builds. It seems to
-# contain deps.
-extend-exclude = '^/src/'
-
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
@@ -70,9 +64,6 @@ ignore = [
 
     # documenting magic methods
     "D105",
-
-    # Line length. We let black handle this for now.
-    "E501",
 
     # Don't bother with future imports for type annotations
     "FA100",
@@ -115,7 +106,7 @@ dependency_groups = [
     "lint",
 ]
 commands = [
-    ["black", "--check", "--diff", "."],
+    ["ruff", "format", "--check", "--diff", "."],
     ["flake8", "maxminddb"],
     ["mypy", "maxminddb", "tests"],
     ["pylint", "maxminddb"],

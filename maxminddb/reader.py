@@ -185,8 +185,11 @@ class Reader:
             ip_acc <<= bits - depth
             if ip_acc <= _IPV4_MAX_NUM and bits == 128:
                 depth -= 96
-            yield ipaddress.ip_network((ip_acc, depth)), self._resolve_data_pointer(
-                node,
+            yield (
+                ipaddress.ip_network((ip_acc, depth)),
+                self._resolve_data_pointer(
+                    node,
+                ),
             )
         elif node < node_count:
             left = self._read_node(node, 0)
