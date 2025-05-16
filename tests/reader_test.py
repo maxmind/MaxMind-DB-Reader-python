@@ -14,7 +14,7 @@ import maxminddb
 try:
     import maxminddb.extension
 except ImportError:
-    maxminddb.extension = None  # type: ignore
+    maxminddb.extension = None  # type: ignore[assignment]
 
 from maxminddb import InvalidDatabaseError, open_database
 from maxminddb.const import (
@@ -28,7 +28,7 @@ from maxminddb.const import (
 from maxminddb.reader import Reader
 
 
-def get_reader_from_file_descriptor(filepath, mode) -> Reader:
+def get_reader_from_file_descriptor(filepath: str, mode: int) -> Reader:
     """Patches open_database() for class TestFDReader()."""
     if mode == MODE_FD:
         with open(filepath, "rb") as mmdb_fh:
@@ -53,7 +53,7 @@ class BaseTestReader(unittest.TestCase):
     if os.name != "nt":
         mp = multiprocessing.get_context("fork")
 
-    def ipf(self, ip) -> Union[ipaddress.IPv4Address, ipaddress.IPv6Address]:
+    def ipf(self, ip: str) -> Union[ipaddress.IPv4Address, ipaddress.IPv6Address, str]:
         if self.use_ip_objects:
             return ipaddress.ip_address(ip)
         return ip
@@ -179,7 +179,9 @@ class BaseTestReader(unittest.TestCase):
                 "tests/data/test-data/" + cast("str", test["file_name"]),
                 self.mode,
             ) as reader:
-                (record, prefix_len) = reader.get_with_prefix_len(cast("str", test["ip"]))
+                (record, prefix_len) = reader.get_with_prefix_len(
+                    cast("str", test["ip"])
+                )
 
                 self.assertEqual(
                     prefix_len,
@@ -314,8 +316,8 @@ class BaseTestReader(unittest.TestCase):
             self.assertEqual(reader.metadata().database_type, "MaxMind DB Decoder Test")
 
     def test_no_extension_exception(self) -> None:
-        real_extension = maxminddb._extension
-        maxminddb._extension = None  # type: ignore
+        real_extension = maxminddb._extension  # noqa: SLF001
+        maxminddb._extension = None  # type: ignore[assignment]  # noqa: SLF001
         with self.assertRaisesRegex(
             ValueError,
             "MODE_MMAP_EXT requires the maxminddb.extension module to be available",
@@ -375,11 +377,11 @@ class BaseTestReader(unittest.TestCase):
 
     def test_too_many_constructor_args(self) -> None:
         with self.assertRaises(TypeError):
-            self.reader_class("README.md", self.mode, 1)  # type: ignore
+            self.reader_class("README.md", self.mode, 1)  # type: ignore[arg-type,call-arg]
 
     def test_bad_constructor_mode(self) -> None:
         with self.assertRaisesRegex(ValueError, r"Unsupported open mode \(100\)"):
-            self.reader_class("README.md", mode=100)  # type:  ignore
+            self.reader_class("README.md", mode=100)  # type:  ignore[arg-type]
 
     def test_no_constructor_args(self) -> None:
         with self.assertRaisesRegex(
@@ -389,7 +391,7 @@ class BaseTestReader(unittest.TestCase):
             r"takes at least 2 arguments|"
             r"function missing required argument \'database\' \(pos 1\)",
         ):
-            self.reader_class()  # type:  ignore
+            self.reader_class()  # type:  ignore[call-arg]
 
     def test_too_many_get_args(self) -> None:
         reader = open_database(
@@ -397,7 +399,7 @@ class BaseTestReader(unittest.TestCase):
             self.mode,
         )
         with self.assertRaises(TypeError):
-            reader.get(self.ipf("1.1.1.1"), "blah")  # type:  ignore
+            reader.get(self.ipf("1.1.1.1"), "blah")  # type:  ignore[call-arg]
         reader.close()
 
     def test_no_get_args(self) -> None:
@@ -406,7 +408,7 @@ class BaseTestReader(unittest.TestCase):
             self.mode,
         )
         with self.assertRaises(TypeError):
-            reader.get()  # type:  ignore
+            reader.get()  # type:  ignore[call-arg]
         reader.close()
 
     def test_incorrect_get_arg_type(self) -> None:
@@ -415,7 +417,7 @@ class BaseTestReader(unittest.TestCase):
             TypeError,
             "argument 1 must be a string or ipaddress object",
         ):
-            reader.get(1)  # type:  ignore
+            reader.get(1)  # type:  ignore[arg-type]
         reader.close()
 
     def test_metadata_args(self) -> None:
@@ -424,7 +426,7 @@ class BaseTestReader(unittest.TestCase):
             self.mode,
         )
         with self.assertRaises(TypeError):
-            reader.metadata("blah")  # type:  ignore
+            reader.metadata("blah")  # type:  ignore[call-arg]
         reader.close()
 
     def test_metadata_unknown_attribute(self) -> None:
@@ -437,7 +439,7 @@ class BaseTestReader(unittest.TestCase):
             AttributeError,
             "'Metadata' object has no attribute 'blah'",
         ):
-            metadata.blah  # type:  ignore
+            metadata.blah  # type:  ignore[attr-defined]  # noqa: B018
         reader.close()
 
     def test_close(self) -> None:
@@ -547,7 +549,7 @@ class BaseTestReader(unittest.TestCase):
                 except:
                     pipe.send(0)
                 finally:
-                    if worker_class is self.mp.Process:  # type: ignore
+                    if worker_class is self.mp.Process:  # type: ignore[attr-defined]
                         reader.close()
                     pipe.close()
 
@@ -560,11 +562,16 @@ class BaseTestReader(unittest.TestCase):
 
             reader.close()
 
-            count = sum([p.recv() for (p, c) in pipes])
+            count = sum([p.recv() for (p, _) in pipes])
 
             self.assertEqual(count, 32, "expected number of successful lookups")
 
-    def _check_metadata(self, reader, ip_version, record_size) -> None:
+    def _check_metadata(
+        self,
+        reader: Reader,
+        ip_version: int,
+        record_size: int,
+    ) -> None:
         metadata = reader.metadata()
 
         self.assertEqual(2, metadata.binary_format_major_version, "major version")
@@ -582,7 +589,7 @@ class BaseTestReader(unittest.TestCase):
 
         self.assertEqual(metadata.record_size, record_size)
 
-    def _check_ip_v4(self, reader, file_name) -> None:
+    def _check_ip_v4(self, reader: Reader, file_name: str) -> None:
         for i in range(6):
             address = "1.1.1." + str(pow(2, i))
             self.assertEqual(
@@ -612,7 +619,7 @@ class BaseTestReader(unittest.TestCase):
         for ip in ["1.1.1.33", "255.254.253.123"]:
             self.assertIsNone(reader.get(self.ipf(ip)))
 
-    def _check_ip_v6(self, reader, file_name) -> None:
+    def _check_ip_v6(self, reader: Reader, file_name: str) -> None:
         subnets = ["::1:ffff:ffff", "::2:0:0", "::2:0:40", "::2:0:50", "::2:0:58"]
 
         for address in subnets:
@@ -645,10 +652,10 @@ class BaseTestReader(unittest.TestCase):
 
 
 def has_maxminddb_extension() -> bool:
-    return maxminddb.extension and hasattr(
+    return maxminddb.extension is not None and hasattr(
         maxminddb.extension,
         "Reader",
-    )  # type:  ignore
+    )
 
 
 @unittest.skipIf(

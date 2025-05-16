@@ -1,9 +1,13 @@
-#!/usr/bin/env python
+from __future__ import annotations
 
 import mmap
 import unittest
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from maxminddb.decoder import Decoder
+
+if TYPE_CHECKING:
+    from _typeshed import SizedBuffer
 
 
 class TestDecoder(unittest.TestCase):
@@ -101,7 +105,7 @@ class TestDecoder(unittest.TestCase):
         }
         self.validate_type_decoding("pointers", pointers)
 
-    strings = {
+    strings: ClassVar = {
         b"\x40": "",
         b"\x41\x31": "1",
         b"\x43\xe4\xba\xba": "人",
@@ -165,7 +169,7 @@ class TestDecoder(unittest.TestCase):
         }
         self.validate_type_decoding("uint32", uint32)
 
-    def generate_large_uint(self, bits) -> dict:
+    def generate_large_uint(self, bits: int) -> dict:
         ctrl_byte = b"\x02" if bits == 64 else b"\x03"
         uints = {
             b"\x00" + ctrl_byte: 0,
@@ -174,8 +178,8 @@ class TestDecoder(unittest.TestCase):
         }
         for power in range(bits // 8 + 1):
             expected = 2 ** (8 * power) - 1
-            input = bytes([power]) + ctrl_byte + (b"\xff" * power)
-            uints[input] = expected
+            input_value = bytes([power]) + ctrl_byte + (b"\xff" * power)
+            uints[input_value] = expected
         return uints
 
     def test_uint64(self) -> None:
@@ -184,14 +188,20 @@ class TestDecoder(unittest.TestCase):
     def test_uint128(self) -> None:
         self.validate_type_decoding("uint128", self.generate_large_uint(128))
 
-    def validate_type_decoding(self, type, tests) -> None:
-        for input, expected in tests.items():
-            self.check_decoding(type, input, expected)
+    def validate_type_decoding(self, data_type: str, tests: dict) -> None:
+        for input_value, expected in tests.items():
+            self.check_decoding(data_type, input_value, expected)
 
-    def check_decoding(self, type, input, expected, name=None) -> None:
+    def check_decoding(
+        self,
+        data_type: str,
+        input_value: SizedBuffer,
+        expected: Any,  # noqa: ANN401
+        name: str | None = None,
+    ) -> None:
         name = name or expected
-        db = mmap.mmap(-1, len(input))
-        db.write(input)
+        db = mmap.mmap(-1, len(input_value))
+        db.write(input_value)
 
         decoder = Decoder(db, pointer_test=True)
         (
@@ -199,10 +209,10 @@ class TestDecoder(unittest.TestCase):
             _,
         ) = decoder.decode(0)
 
-        if type in ("float", "double"):
-            self.assertAlmostEqual(expected, actual, places=3, msg=type)
+        if data_type in ("float", "double"):
+            self.assertAlmostEqual(expected, actual, places=3, msg=data_type)
         else:
-            self.assertEqual(expected, actual, type)
+            self.assertEqual(expected, actual, data_type)
 
     def test_real_pointers(self) -> None:
         with open("tests/data/test-data/maps-with-pointers.raw", "r+b") as db_file:

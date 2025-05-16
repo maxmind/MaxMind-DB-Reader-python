@@ -1,13 +1,15 @@
 """For internal use only. It provides a slice-like file reader."""
 
+from __future__ import annotations
+
 import os
-from typing import Union
+from typing import overload
 
 try:
     # pylint: disable=no-name-in-module
     from multiprocessing import Lock
 except ImportError:
-    from threading import Lock  # type: ignore
+    from threading import Lock  # type: ignore[assignment]
 
 
 class FileBuffer:
@@ -20,11 +22,18 @@ class FileBuffer:
         if not hasattr(os, "pread"):
             self._lock = Lock()
 
-    def __getitem__(self, key: Union[slice, int]):
-        if isinstance(key, slice):
-            return self._read(key.stop - key.start, key.start)
-        if isinstance(key, int):
-            return self._read(1, key)[0]
+    @overload
+    def __getitem__(self, index: int) -> int: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> bytes: ...
+
+    def __getitem__(self, index: slice | int) -> bytes | int:
+        """Get item by index."""
+        if isinstance(index, slice):
+            return self._read(index.stop - index.start, index.start)
+        if isinstance(index, int):
+            return self._read(1, index)[0]
         msg = "Invalid argument type."
         raise TypeError(msg)
 
@@ -43,12 +52,12 @@ class FileBuffer:
         """Close file."""
         self._handle.close()
 
-    if hasattr(os, "pread"):
+    if hasattr(os, "pread"):  # type: ignore[attr-defined]
 
         def _read(self, buffersize: int, offset: int) -> bytes:
             """Read that uses pread."""
             # pylint: disable=no-member
-            return os.pread(self._handle.fileno(), buffersize, offset)  # type: ignore
+            return os.pread(self._handle.fileno(), buffersize, offset)  # type: ignore[attr-defined]
 
     else:
 

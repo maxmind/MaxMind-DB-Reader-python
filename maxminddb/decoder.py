@@ -1,14 +1,14 @@
 """Decoder for the MaxMind DB data section."""
 
 import struct
-from typing import Union, cast
+from typing import ClassVar, Union, cast
 
 try:
     # pylint: disable=unused-import
     import mmap
 except ImportError:
     # pylint: disable=invalid-name
-    mmap = None  # type: ignore
+    mmap = None  # type: ignore[assignment]
 
 
 from maxminddb.errors import InvalidDatabaseError
@@ -116,7 +116,7 @@ class Decoder:  # pylint: disable=too-few-public-methods
         new_offset = offset + size
         return self._buffer[offset:new_offset].decode("utf-8"), new_offset
 
-    _type_decoder = {
+    _type_decoder: ClassVar = {
         1: _decode_pointer,
         2: _decode_utf8_string,
         3: _decode_double,

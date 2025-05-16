@@ -4,7 +4,7 @@ try:
     import mmap
 except ImportError:
     # pylint: disable=invalid-name
-    mmap = None  # type: ignore
+    mmap = None  # type: ignore[assignment]
 
 import ipaddress
 import struct
@@ -58,24 +58,24 @@ class Reader:
         """
         filename: Any
         if (mode == MODE_AUTO and mmap) or mode == MODE_MMAP:
-            with open(database, "rb") as db_file:  # type: ignore
+            with open(database, "rb") as db_file:  # type: ignore[arg-type]
                 self._buffer = mmap.mmap(db_file.fileno(), 0, access=mmap.ACCESS_READ)
                 self._buffer_size = self._buffer.size()
             filename = database
         elif mode in (MODE_AUTO, MODE_FILE):
-            self._buffer = FileBuffer(database)  # type: ignore
+            self._buffer = FileBuffer(database)  # type: ignore[arg-type]
             self._buffer_size = self._buffer.size()
             filename = database
         elif mode == MODE_MEMORY:
-            with open(database, "rb") as db_file:  # type: ignore
+            with open(database, "rb") as db_file:  # type: ignore[arg-type]
                 buf = db_file.read()
                 self._buffer = buf
                 self._buffer_size = len(buf)
             filename = database
         elif mode == MODE_FD:
-            self._buffer = database.read()  # type: ignore
-            self._buffer_size = len(self._buffer)  # type: ignore
-            filename = database.name  # type: ignore
+            self._buffer = database.read()  # type: ignore[union-attr]
+            self._buffer_size = len(self._buffer)  # type: ignore[arg-type]
+            filename = database.name  # type: ignore[union-attr]
         else:
             msg = (
                 f"Unsupported open mode ({mode}). Only MODE_AUTO, MODE_FILE, "
@@ -185,7 +185,7 @@ class Reader:
     def __iter__(self) -> Iterator:
         return self._generate_children(0, 0, 0)
 
-    def _generate_children(self, node, depth, ip_acc) -> Iterator:
+    def _generate_children(self, node: int, depth: int, ip_acc: int) -> Iterator:
         if ip_acc != 0 and node == self._ipv4_start:
             # Skip nodes aliased to IPv4
             return
