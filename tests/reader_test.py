@@ -176,10 +176,10 @@ class BaseTestReader(unittest.TestCase):
 
         for test in tests:
             with open_database(
-                "tests/data/test-data/" + cast(str, test["file_name"]),
+                "tests/data/test-data/" + cast("str", test["file_name"]),
                 self.mode,
             ) as reader:
-                (record, prefix_len) = reader.get_with_prefix_len(cast(str, test["ip"]))
+                (record, prefix_len) = reader.get_with_prefix_len(cast("str", test["ip"]))
 
                 self.assertEqual(
                     prefix_len,
@@ -191,9 +191,9 @@ class BaseTestReader(unittest.TestCase):
                     record,
                     test["expected_record"],
                     "expected_record for "
-                    + cast(str, test["ip"])
+                    + cast("str", test["ip"])
                     + " in "
-                    + cast(str, test["file_name"]),
+                    + cast("str", test["file_name"]),
                 )
 
     def test_iterator(self) -> None:
@@ -249,7 +249,7 @@ class BaseTestReader(unittest.TestCase):
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
             self.mode,
         )
-        record = cast(dict, reader.get(self.ipf("::1.1.1.0")))
+        record = cast("dict", reader.get(self.ipf("::1.1.1.0")))
 
         self.assertEqual(record["array"], [1, 2, 3])
         self.assertEqual(record["boolean"], True)
@@ -724,7 +724,7 @@ class TestFDReader(BaseTestReader):
 class TestOldReader(unittest.TestCase):
     def test_old_reader(self) -> None:
         reader = maxminddb.Reader("tests/data/test-data/MaxMind-DB-test-decoder.mmdb")
-        record = cast(dict, reader.get("::1.1.1.0"))
+        record = cast("dict", reader.get("::1.1.1.0"))
 
         self.assertEqual(record["array"], [1, 2, 3])
         reader.close()

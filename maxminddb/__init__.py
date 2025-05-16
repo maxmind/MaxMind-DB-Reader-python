@@ -80,7 +80,7 @@ def open_database(
     # checking purposes, pretend it is one. (Ideally this would be a subclass
     # of, or share a common parent class with, the Python Reader
     # implementation.)
-    return cast(Reader, _extension.Reader(database, mode))
+    return cast("Reader", _extension.Reader(database, mode))
 
 
 __title__ = "maxminddb"
