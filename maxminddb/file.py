@@ -6,7 +6,6 @@ import os
 from typing import overload
 
 try:
-    # pylint: disable=no-name-in-module
     from multiprocessing import Lock
 except ImportError:
     from threading import Lock  # type: ignore[assignment]
@@ -17,7 +16,6 @@ class FileBuffer:
 
     def __init__(self, database: str) -> None:
         """Create FileBuffer."""
-        # pylint: disable=consider-using-with
         self._handle = open(database, "rb")  # noqa: SIM115
         self._size = os.fstat(self._handle.fileno()).st_size
         if not hasattr(os, "pread"):
@@ -57,7 +55,6 @@ class FileBuffer:
 
         def _read(self, buffersize: int, offset: int) -> bytes:
             """Read that uses pread."""
-            # pylint: disable=no-member
             return os.pread(self._handle.fileno(), buffersize, offset)  # type: ignore[attr-defined]
 
     else:

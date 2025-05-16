@@ -1,6 +1,5 @@
 """Module for reading MaxMind DB files."""
 
-# pylint:disable=C0111
 import os
 from typing import IO, AnyStr, Union, cast
 
@@ -16,7 +15,6 @@ from .decoder import InvalidDatabaseError
 from .reader import Reader
 
 try:
-    # pylint: disable=import-self
     from . import extension as _extension
 except ImportError:
     _extension = None  # type: ignore[assignment]

@@ -1,4 +1,3 @@
-# pylint: disable=E0601,E0602
 from ipaddress import IPv4Address, IPv6Address
 from os import PathLike
 from typing import IO, Any, AnyStr
@@ -25,7 +24,6 @@ class Reader:
     def __enter__(self) -> Self: ...
     def __exit__(self, *args) -> None: ...  # noqa: ANN002
 
-# pylint: disable=too-few-public-methods
 class Metadata:
     binary_format_major_version: int
     """

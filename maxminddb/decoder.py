@@ -4,10 +4,8 @@ import struct
 from typing import ClassVar, Union, cast
 
 try:
-    # pylint: disable=unused-import
     import mmap
 except ImportError:
-    # pylint: disable=invalid-name
     mmap = None  # type: ignore[assignment]
 
 
@@ -16,7 +14,7 @@ from maxminddb.file import FileBuffer
 from maxminddb.types import Record
 
 
-class Decoder:  # pylint: disable=too-few-public-methods
+class Decoder:
     """Decoder for the data section of the MaxMind DB."""
 
     def __init__(

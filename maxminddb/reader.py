@@ -3,7 +3,6 @@
 try:
     import mmap
 except ImportError:
-    # pylint: disable=invalid-name
     mmap = None  # type: ignore[assignment]
 
 import contextlib
@@ -113,7 +112,7 @@ class Reader:
                 msg,
             )
 
-        self._metadata = Metadata(**metadata)  # pylint: disable=bad-option-value
+        self._metadata = Metadata(**metadata)
 
         self._decoder = Decoder(
             self._buffer,
@@ -287,7 +286,6 @@ class Reader:
         return self
 
 
-# pylint: disable=too-many-instance-attributes,R0801
 class Metadata:
     """Metadata for the MaxMind DB reader."""
 
