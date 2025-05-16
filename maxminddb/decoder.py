@@ -149,8 +149,9 @@ class Decoder:  # pylint: disable=too-few-public-methods
         try:
             decoder = self._type_decoder[type_num]
         except KeyError as ex:
+            msg = f"Unexpected type number ({type_num}) encountered"
             raise InvalidDatabaseError(
-                f"Unexpected type number ({type_num}) encountered",
+                msg,
             ) from ex
 
         (size, new_offset) = self._size_from_ctrl_byte(ctrl_byte, new_offset, type_num)
@@ -160,18 +161,24 @@ class Decoder:  # pylint: disable=too-few-public-methods
         next_byte = self._buffer[offset]
         type_num = next_byte + 7
         if type_num < 7:
-            raise InvalidDatabaseError(
+            msg = (
                 "Something went horribly wrong in the decoder. An "
-                f"extended type resolved to a type number < 8 ({type_num})",
+                f"extended type resolved to a type number < 8 ({type_num})"
+            )
+            raise InvalidDatabaseError(
+                msg,
             )
         return type_num, offset + 1
 
     @staticmethod
     def _verify_size(expected: int, actual: int) -> None:
         if expected != actual:
-            raise InvalidDatabaseError(
+            msg = (
                 "The MaxMind DB file's data section contains bad data "
-                "(unknown data type or corrupt data)",
+                "(unknown data type or corrupt data)"
+            )
+            raise InvalidDatabaseError(
+                msg,
             )
 
     def _size_from_ctrl_byte(

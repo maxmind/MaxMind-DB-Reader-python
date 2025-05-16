@@ -77,10 +77,13 @@ class Reader:
             self._buffer_size = len(self._buffer)  # type: ignore
             filename = database.name  # type: ignore
         else:
-            raise ValueError(
+            msg = (
                 f"Unsupported open mode ({mode}). Only MODE_AUTO, MODE_FILE, "
                 "MODE_MEMORY and MODE_FD are supported by the pure Python "
-                "Reader",
+                "Reader"
+            )
+            raise ValueError(
+                msg,
             )
 
         metadata_start = self._buffer.rfind(
@@ -90,9 +93,12 @@ class Reader:
 
         if metadata_start == -1:
             self.close()
-            raise InvalidDatabaseError(
+            msg = (
                 f"Error opening database file ({filename}). "
-                "Is this a valid MaxMind DB file?",
+                "Is this a valid MaxMind DB file?"
+            )
+            raise InvalidDatabaseError(
+                msg,
             )
 
         metadata_start += len(self._METADATA_START_MARKER)
@@ -100,8 +106,9 @@ class Reader:
         (metadata, _) = metadata_decoder.decode(metadata_start)
 
         if not isinstance(metadata, dict):
+            msg = f"Error reading metadata in database file ({filename})."
             raise InvalidDatabaseError(
-                f"Error reading metadata in database file ({filename}).",
+                msg,
             )
 
         self._metadata = Metadata(**metadata)  # pylint: disable=bad-option-value
@@ -157,12 +164,16 @@ class Reader:
         try:
             packed_address = bytearray(address.packed)
         except AttributeError as ex:
-            raise TypeError("argument 1 must be a string or ipaddress object") from ex
+            msg = "argument 1 must be a string or ipaddress object"
+            raise TypeError(msg) from ex
 
         if address.version == 6 and self._metadata.ip_version == 4:
-            raise ValueError(
+            msg = (
                 f"Error looking up {ip_address}. You attempted to look up "
-                "an IPv6 address in an IPv4-only database.",
+                "an IPv6 address in an IPv4-only database."
+            )
+            raise ValueError(
+                msg,
             )
 
         (pointer, prefix_len) = self._find_address_in_tree(packed_address)
@@ -216,7 +227,8 @@ class Reader:
         if node > node_count:
             return node, i
 
-        raise InvalidDatabaseError("Invalid node in search tree")
+        msg = "Invalid node in search tree"
+        raise InvalidDatabaseError(msg)
 
     def _start_node(self, length: int) -> int:
         if self._metadata.ip_version == 6 and length == 32:

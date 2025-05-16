@@ -25,7 +25,8 @@ class FileBuffer:
             return self._read(key.stop - key.start, key.start)
         if isinstance(key, int):
             return self._read(1, key)[0]
-        raise TypeError("Invalid argument type.")
+        msg = "Invalid argument type."
+        raise TypeError(msg)
 
     def rfind(self, needle: bytes, start: int) -> int:
         """Reverse find needle from start."""

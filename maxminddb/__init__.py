@@ -63,7 +63,8 @@ def open_database(
         MODE_MMAP,
         MODE_MMAP_EXT,
     ):
-        raise ValueError(f"Unsupported open mode: {mode}")
+        msg = f"Unsupported open mode: {mode}"
+        raise ValueError(msg)
 
     has_extension = _extension and hasattr(_extension, "Reader")
     use_extension = has_extension if mode == MODE_AUTO else mode == MODE_MMAP_EXT
@@ -72,8 +73,9 @@ def open_database(
         return Reader(database, mode)
 
     if not has_extension:
+        msg = "MODE_MMAP_EXT requires the maxminddb.extension module to be available"
         raise ValueError(
-            "MODE_MMAP_EXT requires the maxminddb.extension module to be available",
+            msg,
         )
 
     # The C type exposes the same API as the Python Reader, so for type
