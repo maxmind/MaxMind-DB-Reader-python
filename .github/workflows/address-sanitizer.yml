@@ -23,6 +23,11 @@ jobs:
           submodules: true
           persist-credentials: false
 
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install libasan6
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
