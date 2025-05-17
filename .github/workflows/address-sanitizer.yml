@@ -23,29 +23,18 @@ jobs:
           submodules: true
           persist-credentials: false
 
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # 6.0.1
+
       - name: Install packages
         run: |
           sudo apt-get update
           sudo apt-get -y install libasan6
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: 3.13
-
-      - name: Install dependencies
-        run: |
-              python -m pip install --upgrade pip
-              pip install pytest setuptools wheel
-
-      - name: Install
-        run: pip install .
+      - name: Test
+        run: uv run pytest
         env:
           CFLAGS: "-Werror -Wall -Wextra"
-          MAXMINDDB_REQUIRE_EXTENSION: 1
-
-      - name: Test
-        run: pytest
-        env:
           LD_PRELOAD: libasan.so.6
+          MAXMINDDB_REQUIRE_EXTENSION: 1
           MM_FORCE_EXT_TESTS: 1
