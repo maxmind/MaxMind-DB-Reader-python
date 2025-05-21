@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import ipaddress
 import multiprocessing
 import os
 import pathlib
 import threading
 import unittest
-from typing import Union, cast
+from typing import TYPE_CHECKING, cast
 from unittest import mock
 
 import maxminddb
@@ -23,7 +25,9 @@ from maxminddb.const import (
     MODE_MMAP,
     MODE_MMAP_EXT,
 )
-from maxminddb.reader import Reader
+
+if TYPE_CHECKING:
+    from maxminddb.reader import Reader
 
 
 def get_reader_from_file_descriptor(filepath: str, mode: int) -> Reader:
@@ -40,10 +44,7 @@ def get_reader_from_file_descriptor(filepath: str, mode: int) -> Reader:
 
 class BaseTestReader(unittest.TestCase):
     mode: int
-    reader_class: Union[
-        type["maxminddb.extension.Reader"],
-        type["maxminddb.reader.Reader"],
-    ]
+    reader_class: type[maxminddb.extension.Reader | maxminddb.reader.Reader]
     use_ip_objects = False
 
     # fork doesn't work on Windows and spawn would involve pickling the reader,
@@ -51,7 +52,7 @@ class BaseTestReader(unittest.TestCase):
     if os.name != "nt":
         mp = multiprocessing.get_context("fork")
 
-    def ipf(self, ip: str) -> Union[ipaddress.IPv4Address, ipaddress.IPv6Address, str]:
+    def ipf(self, ip: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | str:
         if self.use_ip_objects:
             return ipaddress.ip_address(ip)
         return ip
@@ -680,10 +681,7 @@ class TestExtensionReaderWithIPObjects(BaseTestReader):
 class TestAutoReader(BaseTestReader):
     mode = MODE_AUTO
 
-    reader_class: Union[
-        type["maxminddb.extension.Reader"],
-        type["maxminddb.reader.Reader"],
-    ]
+    reader_class: type[maxminddb.extension.Reader | maxminddb.reader.Reader]
     if has_maxminddb_extension():
         reader_class = maxminddb.extension.Reader
     else:

@@ -1,7 +1,8 @@
 """Module for reading MaxMind DB files."""
 
-import os
-from typing import IO, AnyStr, Union, cast
+from __future__ import annotations
+
+from typing import IO, TYPE_CHECKING, AnyStr, cast
 
 from .const import (
     MODE_AUTO,
@@ -13,6 +14,9 @@ from .const import (
 )
 from .decoder import InvalidDatabaseError
 from .reader import Reader
+
+if TYPE_CHECKING:
+    import os
 
 try:
     from . import extension as _extension
@@ -34,7 +38,7 @@ __all__ = [
 
 
 def open_database(
-    database: Union[AnyStr, int, os.PathLike, IO],
+    database: AnyStr | int | os.PathLike | IO,
     mode: int = MODE_AUTO,
 ) -> Reader:
     """Open a MaxMind DB database.

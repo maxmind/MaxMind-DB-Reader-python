@@ -1,5 +1,7 @@
 """Pure-Python reader for the MaxMind DB file format."""
 
+from __future__ import annotations
+
 try:
     import mmap
 except ImportError:
@@ -8,16 +10,21 @@ except ImportError:
 import contextlib
 import ipaddress
 import struct
-from collections.abc import Iterator
 from ipaddress import IPv4Address, IPv6Address
-from os import PathLike
-from typing import IO, Any, AnyStr, Optional, Union
+from typing import IO, TYPE_CHECKING, Any, AnyStr
 
 from maxminddb.const import MODE_AUTO, MODE_FD, MODE_FILE, MODE_MEMORY, MODE_MMAP
 from maxminddb.decoder import Decoder
 from maxminddb.errors import InvalidDatabaseError
 from maxminddb.file import FileBuffer
-from maxminddb.types import Record
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from os import PathLike
+
+    from typing_extensions import Self
+
+    from maxminddb.types import Record
 
 _IPV4_MAX_NUM = 2**32
 
@@ -31,16 +38,16 @@ class Reader:
     _DATA_SECTION_SEPARATOR_SIZE = 16
     _METADATA_START_MARKER = b"\xab\xcd\xefMaxMind.com"
 
-    _buffer: Union[bytes, FileBuffer, "mmap.mmap"]
+    _buffer: bytes | FileBuffer | "mmap.mmap"  # noqa: UP037
     _buffer_size: int
     closed: bool
     _decoder: Decoder
-    _metadata: "Metadata"
+    _metadata: Metadata
     _ipv4_start: int
 
     def __init__(
         self,
-        database: Union[AnyStr, int, PathLike, IO],
+        database: AnyStr | int | PathLike | IO,
         mode: int = MODE_AUTO,
     ) -> None:
         """Reader for the MaxMind DB file format.
@@ -133,11 +140,11 @@ class Reader:
             ipv4_start = node
         self._ipv4_start = ipv4_start
 
-    def metadata(self) -> "Metadata":
+    def metadata(self) -> Metadata:
         """Return the metadata associated with the MaxMind DB file."""
         return self._metadata
 
-    def get(self, ip_address: Union[str, IPv6Address, IPv4Address]) -> Optional[Record]:
+    def get(self, ip_address: str | IPv6Address | IPv4Address) -> Record | None:
         """Return the record for the ip_address in the MaxMind DB.
 
         Arguments:
@@ -149,8 +156,8 @@ class Reader:
 
     def get_with_prefix_len(
         self,
-        ip_address: Union[str, IPv6Address, IPv4Address],
-    ) -> tuple[Optional[Record], int]:
+        ip_address: str | IPv6Address | IPv4Address,
+    ) -> tuple[Record | None, int]:
         """Return a tuple with the record and the associated prefix length.
 
         Arguments:
@@ -279,7 +286,7 @@ class Reader:
     def __exit__(self, *_) -> None:  # noqa: ANN002
         self.close()
 
-    def __enter__(self) -> "Reader":
+    def __enter__(self) -> Self:
         if self.closed:
             msg = "Attempt to reopen a closed MaxMind DB"
             raise ValueError(msg)
