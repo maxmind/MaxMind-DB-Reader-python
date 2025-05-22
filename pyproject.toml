@@ -84,6 +84,10 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "docs/*" = ["ALL"]
+"maxminddb/extension.pyi" = [
+    # This is a stub for extension and having the docs here is useful.
+    "PYI021",
+]
 "setup.py" = ["ALL"]
 "tests/*" = ["ANN201", "D"]
 
