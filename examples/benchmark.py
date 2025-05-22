@@ -31,3 +31,5 @@ elapsed = timeit.timeit(
     setup="from __main__ import lookup_ip_address",
     number=args.count,
 )
+
+print(f"{int(args.count / elapsed):,}", "lookups per second")  # noqa: T201
