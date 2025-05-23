@@ -59,7 +59,6 @@ class Reader:
     def __enter__(self) -> Self: ...
     def __exit__(self, *args) -> None: ...  # noqa: ANN002
 
-# pylint: disable=too-few-public-methods
 class Metadata:
     """Metadata for the MaxMind DB reader."""
 
