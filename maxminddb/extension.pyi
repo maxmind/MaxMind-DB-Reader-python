@@ -1,66 +1,66 @@
 """C extension database reader and related classes."""
 
-# pylint: disable=E0601,E0602
 from ipaddress import IPv4Address, IPv6Address
 from os import PathLike
-from typing import IO, Any, AnyStr, Optional, Union
+from typing import IO, Any, AnyStr
 
-from maxminddb.const import MODE_AUTO
+from typing_extensions import Self
+
 from maxminddb.types import Record
 
 class Reader:
-    """A C extension implementation of a reader for the MaxMind DB format. IP
-    addresses can be looked up using the ``get`` method.
+    """A C extension implementation of a reader for the MaxMind DB format.
+
+    IP addresses can be looked up using the ``get`` method.
     """
 
     closed: bool = ...
 
     def __init__(
         self,
-        database: Union[AnyStr, int, PathLike, IO],
-        mode: int = MODE_AUTO,
+        database: AnyStr | int | PathLike | IO,
+        mode: int = ...,
     ) -> None:
-        """Reader for the MaxMind DB file format
+        """Reader for the MaxMind DB file format.
 
         Arguments:
-        database -- A path to a valid MaxMind DB file such as a GeoIP2 database
-                    file, or a file descriptor in the case of MODE_FD.
-        mode -- mode to open the database with. The only supported modes are
-                MODE_AUTO and MODE_MMAP_EXT.
+            database: A path to a valid MaxMind DB file such as a GeoIP2 database
+                      file, or a file descriptor in the case of MODE_FD.
+            mode: mode to open the database with. The only supported modes are
+                  MODE_AUTO and MODE_MMAP_EXT.
 
         """
 
     def close(self) -> None:
-        """Closes the MaxMind DB file and returns the resources to the system"""
+        """Close the MaxMind DB file and returns the resources to the system."""
 
-    def get(self, ip_address: Union[str, IPv6Address, IPv4Address]) -> Optional[Record]:
-        """Return the record for the ip_address in the MaxMind DB
+    def get(self, ip_address: str | IPv6Address | IPv4Address) -> Record | None:
+        """Return the record for the ip_address in the MaxMind DB.
 
         Arguments:
-        ip_address -- an IP address in the standard string notation
+            ip_address: an IP address in the standard string notation
 
         """
 
     def get_with_prefix_len(
         self,
-        ip_address: Union[str, IPv6Address, IPv4Address],
-    ) -> tuple[Optional[Record], int]:
-        """Return a tuple with the record and the associated prefix length
+        ip_address: str | IPv6Address | IPv4Address,
+    ) -> tuple[Record | None, int]:
+        """Return a tuple with the record and the associated prefix length.
 
         Arguments:
-        ip_address -- an IP address in the standard string notation
+            ip_address: an IP address in the standard string notation
 
         """
 
     def metadata(self) -> Metadata:
-        """Return the metadata associated with the MaxMind DB file"""
+        """Return the metadata associated with the MaxMind DB file."""
 
-    def __enter__(self) -> Reader: ...
-    def __exit__(self, *args) -> None: ...
+    def __enter__(self) -> Self: ...
+    def __exit__(self, *args) -> None: ...  # noqa: ANN002
 
-# pylint: disable=too-few-public-methods
 class Metadata:
-    """Metadata for the MaxMind DB reader"""
+    """Metadata for the MaxMind DB reader."""
 
     binary_format_major_version: int
     """
@@ -98,7 +98,7 @@ class Metadata:
 
     languages: list[str]
     """
-    A list of locale codes supported by the databse.
+    A list of locale codes supported by the database.
     """
 
     node_count: int
@@ -111,5 +111,5 @@ class Metadata:
     The bit size of a record in the search tree.
     """
 
-    def __init__(self, **kwargs: Any) -> None:
-        """Creates new Metadata object. kwargs are key/value pairs from spec"""
+    def __init__(self, **kwargs: Any) -> None:  # noqa: ANN401
+        """Create new Metadata object. kwargs are key/value pairs from spec."""

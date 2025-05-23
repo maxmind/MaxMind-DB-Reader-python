@@ -35,10 +35,7 @@ dev = [
     "pytest>=8.3.5",
 ]
 lint = [
-    "black>=25.1.0",
-    "flake8>=7.2.0",
     "mypy>=1.15.0",
-    "pylint>=3.3.6",
     "ruff>=0.11.6",
 ]
 
@@ -57,25 +54,23 @@ packages = ["maxminddb"]
 [tool.setuptools.package-data]
 maxminddb = ["extension.pyi", "py.typed"]
 
-[tool.black]
-# src is showing up in our GitHub linting builds. It seems to
-# contain deps.
-extend-exclude = '^/src/'
-
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
     # Skip type annotation on **_
     "ANN003",
 
+    # Redundant as the formatter handles missing trailing commas.
+    "COM812",
+
     # documenting magic methods
     "D105",
 
-    # Line length. We let black handle this for now.
-    "E501",
+    # Conflicts with D211
+    "D203",
 
-    # Don't bother with future imports for type annotations
-    "FA100",
+    # Conflicts with D212
+    "D213",
 
     # Magic numbers for HTTP status codes seem ok most of the time.
     "PLR2004",
@@ -83,9 +78,17 @@ ignore = [
     # pytest rules
     "PT009",
     "PT027",
+    # Using the built-in open is more appropriate for this library.
+    "PTH123",
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"docs/*" = ["ALL"]
+"maxminddb/extension.pyi" = [
+    # This is a stub for extension and having the docs here is useful.
+    "PYI021",
+]
+"setup.py" = ["ALL"]
 "tests/*" = ["ANN201", "D"]
 
 [tool.tox]
@@ -115,10 +118,9 @@ dependency_groups = [
     "lint",
 ]
 commands = [
-    ["black", "--check", "--diff", "."],
-    ["flake8", "maxminddb"],
     ["mypy", "maxminddb", "tests"],
-    ["pylint", "maxminddb"],
+    ["ruff", "check"],
+    ["ruff", "format", "--check", "--diff", "."],
 ]
 
 [tool.tox.gh.python]

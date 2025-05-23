@@ -1,31 +1,40 @@
 """For internal use only. It provides a slice-like file reader."""
 
+from __future__ import annotations
+
 import os
-from typing import Union
+from typing import overload
 
 try:
-    # pylint: disable=no-name-in-module
     from multiprocessing import Lock
 except ImportError:
-    from threading import Lock  # type: ignore
+    from threading import Lock  # type: ignore[assignment]
 
 
 class FileBuffer:
     """A slice-able file reader."""
 
     def __init__(self, database: str) -> None:
-        # pylint: disable=consider-using-with
-        self._handle = open(database, "rb")
+        """Create FileBuffer."""
+        self._handle = open(database, "rb")  # noqa: SIM115
         self._size = os.fstat(self._handle.fileno()).st_size
         if not hasattr(os, "pread"):
             self._lock = Lock()
 
-    def __getitem__(self, key: Union[slice, int]):
-        if isinstance(key, slice):
-            return self._read(key.stop - key.start, key.start)
-        if isinstance(key, int):
-            return self._read(1, key)[0]
-        raise TypeError("Invalid argument type.")
+    @overload
+    def __getitem__(self, index: int) -> int: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> bytes: ...
+
+    def __getitem__(self, index: slice | int) -> bytes | int:
+        """Get item by index."""
+        if isinstance(index, slice):
+            return self._read(index.stop - index.start, index.start)
+        if isinstance(index, int):
+            return self._read(1, index)[0]
+        msg = "Invalid argument type."
+        raise TypeError(msg)
 
     def rfind(self, needle: bytes, start: int) -> int:
         """Reverse find needle from start."""
@@ -42,12 +51,11 @@ class FileBuffer:
         """Close file."""
         self._handle.close()
 
-    if hasattr(os, "pread"):
+    if hasattr(os, "pread"):  # type: ignore[attr-defined]
 
         def _read(self, buffersize: int, offset: int) -> bytes:
             """Read that uses pread."""
-            # pylint: disable=no-member
-            return os.pread(self._handle.fileno(), buffersize, offset)  # type: ignore
+            return os.pread(self._handle.fileno(), buffersize, offset)  # type: ignore[attr-defined]
 
     else:
 

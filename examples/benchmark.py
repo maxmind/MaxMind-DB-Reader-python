@@ -1,4 +1,5 @@
 #!/usr/bin/python
+"""Basic benchmark for maxminddb."""
 
 import argparse
 import random
@@ -20,6 +21,7 @@ reader = maxminddb.open_database(args.file, args.mode)
 
 
 def lookup_ip_address() -> None:
+    """Look up the IP."""
     ip = socket.inet_ntoa(struct.pack("!L", random.getrandbits(32)))
     reader.get(str(ip))
 
@@ -30,4 +32,4 @@ elapsed = timeit.timeit(
     number=args.count,
 )
 
-print(f"{int(args.count / elapsed):,}", "lookups per second")
+print(f"{int(args.count / elapsed):,}", "lookups per second")  # noqa: T201
