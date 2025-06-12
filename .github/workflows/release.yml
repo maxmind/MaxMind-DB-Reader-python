@@ -33,7 +33,7 @@ jobs:
           platforms: all
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@faf86a6ed7efa889faf6996aa23820831055001a # 2.23.3
+        uses: pypa/cibuildwheel@5f22145df44122af0f5a201f93cf0207171beca7 # 3.0.0
         env:
           CIBW_BUILD_VERBOSITY: 1
           MAXMINDDB_REQUIRE_EXTENSION: 1
