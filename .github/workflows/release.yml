@@ -59,7 +59,7 @@ jobs:
           persist-credentials: false
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@5f22145df44122af0f5a201f93cf0207171beca7 # 3.0.0
+        uses: pypa/cibuildwheel@95d2f3a92fbf80abe066b09418bbf128a8923df2 # 3.0.1
         env:
           CIBW_ENABLE: pypy pypy-eol
           CIBW_PLATFORM: ${{ matrix.platform }}
