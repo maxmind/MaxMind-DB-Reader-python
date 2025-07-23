@@ -34,7 +34,7 @@ jobs:
           languages: python, cpp
 
       - name: Install the latest version of uv
-        uses: astral-sh/setup-uv@7edac99f961f18b581bbd960d59d049f04c0002f # 6.4.1
+        uses: astral-sh/setup-uv@2c7142f755d7b37bdaea8d226073714c732889fe # 6.4.2
 
       - run: uv build
         env:
