@@ -19,6 +19,8 @@ jobs:
     strategy:
       matrix:
         os:
+          - android-arm
+          - android-intel
           - ios
           - linux-arm
           - linux-intel
