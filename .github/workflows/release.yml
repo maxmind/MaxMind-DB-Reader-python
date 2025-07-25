@@ -26,7 +26,6 @@ jobs:
           - linux-intel
           - macos-arm
           - macos-intel
-          - pyodide
           - windows-arm
           - windows-intel
         include:
@@ -52,9 +51,6 @@ jobs:
             # macos-14+ (including latest) are ARM64 runners
             runs-on: macos-latest
             archs: auto,universal2
-          - os: pyodide
-            runs-on: ubuntu-latest
-            platform: pyodide
           - os: windows-arm
             runs-on: windows-11-arm
           - os: windows-intel

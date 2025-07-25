@@ -3,6 +3,13 @@
 History
 -------
 
+2.8.2 (2025-07-25)
+++++++++++++++++++
+
+* Pyodide binary wheels will no longer be built by default. It is not possible to
+  upload these to PyPI currently. We may consider reenabling them and putting them
+  on the GitHub Releases page in the future if there is interest.
+
 2.8.1 (2025-07-25)
 ++++++++++++++++++
 
