@@ -13,7 +13,7 @@ jobs:
 
     strategy:
       matrix:
-        env: [3.9, "3.10", 3.11, 3.12, 3.13]
+        env: [3.9, "3.10", 3.11, 3.12, 3.13, 3.14]
         # We don't test on Windows currently due to issues
         # build libmaxminddb there.
         os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
@@ -35,10 +35,10 @@ jobs:
         uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # 6.4.3
 
       - name: Install tox
-        run: uv tool install --python-preference only-managed --python 3.13 tox --with tox-uv --with tox-gh
+        run: uv tool install --python-preference only-managed --python 3.14 tox --with tox-uv --with tox-gh
 
       - name: Install Python
-        if: matrix.env != '3.13'
+        if: matrix.env != '3.14'
         run: uv python install --python-preference only-managed ${{ matrix.env }}
 
       - name: Install libmaxminddb

@@ -20,6 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Internet",
     "Topic :: Internet :: Proxy Servers",
 ]
@@ -98,6 +99,7 @@ env_list = [
     "3.11",
     "3.12",
     "3.13",
+    "3.14",
     "lint",
 ]
 skip_missing_interpreters = false
@@ -112,7 +114,7 @@ commands = [
 
 [tool.tox.env.lint]
 description = "Code linting"
-python = "3.13"
+python = "3.14"
 dependency_groups = [
     "dev",
     "lint",
@@ -124,7 +126,8 @@ commands = [
 ]
 
 [tool.tox.gh.python]
-"3.13" = ["3.13", "lint"]
+"3.14" = ["3.14", "lint"]
+"3.13" = ["3.13"]
 "3.12" = ["3.12"]
 "3.11" = ["3.11"]
 "3.10" = ["3.10"]
