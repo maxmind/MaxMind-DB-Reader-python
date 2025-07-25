@@ -3,7 +3,7 @@
 History
 -------
 
-2.8.0
+2.8.0 (2025-07-25)
 ++++++++++++++++++
 
 * Python 3.14 is now officially supported, including binary wheels.
