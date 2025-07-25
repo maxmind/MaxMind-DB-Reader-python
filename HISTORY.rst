@@ -6,6 +6,7 @@ History
 2.8.0
 ++++++++++++++++++
 
+* Python 3.14 is now officially supported, including binary wheels.
 * We have updated the platforms that we build binary wheels for. In particular,
   we now build wheels for iOS, Windows Arm, and Pyodide, and we have dropped
   686 (32 bit), ppc64le, and s390x builds on Linux.
