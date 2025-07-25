@@ -3,6 +3,20 @@
 History
 -------
 
+2.8.2 (2025-07-25)
+++++++++++++++++++
+
+* Pyodide binary wheels will no longer be built by default. It is not possible to
+  upload these to PyPI currently. We may consider reenabling them and putting them
+  on the GitHub Releases page in the future if there is interest.
+
+2.8.1 (2025-07-25)
+++++++++++++++++++
+
+* When upgrading to ``cibuildwheel`` 3.0.0, we inadvertently changed the artifact
+  names, causing the wheels to not be uploaded to PyPI. This release fixes that.
+  There are no other code changes. Report by David Hotham. GitHub #225.
+
 2.8.0 (2025-07-25)
 ++++++++++++++++++
 

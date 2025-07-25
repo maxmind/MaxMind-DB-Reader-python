@@ -19,12 +19,13 @@ jobs:
     strategy:
       matrix:
         os:
+          - android-arm
+          - android-intel
           - ios
           - linux-arm
           - linux-intel
           - macos-arm
           - macos-intel
-          - pyodide
           - windows-arm
           - windows-intel
         include:
@@ -50,9 +51,6 @@ jobs:
             # macos-14+ (including latest) are ARM64 runners
             runs-on: macos-latest
             archs: auto,universal2
-          - os: pyodide
-            runs-on: ubuntu-latest
-            platform: pyodide
           - os: windows-arm
             runs-on: windows-11-arm
           - os: windows-intel
@@ -87,7 +85,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
+          name: maxminddb-whl-${{ matrix.os }}-${{ strategy.job-index }}
           path: ./wheelhouse/*.whl
 
   build_sdist:
