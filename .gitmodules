@@ -3,4 +3,4 @@
 	url = https://github.com/maxmind/MaxMind-DB
 [submodule "extension/libmaxminddb"]
 	path = extension/libmaxminddb
-	url = git@github.com:maxmind/libmaxminddb.git
+	url = https://github.com/maxmind/libmaxminddb
