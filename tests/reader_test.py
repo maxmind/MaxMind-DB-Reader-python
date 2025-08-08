@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import ipaddress
 import io
+import ipaddress
 import multiprocessing
 import os
 import pathlib
