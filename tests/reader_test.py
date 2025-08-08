@@ -529,7 +529,9 @@ class BaseTestReader(unittest.TestCase):
         filename = "tests/data/test-data/MaxMind-DB-test-ipv4-24.mmdb"
         with open(filename, "rb") as f:
             buf = io.BytesIO(f.read())
-        reader = open_database(buf, MODE_FD)
+        # we have to use unpatched open_database here because the patched version
+        # calls open() on our buffer
+        reader = maxminddb.open_database(buf, MODE_FD)
         self._check_ip_v4(reader, filename)
         reader.close()
 
