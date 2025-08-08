@@ -83,7 +83,11 @@ class Reader:
         elif mode == MODE_FD:
             self._buffer = database.read()  # type: ignore[union-attr]
             self._buffer_size = len(self._buffer)  # type: ignore[arg-type]
-            filename = database.name  # type: ignore[union-attr]
+            # io buffers are not guaranteed to have a name attribute
+            if hasattr(database, "name"):
+                filename = database.name  # type: ignore[union-attr]
+            else:
+                filename = f"<{type(database)}>"
         else:
             msg = (
                 f"Unsupported open mode ({mode}). Only MODE_AUTO, MODE_FILE, "
