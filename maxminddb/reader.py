@@ -64,7 +64,7 @@ class Reader:
                               a path. This mode implies MODE_MEMORY.
 
         """
-        self._load_buffer(database, mode)
+        filename = self._load_buffer(database, mode)
 
         metadata_start = self._buffer.rfind(
             self._METADATA_START_MARKER,
@@ -74,7 +74,7 @@ class Reader:
         if metadata_start == -1:
             self.close()
             msg = (
-                f"Error opening database file ({self.filename}). "
+                f"Error opening database file ({filename}). "
                 "Is this a valid MaxMind DB file?"
             )
             raise InvalidDatabaseError(
@@ -86,7 +86,7 @@ class Reader:
         (metadata, _) = metadata_decoder.decode(metadata_start)
 
         if not isinstance(metadata, dict):
-            msg = f"Error reading metadata in database file ({self.filename})."
+            msg = f"Error reading metadata in database file ({filename})."
             raise InvalidDatabaseError(
                 msg,
             )
@@ -250,31 +250,30 @@ class Reader:
 
     def _load_buffer(
         self, database: AnyStr | int | PathLike | IO, mode: int = MODE_AUTO
-    ) -> None:
-        self.filename: Any
+    ) -> str:
         if (mode == MODE_AUTO and mmap) or mode == MODE_MMAP:
             with open(database, "rb") as db_file:  # type: ignore[arg-type]
                 self._buffer = mmap.mmap(db_file.fileno(), 0, access=mmap.ACCESS_READ)
                 self._buffer_size = self._buffer.size()
-            self.filename = database
+            filename = database
         elif mode in (MODE_AUTO, MODE_FILE):
             self._buffer = FileBuffer(database)  # type: ignore[arg-type]
             self._buffer_size = self._buffer.size()
-            self.filename = database
+            filename = database
         elif mode == MODE_MEMORY:
             with open(database, "rb") as db_file:  # type: ignore[arg-type]
                 buf = db_file.read()
                 self._buffer = buf
                 self._buffer_size = len(buf)
-            self.filename = database
+            filename = database
         elif mode == MODE_FD:
             self._buffer = database.read()  # type: ignore[union-attr]
             self._buffer_size = len(self._buffer)  # type: ignore[arg-type]
             # io buffers are not guaranteed to have a name attribute
             if hasattr(database, "name"):
-                self.filename = database.name  # type: ignore[union-attr]
+                filename = database.name  # type: ignore[union-attr]
             else:
-                self.filename = f"<{type(database)}>"
+                filename = f"<{type(database)}>"
         else:
             msg = (
                 f"Unsupported open mode ({mode}). Only MODE_AUTO, MODE_FILE, "
@@ -284,6 +283,8 @@ class Reader:
             raise ValueError(
                 msg,
             )
+
+        return filename
 
     def close(self) -> None:
         """Close the MaxMind DB file and returns the resources to the system."""
