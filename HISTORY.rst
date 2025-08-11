@@ -3,6 +3,13 @@
 History
 -------
 
+2.9.0
+++++++++++++++++++
+
+* Databases can now be loaded from buffers. This can be done by passing in a
+  buffer as the database and using mode ``MODE_FD``. Pull request by Emanuel
+  Seemann. GitHub #234.
+
 2.8.2 (2025-07-25)
 ++++++++++++++++++
 
