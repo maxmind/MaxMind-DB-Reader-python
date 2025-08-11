@@ -11,7 +11,7 @@ import contextlib
 import ipaddress
 import struct
 from ipaddress import IPv4Address, IPv6Address
-from typing import IO, TYPE_CHECKING, AnyStr
+from typing import IO, TYPE_CHECKING, Any, AnyStr
 
 from maxminddb.const import MODE_AUTO, MODE_FD, MODE_FILE, MODE_MEMORY, MODE_MMAP
 from maxminddb.decoder import Decoder
@@ -251,6 +251,7 @@ class Reader:
     def _load_buffer(
         self, database: AnyStr | int | PathLike | IO, mode: int = MODE_AUTO
     ) -> str:
+        filename: Any
         if (mode == MODE_AUTO and mmap) or mode == MODE_MMAP:
             with open(database, "rb") as db_file:  # type: ignore[arg-type]
                 self._buffer = mmap.mmap(db_file.fileno(), 0, access=mmap.ACCESS_READ)
