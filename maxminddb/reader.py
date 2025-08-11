@@ -64,35 +64,7 @@ class Reader:
                               a path. This mode implies MODE_MEMORY.
 
         """
-        filename: Any
-        if (mode == MODE_AUTO and mmap) or mode == MODE_MMAP:
-            with open(database, "rb") as db_file:  # type: ignore[arg-type]
-                self._buffer = mmap.mmap(db_file.fileno(), 0, access=mmap.ACCESS_READ)
-                self._buffer_size = self._buffer.size()
-            filename = database
-        elif mode in (MODE_AUTO, MODE_FILE):
-            self._buffer = FileBuffer(database)  # type: ignore[arg-type]
-            self._buffer_size = self._buffer.size()
-            filename = database
-        elif mode == MODE_MEMORY:
-            with open(database, "rb") as db_file:  # type: ignore[arg-type]
-                buf = db_file.read()
-                self._buffer = buf
-                self._buffer_size = len(buf)
-            filename = database
-        elif mode == MODE_FD:
-            self._buffer = database.read()  # type: ignore[union-attr]
-            self._buffer_size = len(self._buffer)  # type: ignore[arg-type]
-            filename = database.name  # type: ignore[union-attr]
-        else:
-            msg = (
-                f"Unsupported open mode ({mode}). Only MODE_AUTO, MODE_FILE, "
-                "MODE_MEMORY and MODE_FD are supported by the pure Python "
-                "Reader"
-            )
-            raise ValueError(
-                msg,
-            )
+        filename = self._load_buffer(database, mode)
 
         metadata_start = self._buffer.rfind(
             self._METADATA_START_MARKER,
@@ -275,6 +247,45 @@ class Reader:
 
         (data, _) = self._decoder.decode(resolved)
         return data
+
+    def _load_buffer(
+        self, database: AnyStr | int | PathLike | IO, mode: int = MODE_AUTO
+    ) -> str:
+        filename: Any
+        if (mode == MODE_AUTO and mmap) or mode == MODE_MMAP:
+            with open(database, "rb") as db_file:  # type: ignore[arg-type]
+                self._buffer = mmap.mmap(db_file.fileno(), 0, access=mmap.ACCESS_READ)
+                self._buffer_size = self._buffer.size()
+            filename = database
+        elif mode in (MODE_AUTO, MODE_FILE):
+            self._buffer = FileBuffer(database)  # type: ignore[arg-type]
+            self._buffer_size = self._buffer.size()
+            filename = database
+        elif mode == MODE_MEMORY:
+            with open(database, "rb") as db_file:  # type: ignore[arg-type]
+                buf = db_file.read()
+                self._buffer = buf
+                self._buffer_size = len(buf)
+            filename = database
+        elif mode == MODE_FD:
+            self._buffer = database.read()  # type: ignore[union-attr]
+            self._buffer_size = len(self._buffer)  # type: ignore[arg-type]
+            # io buffers are not guaranteed to have a name attribute
+            if hasattr(database, "name"):
+                filename = database.name  # type: ignore[union-attr]
+            else:
+                filename = f"<{type(database)}>"
+        else:
+            msg = (
+                f"Unsupported open mode ({mode}). Only MODE_AUTO, MODE_FILE, "
+                "MODE_MEMORY and MODE_FD are supported by the pure Python "
+                "Reader"
+            )
+            raise ValueError(
+                msg,
+            )
+
+        return filename
 
     def close(self) -> None:
         """Close the MaxMind DB file and returns the resources to the system."""

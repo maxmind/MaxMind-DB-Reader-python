@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import ipaddress
 import multiprocessing
 import os
@@ -523,6 +524,16 @@ class BaseTestReader(unittest.TestCase):
             )
         else:
             self.assertIsNotNone(metadata, "pure Python implementation returns value")
+
+    def test_reading_from_buffer(self) -> None:
+        filename = "tests/data/test-data/MaxMind-DB-test-ipv4-24.mmdb"
+        with open(filename, "rb") as f:
+            buf = io.BytesIO(f.read())
+        # we have to use unpatched open_database here because the patched version
+        # calls open() on our buffer
+        reader = maxminddb.open_database(buf, MODE_FD)
+        self._check_ip_v4(reader, filename)
+        reader.close()
 
     if os.name != "nt":
 
