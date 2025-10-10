@@ -3,7 +3,7 @@
 History
 -------
 
-2.9.0
+3.0.0
 ++++++++++++++++++
 
 * IMPORTANT: Python 3.10 or greater is required. If you are using an older
@@ -15,6 +15,13 @@ History
   thread-safe for concurrent reads on platforms with pthread support (such as
   Linux and macOS) and Windows. On other platforms, the extension will use
   GIL-based protection.
+* The C extension now uses PEP 489 multi-phase initialization, enabling
+  proper subinterpreter support and module isolation for Python 3.12+. This
+  modernizes the extension to use heap types instead of static types and
+  implements per-module state management. Key benefits include support for
+  Python 3.12+ isolated subinterpreters, multiple independent module
+  instances, and future-proofing for Python 3.14's InterpreterPoolExecutor.
+  Requested by R. Christian McDonald in GitHub #105.
 
 2.8.2 (2025-07-25)
 ++++++++++++++++++

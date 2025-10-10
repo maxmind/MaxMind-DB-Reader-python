@@ -16,12 +16,6 @@
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 
-static PyTypeObject Reader_Type;
-static PyTypeObject ReaderIter_Type;
-static PyTypeObject Metadata_Type;
-static PyObject *MaxMindDB_error;
-static PyObject *ipaddress_ip_network;
-
 // =============================================================================
 // Platform-specific lock type definition
 // =============================================================================
@@ -105,12 +99,43 @@ typedef struct {
 } Metadata_obj;
 // clang-format on
 
+// =============================================================================
+// Module state structure for PEP 489 multi-phase initialization
+// =============================================================================
+
+typedef struct {
+    PyObject *Reader_Type;
+    PyObject *ReaderIter_Type;
+    PyObject *Metadata_Type;
+    PyObject *MaxMindDB_error;
+    PyObject *ipaddress_ip_network;
+} maxminddb_state;
+
+// Helper function to get module state from module
+static inline maxminddb_state *get_maxminddb_state(PyObject *module) {
+    void *state = PyModule_GetState(module);
+    assert(state != NULL);
+    return (maxminddb_state *)state;
+}
+
+// Helper function to get module state from self (instance)
+static inline maxminddb_state *get_maxminddb_state_from_self(PyObject *self) {
+    PyObject *module = PyType_GetModule(Py_TYPE(self));
+    if (module == NULL) {
+        return NULL;
+    }
+    return get_maxminddb_state(module);
+}
+
 static bool can_read(const char *path);
 static int get_record(PyObject *self, PyObject *args, PyObject **record);
 static bool format_sockaddr(struct sockaddr *addr, char *dst);
-static PyObject *from_entry_data_list(MMDB_entry_data_list_s **entry_data_list);
-static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list);
-static PyObject *from_array(MMDB_entry_data_list_s **entry_data_list);
+static PyObject *from_entry_data_list(maxminddb_state *state,
+                                      MMDB_entry_data_list_s **entry_data_list);
+static PyObject *from_map(maxminddb_state *state,
+                          MMDB_entry_data_list_s **entry_data_list);
+static PyObject *from_array(maxminddb_state *state,
+                            MMDB_entry_data_list_s **entry_data_list);
 static PyObject *from_uint128(const MMDB_entry_data_list_s *entry_data_list);
 static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address);
 
@@ -284,6 +309,11 @@ static void reader_release_write_lock(Reader_obj *reader) {
 // =============================================================================
 
 static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
+    maxminddb_state *state = get_maxminddb_state_from_self(self);
+    if (state == NULL) {
+        return -1;
+    }
+
     PyObject *filepath = NULL;
     int mode = 0;
 
@@ -345,7 +375,7 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
     if (status != MMDB_SUCCESS) {
         reader_lock_destroy(&mmdb_obj->rwlock);
         free(mmdb);
-        PyErr_Format(MaxMindDB_error,
+        PyErr_Format(state->MaxMindDB_error,
                      "Error opening database file (%s). Is this a valid "
                      "MaxMind DB file?",
                      filename);
@@ -382,6 +412,11 @@ static PyObject *Reader_get_with_prefix_len(PyObject *self, PyObject *args) {
 }
 
 static int get_record(PyObject *self, PyObject *args, PyObject **record) {
+    maxminddb_state *state = get_maxminddb_state_from_self(self);
+    if (state == NULL) {
+        return -1;
+    }
+
     struct sockaddr_storage ip_address_ss = {0};
     struct sockaddr *ip_address = (struct sockaddr *)&ip_address_ss;
     if (!PyArg_ParseTuple(args, "O&", ip_converter, &ip_address_ss)) {
@@ -417,7 +452,7 @@ static int get_record(PyObject *self, PyObject *args, PyObject **record) {
         if (MMDB_IPV6_LOOKUP_IN_IPV4_DATABASE_ERROR == mmdb_error) {
             exception = PyExc_ValueError;
         } else {
-            exception = MaxMindDB_error;
+            exception = state->MaxMindDB_error;
         }
         char ipstr[INET6_ADDRSTRLEN] = {0};
         if (format_sockaddr(ip_address, ipstr)) {
@@ -449,7 +484,7 @@ static int get_record(PyObject *self, PyObject *args, PyObject **record) {
         reader_release_read_lock(reader);
         char ipstr[INET6_ADDRSTRLEN] = {0};
         if (format_sockaddr(ip_address, ipstr)) {
-            PyErr_Format(MaxMindDB_error,
+            PyErr_Format(state->MaxMindDB_error,
                          "Error while looking up data for %s. %s",
                          ipstr,
                          MMDB_strerror(status));
@@ -459,7 +494,7 @@ static int get_record(PyObject *self, PyObject *args, PyObject **record) {
     }
 
     MMDB_entry_data_list_s *original_entry_data_list = entry_data_list;
-    *record = from_entry_data_list(&entry_data_list);
+    *record = from_entry_data_list(state, &entry_data_list);
     MMDB_free_entry_data_list(original_entry_data_list);
 
     reader_release_read_lock(reader);
@@ -570,6 +605,11 @@ static bool format_sockaddr(struct sockaddr *sa, char *dst) {
 }
 
 static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args)) {
+    maxminddb_state *state = get_maxminddb_state_from_self(self);
+    if (state == NULL) {
+        return NULL;
+    }
+
     Reader_obj *mmdb_obj = (Reader_obj *)self;
 
     if (reader_acquire_read_lock(mmdb_obj) != 0) {
@@ -588,18 +628,18 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args)) {
         MMDB_get_metadata_as_entry_data_list(mmdb_obj->mmdb, &entry_data_list);
     if (status != MMDB_SUCCESS) {
         reader_release_read_lock(mmdb_obj);
-        PyErr_Format(MaxMindDB_error,
+        PyErr_Format(state->MaxMindDB_error,
                      "Error decoding metadata. %s",
                      MMDB_strerror(status));
         return NULL;
     }
     MMDB_entry_data_list_s *original_entry_data_list = entry_data_list;
 
-    PyObject *metadata_dict = from_entry_data_list(&entry_data_list);
+    PyObject *metadata_dict = from_entry_data_list(state, &entry_data_list);
     MMDB_free_entry_data_list(original_entry_data_list);
     if (metadata_dict == NULL || !PyDict_Check(metadata_dict)) {
         reader_release_read_lock(mmdb_obj);
-        PyErr_SetString(MaxMindDB_error, "Error decoding metadata.");
+        PyErr_SetString(state->MaxMindDB_error, "Error decoding metadata.");
         return NULL;
     }
 
@@ -612,9 +652,10 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args)) {
     }
 
     PyObject *metadata =
-        PyObject_Call((PyObject *)&Metadata_Type, args, metadata_dict);
+        PyObject_Call(state->Metadata_Type, args, metadata_dict);
 
     Py_DECREF(metadata_dict);
+    Py_DECREF(args);
     return metadata;
 }
 
@@ -675,6 +716,11 @@ static void Reader_dealloc(PyObject *self) {
 }
 
 static PyObject *Reader_iter(PyObject *obj) {
+    maxminddb_state *state = get_maxminddb_state_from_self(obj);
+    if (state == NULL) {
+        return NULL;
+    }
+
     Reader_obj *reader = (Reader_obj *)obj;
 
     if (reader_acquire_read_lock(reader) != 0) {
@@ -690,7 +736,8 @@ static PyObject *Reader_iter(PyObject *obj) {
 
     reader_release_read_lock(reader);
 
-    ReaderIter_obj *ri = PyObject_New(ReaderIter_obj, &ReaderIter_Type);
+    ReaderIter_obj *ri = (ReaderIter_obj *)PyType_GenericAlloc(
+        (PyTypeObject *)state->ReaderIter_Type, 0);
     if (ri == NULL) {
         return NULL;
     }
@@ -719,6 +766,11 @@ static bool is_ipv6(char ip[16]) {
 }
 
 static PyObject *ReaderIter_next(PyObject *self) {
+    maxminddb_state *state = get_maxminddb_state_from_self((PyObject *)self);
+    if (state == NULL) {
+        return NULL;
+    }
+
     ReaderIter_obj *ri = (ReaderIter_obj *)self;
 
     if (reader_acquire_read_lock(ri->reader) != 0) {
@@ -739,7 +791,7 @@ static PyObject *ReaderIter_next(PyObject *self) {
         switch (cur->type) {
             case MMDB_RECORD_TYPE_INVALID:
                 reader_release_read_lock(ri->reader);
-                PyErr_SetString(MaxMindDB_error,
+                PyErr_SetString(state->MaxMindDB_error,
                                 "Invalid record when reading node");
                 free(cur);
                 return NULL;
@@ -756,8 +808,9 @@ static PyObject *ReaderIter_next(PyObject *self) {
                 if (status != MMDB_SUCCESS) {
                     reader_release_read_lock(ri->reader);
                     const char *error = MMDB_strerror(status);
-                    PyErr_Format(
-                        MaxMindDB_error, "Error reading node: %s", error);
+                    PyErr_Format(state->MaxMindDB_error,
+                                 "Error reading node: %s",
+                                 error);
                     free(cur);
                     return NULL;
                 }
@@ -804,7 +857,7 @@ static PyObject *ReaderIter_next(PyObject *self) {
                 if (status != MMDB_SUCCESS) {
                     reader_release_read_lock(ri->reader);
                     PyErr_Format(
-                        MaxMindDB_error,
+                        state->MaxMindDB_error,
                         "Error looking up data while iterating over tree: %s",
                         MMDB_strerror(status));
                     MMDB_free_entry_data_list(entry_data_list);
@@ -814,7 +867,8 @@ static PyObject *ReaderIter_next(PyObject *self) {
 
                 MMDB_entry_data_list_s *original_entry_data_list =
                     entry_data_list;
-                PyObject *record = from_entry_data_list(&entry_data_list);
+                PyObject *record =
+                    from_entry_data_list(state, &entry_data_list);
                 MMDB_free_entry_data_list(original_entry_data_list);
                 if (record == NULL) {
                     reader_release_read_lock(ri->reader);
@@ -853,7 +907,7 @@ static PyObject *ReaderIter_next(PyObject *self) {
                     return NULL;
                 }
                 PyObject *network =
-                    PyObject_CallObject(ipaddress_ip_network, args);
+                    PyObject_CallObject(state->ipaddress_ip_network, args);
                 Py_DECREF(args);
                 if (network == NULL) {
                     reader_release_read_lock(ri->reader);
@@ -873,8 +927,9 @@ static PyObject *ReaderIter_next(PyObject *self) {
             }
             default:
                 reader_release_read_lock(ri->reader);
-                PyErr_Format(
-                    MaxMindDB_error, "Unknown record type: %u", cur->type);
+                PyErr_Format(state->MaxMindDB_error,
+                             "Unknown record type: %u",
+                             cur->type);
                 free(cur);
                 return NULL;
         }
@@ -971,9 +1026,10 @@ static void Metadata_dealloc(PyObject *self) {
 }
 
 static PyObject *
-from_entry_data_list(MMDB_entry_data_list_s **entry_data_list) {
+from_entry_data_list(maxminddb_state *state,
+                     MMDB_entry_data_list_s **entry_data_list) {
     if (entry_data_list == NULL || *entry_data_list == NULL) {
-        PyErr_SetString(MaxMindDB_error,
+        PyErr_SetString(state->MaxMindDB_error,
                         "Error while looking up data. Your database may be "
                         "corrupt or you have found a bug in libmaxminddb.");
         return NULL;
@@ -981,9 +1037,9 @@ from_entry_data_list(MMDB_entry_data_list_s **entry_data_list) {
 
     switch ((*entry_data_list)->entry_data.type) {
         case MMDB_DATA_TYPE_MAP:
-            return from_map(entry_data_list);
+            return from_map(state, entry_data_list);
         case MMDB_DATA_TYPE_ARRAY:
-            return from_array(entry_data_list);
+            return from_array(state, entry_data_list);
         case MMDB_DATA_TYPE_UTF8_STRING:
             return PyUnicode_FromStringAndSize(
                 (*entry_data_list)->entry_data.utf8_string,
@@ -1012,7 +1068,7 @@ from_entry_data_list(MMDB_entry_data_list_s **entry_data_list) {
         case MMDB_DATA_TYPE_INT32:
             return PyLong_FromLong((*entry_data_list)->entry_data.int32);
         default:
-            PyErr_Format(MaxMindDB_error,
+            PyErr_Format(state->MaxMindDB_error,
                          "Invalid data type arguments: %d",
                          (*entry_data_list)->entry_data.type);
             return NULL;
@@ -1020,7 +1076,8 @@ from_entry_data_list(MMDB_entry_data_list_s **entry_data_list) {
     return NULL;
 }
 
-static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list) {
+static PyObject *from_map(maxminddb_state *state,
+                          MMDB_entry_data_list_s **entry_data_list) {
     PyObject *py_obj = PyDict_New();
     if (py_obj == NULL) {
         PyErr_NoMemory();
@@ -1044,7 +1101,7 @@ static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list) {
 
         *entry_data_list = (*entry_data_list)->next;
 
-        PyObject *value = from_entry_data_list(entry_data_list);
+        PyObject *value = from_entry_data_list(state, entry_data_list);
         if (value == NULL) {
             Py_DECREF(key);
             Py_DECREF(py_obj);
@@ -1058,7 +1115,8 @@ static PyObject *from_map(MMDB_entry_data_list_s **entry_data_list) {
     return py_obj;
 }
 
-static PyObject *from_array(MMDB_entry_data_list_s **entry_data_list) {
+static PyObject *from_array(maxminddb_state *state,
+                            MMDB_entry_data_list_s **entry_data_list) {
     const uint32_t size = (*entry_data_list)->entry_data.data_size;
 
     PyObject *py_obj = PyList_New(size);
@@ -1070,7 +1128,7 @@ static PyObject *from_array(MMDB_entry_data_list_s **entry_data_list) {
     uint32_t i;
     for (i = 0; i < size && *entry_data_list; i++) {
         *entry_data_list = (*entry_data_list)->next;
-        PyObject *value = from_entry_data_list(entry_data_list);
+        PyObject *value = from_entry_data_list(state, entry_data_list);
         if (value == NULL) {
             Py_DECREF(py_obj);
             return NULL;
@@ -1150,36 +1208,7 @@ static PyMemberDef Reader_members[] = {
     {"closed", T_OBJECT, offsetof(Reader_obj, closed), READONLY, NULL},
     {NULL, 0, 0, 0, NULL}};
 
-// clang-format off
-static PyTypeObject Reader_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_basicsize = sizeof(Reader_obj),
-    .tp_dealloc = Reader_dealloc,
-    .tp_doc = "Reader object",
-    .tp_flags = Py_TPFLAGS_DEFAULT,
-    .tp_iter = Reader_iter,
-    .tp_methods = Reader_methods,
-    .tp_members = Reader_members,
-    .tp_name = "Reader",
-    .tp_init = Reader_init,
-};
-// clang-format on
-
 static PyMethodDef ReaderIter_methods[] = {{NULL, NULL, 0, NULL}};
-
-// clang-format off
-static PyTypeObject ReaderIter_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_basicsize = sizeof(ReaderIter_obj),
-    .tp_dealloc = ReaderIter_dealloc,
-    .tp_doc = "Iterator for Reader object",
-    .tp_flags = Py_TPFLAGS_DEFAULT,
-    .tp_iter = PyObject_SelfIter,
-    .tp_iternext = ReaderIter_next,
-    .tp_methods = ReaderIter_methods,
-    .tp_name = "ReaderIter",
-};
-// clang-format on
 
 static PyMethodDef Metadata_methods[] = {{NULL, NULL, 0, NULL}};
 
@@ -1227,84 +1256,176 @@ static PyMemberDef Metadata_members[] = {
      NULL},
     {NULL, 0, 0, 0, NULL}};
 
-// clang-format off
-static PyTypeObject Metadata_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_basicsize = sizeof(Metadata_obj),
-    .tp_dealloc = Metadata_dealloc,
-    .tp_doc = "Metadata object",
-    .tp_flags = Py_TPFLAGS_DEFAULT,
-    .tp_members = Metadata_members,
-    .tp_methods = Metadata_methods,
-    .tp_name = "Metadata",
-    .tp_init = Metadata_init};
-// clang-format on
+// =============================================================================
+// Type specs for heap type conversion (PEP 489)
+// =============================================================================
+
+static PyType_Slot Reader_Type_slots[] = {
+    {Py_tp_doc, "Reader object"},
+    {Py_tp_dealloc, Reader_dealloc},
+    {Py_tp_init, Reader_init},
+    {Py_tp_iter, Reader_iter},
+    {Py_tp_methods, Reader_methods},
+    {Py_tp_members, Reader_members},
+    {0, NULL},
+};
+
+static PyType_Spec Reader_Type_spec = {
+    .name = "maxminddb.extension.Reader",
+    .basicsize = sizeof(Reader_obj),
+    .flags = Py_TPFLAGS_DEFAULT,
+    .slots = Reader_Type_slots,
+};
+
+static PyType_Slot Metadata_Type_slots[] = {
+    {Py_tp_doc, "Metadata object"},
+    {Py_tp_dealloc, Metadata_dealloc},
+    {Py_tp_init, Metadata_init},
+    {Py_tp_methods, Metadata_methods},
+    {Py_tp_members, Metadata_members},
+    {0, NULL},
+};
+
+static PyType_Spec Metadata_Type_spec = {
+    .name = "maxminddb.extension.Metadata",
+    .basicsize = sizeof(Metadata_obj),
+    .flags = Py_TPFLAGS_DEFAULT,
+    .slots = Metadata_Type_slots,
+};
+
+static PyType_Slot ReaderIter_Type_slots[] = {
+    {Py_tp_doc, "Iterator for Reader object"},
+    {Py_tp_dealloc, ReaderIter_dealloc},
+    {Py_tp_iter, PyObject_SelfIter},
+    {Py_tp_iternext, ReaderIter_next},
+    {Py_tp_methods, ReaderIter_methods},
+    {0, NULL},
+};
+
+static PyType_Spec ReaderIter_Type_spec = {
+    .name = "maxminddb.extension.ReaderIter",
+    .basicsize = sizeof(ReaderIter_obj),
+    .flags = Py_TPFLAGS_DEFAULT,
+    .slots = ReaderIter_Type_slots,
+};
 
 static PyMethodDef MaxMindDB_methods[] = {{NULL, NULL, 0, NULL}};
+
+// =============================================================================
+// Module state management functions for PEP 489
+// =============================================================================
+
+static int maxminddb_traverse(PyObject *module, visitproc visit, void *arg) {
+    maxminddb_state *state = get_maxminddb_state(module);
+    Py_VISIT(state->Reader_Type);
+    Py_VISIT(state->ReaderIter_Type);
+    Py_VISIT(state->Metadata_Type);
+    Py_VISIT(state->MaxMindDB_error);
+    Py_VISIT(state->ipaddress_ip_network);
+    return 0;
+}
+
+static int maxminddb_clear(PyObject *module) {
+    maxminddb_state *state = get_maxminddb_state(module);
+    Py_CLEAR(state->Reader_Type);
+    Py_CLEAR(state->ReaderIter_Type);
+    Py_CLEAR(state->Metadata_Type);
+    Py_CLEAR(state->MaxMindDB_error);
+    Py_CLEAR(state->ipaddress_ip_network);
+    return 0;
+}
+
+static void maxminddb_free(void *module) {
+    maxminddb_clear((PyObject *)module);
+}
+
+static int maxminddb_exec(PyObject *module) {
+    maxminddb_state *state = get_maxminddb_state(module);
+
+    // Create heap types
+    state->Reader_Type =
+        PyType_FromModuleAndSpec(module, &Reader_Type_spec, NULL);
+    if (state->Reader_Type == NULL) {
+        return -1;
+    }
+    if (PyModule_AddObject(module, "Reader", Py_NewRef(state->Reader_Type)) <
+        0) {
+        return -1;
+    }
+
+    state->Metadata_Type =
+        PyType_FromModuleAndSpec(module, &Metadata_Type_spec, NULL);
+    if (state->Metadata_Type == NULL) {
+        return -1;
+    }
+    if (PyModule_AddObject(
+            module, "Metadata", Py_NewRef(state->Metadata_Type)) < 0) {
+        return -1;
+    }
+
+    state->ReaderIter_Type =
+        PyType_FromModuleAndSpec(module, &ReaderIter_Type_spec, NULL);
+    if (state->ReaderIter_Type == NULL) {
+        return -1;
+    }
+    // ReaderIter is not exposed to Python directly, so no need to add to module
+
+    // Import error class from maxminddb.errors
+    PyObject *error_mod = PyImport_ImportModule("maxminddb.errors");
+    if (error_mod == NULL) {
+        return -1;
+    }
+    state->MaxMindDB_error =
+        PyObject_GetAttrString(error_mod, "InvalidDatabaseError");
+    Py_DECREF(error_mod);
+    if (state->MaxMindDB_error == NULL) {
+        return -1;
+    }
+
+    // Import ip_network from ipaddress
+    PyObject *ipaddress_mod = PyImport_ImportModule("ipaddress");
+    if (ipaddress_mod == NULL) {
+        return -1;
+    }
+    state->ipaddress_ip_network =
+        PyObject_GetAttrString(ipaddress_mod, "ip_network");
+    Py_DECREF(ipaddress_mod);
+    if (state->ipaddress_ip_network == NULL) {
+        return -1;
+    }
+
+    // Add error class to module for backwards compatibility
+    if (PyModule_AddObject(module,
+                           "InvalidDatabaseError",
+                           Py_NewRef(state->MaxMindDB_error)) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static PyModuleDef_Slot maxminddb_slots[] = {
+    {Py_mod_exec, maxminddb_exec},
+#if (PY_MAJOR_VERSION > 3) || (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 12)
+    {Py_mod_multiple_interpreters, Py_MOD_MULTIPLE_INTERPRETERS_SUPPORTED},
+#endif
+#ifndef MAXMINDDB_USE_GIL_ONLY
+    {Py_mod_gil, Py_MOD_GIL_NOT_USED},
+#endif
+    {0, NULL}};
 
 static struct PyModuleDef MaxMindDB_module = {
     PyModuleDef_HEAD_INIT,
     .m_name = "extension",
     .m_doc = "This is a C extension to read MaxMind DB file format",
+    .m_size = sizeof(maxminddb_state),
     .m_methods = MaxMindDB_methods,
+    .m_slots = maxminddb_slots,
+    .m_traverse = maxminddb_traverse,
+    .m_clear = maxminddb_clear,
+    .m_free = maxminddb_free,
 };
 
 PyMODINIT_FUNC PyInit_extension(void) {
-    PyObject *m;
-
-    m = PyModule_Create(&MaxMindDB_module);
-
-    if (!m) {
-        return NULL;
-    }
-
-#ifndef MAXMINDDB_USE_GIL_ONLY
-    // Only declare module as GIL-free when we have proper locks available
-    PyUnstable_Module_SetGIL(m, Py_MOD_GIL_NOT_USED);
-#endif
-
-    Reader_Type.tp_new = PyType_GenericNew;
-    if (PyType_Ready(&Reader_Type)) {
-        return NULL;
-    }
-    Py_INCREF(&Reader_Type);
-    PyModule_AddObject(m, "Reader", (PyObject *)&Reader_Type);
-
-    Metadata_Type.tp_new = PyType_GenericNew;
-    if (PyType_Ready(&Metadata_Type)) {
-        return NULL;
-    }
-    Py_INCREF(&Metadata_Type);
-    PyModule_AddObject(m, "Metadata", (PyObject *)&Metadata_Type);
-
-    PyObject *error_mod = PyImport_ImportModule("maxminddb.errors");
-    if (error_mod == NULL) {
-        return NULL;
-    }
-
-    MaxMindDB_error = PyObject_GetAttrString(error_mod, "InvalidDatabaseError");
-    Py_DECREF(error_mod);
-
-    if (MaxMindDB_error == NULL) {
-        return NULL;
-    }
-    Py_INCREF(MaxMindDB_error);
-
-    PyObject *ipaddress_mod = PyImport_ImportModule("ipaddress");
-    if (ipaddress_mod == NULL) {
-        return NULL;
-    }
-
-    ipaddress_ip_network = PyObject_GetAttrString(ipaddress_mod, "ip_network");
-    Py_DECREF(ipaddress_mod);
-
-    if (ipaddress_ip_network == NULL) {
-        return NULL;
-    }
-    Py_INCREF(ipaddress_ip_network);
-
-    /* We primarily add it to the module for backwards compatibility */
-    PyModule_AddObject(m, "InvalidDatabaseError", MaxMindDB_error);
-
-    return m;
+    return PyModuleDef_Init(&MaxMindDB_module);
 }
