@@ -288,7 +288,10 @@ class Reader:
         return filename
 
     def close(self) -> None:
-        """Close the MaxMind DB file and returns the resources to the system."""
+        """Close the MaxMind DB file and returns the resources to the system.
+
+        Calling this method while reads are in progress may cause exceptions.
+        """
         with contextlib.suppress(AttributeError):
             self._buffer.close()  # type: ignore[union-attr]
 

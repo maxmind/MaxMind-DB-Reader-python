@@ -94,10 +94,20 @@ The module will return an ``InvalidDatabaseError`` if the database is corrupt
 or otherwise invalid. A ``ValueError`` will be thrown if you look up an
 invalid IP address or an IPv6 address in an IPv4 database.
 
+Thread Safety
+-------------
+
+Both the C extension and pure Python implementations are safe for concurrent
+reads and support Python 3.13+ free-threading. The C extension provides
+free-threading support on platforms with pthread support (such as Linux and
+macOS) and Windows. On other platforms, the extension will use GIL-based
+protection. Calling ``close()`` while reads are in progress may cause
+exceptions in those threads.
+
 Requirements
 ------------
 
-This code requires Python 3.9+. Older versions are not supported. The C
+This code requires Python 3.10+. Older versions are not supported. The C
 extension requires CPython.
 
 Versioning

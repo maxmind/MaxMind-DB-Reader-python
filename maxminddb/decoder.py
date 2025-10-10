@@ -1,7 +1,9 @@
 """Decoder for the MaxMind DB data section."""
 
+from __future__ import annotations
+
 import struct
-from typing import ClassVar, Union, cast
+from typing import TYPE_CHECKING, ClassVar, cast
 
 try:
     import mmap
@@ -10,8 +12,10 @@ except ImportError:
 
 
 from maxminddb.errors import InvalidDatabaseError
-from maxminddb.file import FileBuffer
-from maxminddb.types import Record
+
+if TYPE_CHECKING:
+    from maxminddb.file import FileBuffer
+    from maxminddb.types import Record
 
 
 class Decoder:
@@ -19,7 +23,7 @@ class Decoder:
 
     def __init__(
         self,
-        database_buffer: Union[FileBuffer, "mmap.mmap", bytes],
+        database_buffer: FileBuffer | mmap.mmap | bytes,
         pointer_base: int = 0,
         pointer_test: bool = False,  # noqa: FBT001, FBT002
     ) -> None:
