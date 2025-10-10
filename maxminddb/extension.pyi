@@ -1,6 +1,7 @@
 """C extension database reader and related classes."""
 
-from ipaddress import IPv4Address, IPv6Address
+from collections.abc import Iterator
+from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from os import PathLike
 from typing import IO, Any, AnyStr
 
@@ -56,6 +57,7 @@ class Reader:
     def metadata(self) -> Metadata:
         """Return the metadata associated with the MaxMind DB file."""
 
+    def __iter__(self) -> Iterator[tuple[IPv4Network | IPv6Network, Record]]: ...
     def __enter__(self) -> Self: ...
     def __exit__(self, *args) -> None: ...  # noqa: ANN002
 
