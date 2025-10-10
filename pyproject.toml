@@ -5,7 +5,7 @@ description = "Reader for the MaxMind DB format"
 authors = [
     {name = "Gregory Oschwald", email = "goschwald@maxmind.com"},
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 readme = "README.rst"
 license = "Apache-2.0"
 classifiers = [
@@ -15,7 +15,6 @@ classifiers = [
     "Intended Audience :: System Administrators",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -93,7 +92,6 @@ ignore = [
 
 [tool.tox]
 env_list = [
-    "3.9",
     "3.10",
     "3.11",
     "3.12",
@@ -130,4 +128,3 @@ commands = [
 "3.12" = ["3.12"]
 "3.11" = ["3.11"]
 "3.10" = ["3.10"]
-"3.9" = ["3.9"]

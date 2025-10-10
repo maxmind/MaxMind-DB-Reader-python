@@ -6,6 +6,8 @@ History
 2.9.0
 ++++++++++++++++++
 
+* IMPORTANT: Python 3.10 or greater is required. If you are using an older
+  version, please use an earlier release.
 * Databases can now be loaded from buffers. This can be done by passing in a
   buffer as the database and using mode ``MODE_FD``. Pull request by Emanuel
   Seemann. GitHub #234.
