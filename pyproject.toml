@@ -90,6 +90,13 @@ ignore = [
 "setup.py" = ["ALL"]
 "tests/*" = ["ANN201", "D"]
 
+[tool.pytest.ini_options]
+# Use importlib mode to prevent pytest from adding the project root to sys.path.
+# This ensures tests import from the tox virtualenv's installed package (which includes
+# the compiled C extension) rather than directly from the source directory (which doesn't
+# have the .so file). We still test the source code, just via the installed version.
+addopts = "--import-mode=importlib"
+
 [tool.tox]
 env_list = [
     "3.10",
