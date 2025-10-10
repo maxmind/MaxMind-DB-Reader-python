@@ -105,6 +105,13 @@ skip_missing_interpreters = false
 dependency_groups = [
   "dev",
 ]
+pass_env = [
+    "CFLAGS",
+    "LDFLAGS",
+    "MAXMINDDB_REQUIRE_EXTENSION",
+    "MAXMINDDB_USE_SYSTEM_LIBMAXMINDDB",
+    "MM_FORCE_EXT_TESTS",
+]
 commands = [
     ["pytest", "tests"],
 ]
