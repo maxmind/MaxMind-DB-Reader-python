@@ -56,7 +56,7 @@ jobs:
           echo "LDFLAGS=-L/opt/homebrew/lib" >> "$GITHUB_ENV"
 
       - name: Build with Werror and Wall
-        run: uv build
+        run: uv build --python ${{ matrix.env }}
         env:
           CFLAGS: "${{ env.CFLAGS }} -Werror -Wall -Wextra"
 
