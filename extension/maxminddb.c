@@ -22,11 +22,57 @@ static PyTypeObject Metadata_Type;
 static PyObject *MaxMindDB_error;
 static PyObject *ipaddress_ip_network;
 
-// clang-format off
+// =============================================================================
+// Platform-specific lock type definition
+// =============================================================================
+
+// Determine which locking strategy to use
+#if !defined(Py_GIL_DISABLED)
+// GIL is enabled - no locks needed, GIL provides synchronization
+#define MAXMINDDB_USE_GIL_ONLY
+#elif defined(_WIN32)
+// Free-threaded on Windows - use SRWLOCK
+#define MAXMINDDB_USE_WINDOWS_LOCKS
+#include <windows.h>
+#elif (defined(__has_include) && __has_include(<pthread.h>)) || \
+      (defined(_POSIX_THREADS) && (_POSIX_THREADS > 0)) || \
+      defined(__unix__) || defined(__APPLE__) || defined(__linux__)
+// Free-threaded with pthread support - use pthread_rwlock_t
+// This covers POSIX systems, including Linux, macOS, BSDs, Android, Cygwin,
+// etc.
+#define MAXMINDDB_USE_PTHREAD_LOCKS
+#include <errno.h>
+#include <pthread.h>
+#include <string.h>
+#else
+// Free-threaded on unknown platform - fall back to GIL protection
+// The extension will work but won't benefit from fine-grained locking
+#define MAXMINDDB_USE_GIL_ONLY
+#endif
+
+// Define the lock type based on strategy
+#ifdef MAXMINDDB_USE_WINDOWS_LOCKS
+typedef SRWLOCK reader_rwlock_t;
+#elif defined(MAXMINDDB_USE_PTHREAD_LOCKS)
+typedef pthread_rwlock_t reader_rwlock_t;
+#else
+// Dummy lock type for GIL-only mode
 typedef struct {
+    // Dummy member to satisfy MSVC, which doesn't allow empty structs.
+    char dummy;
+} reader_rwlock_t;
+#endif
+
+// =============================================================================
+// Type definitions
+// =============================================================================
+
+// clang-format off
+typedef struct Reader_obj_struct {
     PyObject_HEAD /* no semicolon */
     MMDB_s *mmdb;
     PyObject *closed;
+    reader_rwlock_t rwlock;
 } Reader_obj;
 
 typedef struct record record;
@@ -73,6 +119,169 @@ static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address);
 #else
 #define UNUSED(x) UNUSED_##x
 #endif
+
+// =============================================================================
+// Lock function implementations
+// =============================================================================
+
+static int reader_lock_init(reader_rwlock_t *lock) {
+#ifdef MAXMINDDB_USE_WINDOWS_LOCKS
+    InitializeSRWLock(lock);
+    return 0;
+
+#elif defined(MAXMINDDB_USE_PTHREAD_LOCKS)
+    int err = pthread_rwlock_init(lock, NULL);
+    if (err != 0) {
+        PyErr_Format(PyExc_RuntimeError,
+                     "Failed to initialize read-write lock: %s",
+                     strerror(err));
+        return -1;
+    }
+    return 0;
+
+#else
+    // GIL-only mode - no-op
+    (void)lock;
+    return 0;
+#endif
+}
+
+static void reader_lock_destroy(reader_rwlock_t *lock) {
+#ifdef MAXMINDDB_USE_PTHREAD_LOCKS
+    int err = pthread_rwlock_destroy(lock);
+    if (err == EBUSY) {
+        PyErr_WarnEx(PyExc_RuntimeWarning,
+                     "Destroying MaxMind Reader lock while still in use "
+                     "(bug: lock not properly released)",
+                     1);
+    } else if (err != 0) {
+        PyErr_WarnFormat(PyExc_RuntimeWarning,
+                         1,
+                         "pthread_rwlock_destroy failed: %s",
+                         strerror(err));
+    }
+
+#else
+    // Windows SRWLOCK and GIL-only mode - no cleanup needed
+    (void)lock;
+#endif
+}
+
+static int reader_acquire_read_lock(Reader_obj *reader) {
+#ifdef MAXMINDDB_USE_WINDOWS_LOCKS
+    AcquireSRWLockShared(&(reader->rwlock));
+    return 0;
+
+#elif defined(MAXMINDDB_USE_PTHREAD_LOCKS)
+    int err = pthread_rwlock_rdlock(&(reader->rwlock));
+    if (err != 0) {
+        const char *msg;
+        switch (err) {
+            case EAGAIN:
+                msg = "Maximum number of read locks exceeded";
+                break;
+            case EDEADLK:
+                msg = "Deadlock detected";
+                break;
+            case EINVAL:
+                msg = "Invalid lock state";
+                break;
+            default:
+                msg = strerror(err);
+                break;
+        }
+        PyErr_Format(
+            PyExc_RuntimeError, "Failed to acquire read lock: %s", msg);
+        return -1;
+    }
+    return 0;
+
+#else
+    // GIL-only mode - no-op
+    (void)reader;
+    return 0;
+#endif
+}
+
+static void reader_release_read_lock(Reader_obj *reader) {
+#ifdef MAXMINDDB_USE_WINDOWS_LOCKS
+    ReleaseSRWLockShared(&(reader->rwlock));
+
+#elif defined(MAXMINDDB_USE_PTHREAD_LOCKS)
+    int err = pthread_rwlock_unlock(&(reader->rwlock));
+    if (err != 0) {
+        PyErr_WarnFormat(
+            PyExc_RuntimeWarning,
+            1,
+            "pthread_rwlock_unlock failed: %s (unbalanced lock/unlock?)",
+            strerror(err));
+    }
+
+#else
+    // GIL-only mode - no-op
+    (void)reader;
+#endif
+}
+
+static int reader_acquire_write_lock(Reader_obj *reader) {
+#ifdef MAXMINDDB_USE_WINDOWS_LOCKS
+    AcquireSRWLockExclusive(&(reader->rwlock));
+    return 0;
+
+#elif defined(MAXMINDDB_USE_PTHREAD_LOCKS)
+    int err = pthread_rwlock_wrlock(&(reader->rwlock));
+    if (err != 0) {
+        const char *msg;
+        switch (err) {
+            case EAGAIN:
+                msg = "Maximum number of write locks exceeded";
+                break;
+            case EDEADLK:
+                msg = "Deadlock detected";
+                break;
+            case EINVAL:
+                msg = "Invalid lock state";
+                break;
+            default:
+                msg = strerror(err);
+                break;
+        }
+        PyErr_Format(
+            PyExc_RuntimeError, "Failed to acquire write lock: %s", msg);
+        return -1;
+    }
+    return 0;
+
+#else
+    // GIL-only mode - no-op
+    (void)reader;
+    return 0;
+#endif
+}
+
+static void reader_release_write_lock(Reader_obj *reader) {
+#ifdef MAXMINDDB_USE_WINDOWS_LOCKS
+    ReleaseSRWLockExclusive(&(reader->rwlock));
+
+#elif defined(MAXMINDDB_USE_PTHREAD_LOCKS)
+    int err = pthread_rwlock_unlock(&(reader->rwlock));
+    if (err != 0) {
+        PyErr_WarnFormat(
+            PyExc_RuntimeWarning,
+            1,
+            "pthread_rwlock_unlock failed: %s (unbalanced lock/unlock?)",
+            strerror(err));
+    }
+
+#else
+    // GIL-only mode - no-op
+    (void)reader;
+#endif
+}
+
+// =============================================================================
+// Reader implementation
+// =============================================================================
 
 static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
     PyObject *filepath = NULL;
@@ -125,9 +334,16 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
         return -1;
     }
 
+    if (reader_lock_init(&mmdb_obj->rwlock) != 0) {
+        free(mmdb);
+        Py_XDECREF(filepath);
+        return -1;
+    }
+
     int const status = MMDB_open(filename, MMDB_MODE_MMAP, mmdb);
 
     if (status != MMDB_SUCCESS) {
+        reader_lock_destroy(&mmdb_obj->rwlock);
         free(mmdb);
         PyErr_Format(MaxMindDB_error,
                      "Error opening database file (%s). Is this a valid "
@@ -166,13 +382,6 @@ static PyObject *Reader_get_with_prefix_len(PyObject *self, PyObject *args) {
 }
 
 static int get_record(PyObject *self, PyObject *args, PyObject **record) {
-    MMDB_s *mmdb = ((Reader_obj *)self)->mmdb;
-    if (mmdb == NULL) {
-        PyErr_SetString(PyExc_ValueError,
-                        "Attempt to read from a closed MaxMind DB.");
-        return -1;
-    }
-
     struct sockaddr_storage ip_address_ss = {0};
     struct sockaddr *ip_address = (struct sockaddr *)&ip_address_ss;
     if (!PyArg_ParseTuple(args, "O&", ip_converter, &ip_address_ss)) {
@@ -184,11 +393,26 @@ static int get_record(PyObject *self, PyObject *args, PyObject **record) {
         return -1;
     }
 
+    Reader_obj *reader = (Reader_obj *)self;
+
+    if (reader_acquire_read_lock(reader) != 0) {
+        return -1;
+    }
+
+    MMDB_s *mmdb = reader->mmdb;
+    if (mmdb == NULL) {
+        reader_release_read_lock(reader);
+        PyErr_SetString(PyExc_ValueError,
+                        "Attempt to read from a closed MaxMind DB.");
+        return -1;
+    }
+
     int mmdb_error = MMDB_SUCCESS;
     MMDB_lookup_result_s result =
         MMDB_lookup_sockaddr(mmdb, ip_address, &mmdb_error);
 
     if (mmdb_error != MMDB_SUCCESS) {
+        reader_release_read_lock(reader);
         PyObject *exception;
         if (MMDB_IPV6_LOOKUP_IN_IPV4_DATABASE_ERROR == mmdb_error) {
             exception = PyExc_ValueError;
@@ -213,6 +437,7 @@ static int get_record(PyObject *self, PyObject *args, PyObject **record) {
     }
 
     if (!result.found_entry) {
+        reader_release_read_lock(reader);
         Py_INCREF(Py_None);
         *record = Py_None;
         return prefix_len;
@@ -221,6 +446,7 @@ static int get_record(PyObject *self, PyObject *args, PyObject **record) {
     MMDB_entry_data_list_s *entry_data_list = NULL;
     int status = MMDB_get_entry_data_list(&result.entry, &entry_data_list);
     if (status != MMDB_SUCCESS) {
+        reader_release_read_lock(reader);
         char ipstr[INET6_ADDRSTRLEN] = {0};
         if (format_sockaddr(ip_address, ipstr)) {
             PyErr_Format(MaxMindDB_error,
@@ -235,6 +461,8 @@ static int get_record(PyObject *self, PyObject *args, PyObject **record) {
     MMDB_entry_data_list_s *original_entry_data_list = entry_data_list;
     *record = from_entry_data_list(&entry_data_list);
     MMDB_free_entry_data_list(original_entry_data_list);
+
+    reader_release_read_lock(reader);
 
     // from_entry_data_list will return NULL on errors.
     if (*record == NULL) {
@@ -344,7 +572,12 @@ static bool format_sockaddr(struct sockaddr *sa, char *dst) {
 static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args)) {
     Reader_obj *mmdb_obj = (Reader_obj *)self;
 
+    if (reader_acquire_read_lock(mmdb_obj) != 0) {
+        return NULL;
+    }
+
     if (mmdb_obj->mmdb == NULL) {
+        reader_release_read_lock(mmdb_obj);
         PyErr_SetString(PyExc_IOError,
                         "Attempt to read from a closed MaxMind DB.");
         return NULL;
@@ -354,6 +587,7 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args)) {
     int status =
         MMDB_get_metadata_as_entry_data_list(mmdb_obj->mmdb, &entry_data_list);
     if (status != MMDB_SUCCESS) {
+        reader_release_read_lock(mmdb_obj);
         PyErr_Format(MaxMindDB_error,
                      "Error decoding metadata. %s",
                      MMDB_strerror(status));
@@ -364,9 +598,12 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args)) {
     PyObject *metadata_dict = from_entry_data_list(&entry_data_list);
     MMDB_free_entry_data_list(original_entry_data_list);
     if (metadata_dict == NULL || !PyDict_Check(metadata_dict)) {
+        reader_release_read_lock(mmdb_obj);
         PyErr_SetString(MaxMindDB_error, "Error decoding metadata.");
         return NULL;
     }
+
+    reader_release_read_lock(mmdb_obj);
 
     PyObject *args = PyTuple_New(0);
     if (args == NULL) {
@@ -384,6 +621,10 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args)) {
 static PyObject *Reader_close(PyObject *self, PyObject *UNUSED(args)) {
     Reader_obj *mmdb_obj = (Reader_obj *)self;
 
+    if (reader_acquire_write_lock(mmdb_obj) != 0) {
+        return NULL;
+    }
+
     if (mmdb_obj->mmdb != NULL) {
         MMDB_close(mmdb_obj->mmdb);
         free(mmdb_obj->mmdb);
@@ -391,6 +632,8 @@ static PyObject *Reader_close(PyObject *self, PyObject *UNUSED(args)) {
     }
 
     mmdb_obj->closed = Py_True;
+
+    reader_release_write_lock(mmdb_obj);
 
     Py_RETURN_NONE;
 }
@@ -418,6 +661,8 @@ static void Reader_dealloc(PyObject *self) {
     if (obj->mmdb != NULL) {
         Reader_close(self, NULL);
     }
+
+    reader_lock_destroy(&obj->rwlock);
 
     PyObject_Del(self);
 }
@@ -466,12 +711,17 @@ static PyObject *ReaderIter_next(PyObject *self) {
         return NULL;
     }
 
+    if (reader_acquire_read_lock(ri->reader) != 0) {
+        return NULL;
+    }
+
     while (ri->next != NULL) {
         record *cur = ri->next;
         ri->next = cur->next;
 
         switch (cur->type) {
             case MMDB_RECORD_TYPE_INVALID:
+                reader_release_read_lock(ri->reader);
                 PyErr_SetString(MaxMindDB_error,
                                 "Invalid record when reading node");
                 free(cur);
@@ -487,6 +737,7 @@ static PyObject *ReaderIter_next(PyObject *self) {
                 int status = MMDB_read_node(
                     ri->reader->mmdb, (uint32_t)cur->record, &node);
                 if (status != MMDB_SUCCESS) {
+                    reader_release_read_lock(ri->reader);
                     const char *error = MMDB_strerror(status);
                     PyErr_Format(
                         MaxMindDB_error, "Error reading node: %s", error);
@@ -495,6 +746,7 @@ static PyObject *ReaderIter_next(PyObject *self) {
                 }
                 struct record *left = calloc(1, sizeof(record));
                 if (left == NULL) {
+                    reader_release_read_lock(ri->reader);
                     free(cur);
                     PyErr_NoMemory();
                     return NULL;
@@ -508,6 +760,7 @@ static PyObject *ReaderIter_next(PyObject *self) {
 
                 struct record *right = left->next = calloc(1, sizeof(record));
                 if (right == NULL) {
+                    reader_release_read_lock(ri->reader);
                     free(cur);
                     free(left);
                     PyErr_NoMemory();
@@ -532,6 +785,7 @@ static PyObject *ReaderIter_next(PyObject *self) {
                 int status =
                     MMDB_get_entry_data_list(&cur->entry, &entry_data_list);
                 if (status != MMDB_SUCCESS) {
+                    reader_release_read_lock(ri->reader);
                     PyErr_Format(
                         MaxMindDB_error,
                         "Error looking up data while iterating over tree: %s",
@@ -546,6 +800,7 @@ static PyObject *ReaderIter_next(PyObject *self) {
                 PyObject *record = from_entry_data_list(&entry_data_list);
                 MMDB_free_entry_data_list(original_entry_data_list);
                 if (record == NULL) {
+                    reader_release_read_lock(ri->reader);
                     free(cur);
                     return NULL;
                 }
@@ -567,6 +822,7 @@ static PyObject *ReaderIter_next(PyObject *self) {
                                   ip_length,
                                   cur->depth - ip_start * 8);
                 if (network_tuple == NULL) {
+                    reader_release_read_lock(ri->reader);
                     Py_DECREF(record);
                     free(cur);
                     return NULL;
@@ -574,6 +830,7 @@ static PyObject *ReaderIter_next(PyObject *self) {
                 PyObject *args = PyTuple_Pack(1, network_tuple);
                 Py_DECREF(network_tuple);
                 if (args == NULL) {
+                    reader_release_read_lock(ri->reader);
                     Py_DECREF(record);
                     free(cur);
                     return NULL;
@@ -582,6 +839,7 @@ static PyObject *ReaderIter_next(PyObject *self) {
                     PyObject_CallObject(ipaddress_ip_network, args);
                 Py_DECREF(args);
                 if (network == NULL) {
+                    reader_release_read_lock(ri->reader);
                     Py_DECREF(record);
                     free(cur);
                     return NULL;
@@ -591,10 +849,13 @@ static PyObject *ReaderIter_next(PyObject *self) {
                 Py_DECREF(network);
                 Py_DECREF(record);
 
+                reader_release_read_lock(ri->reader);
+
                 free(cur);
                 return rv;
             }
             default:
+                reader_release_read_lock(ri->reader);
                 PyErr_Format(
                     MaxMindDB_error, "Unknown record type: %u", cur->type);
                 free(cur);
@@ -602,6 +863,7 @@ static PyObject *ReaderIter_next(PyObject *self) {
         }
         free(cur);
     }
+    reader_release_read_lock(ri->reader);
     return NULL;
 }
 
@@ -978,6 +1240,11 @@ PyMODINIT_FUNC PyInit_extension(void) {
     if (!m) {
         return NULL;
     }
+
+#ifndef MAXMINDDB_USE_GIL_ONLY
+    // Only declare module as GIL-free when we have proper locks available
+    PyUnstable_Module_SetGIL(m, Py_MOD_GIL_NOT_USED);
+#endif
 
     Reader_Type.tp_new = PyType_GenericNew;
     if (PyType_Ready(&Reader_Type)) {
