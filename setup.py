@@ -3,8 +3,8 @@ import re
 import sys
 
 from setuptools import Extension, setup
+from setuptools.command.bdist_wheel import bdist_wheel
 from setuptools.command.build_ext import build_ext
-from wheel.bdist_wheel import bdist_wheel
 
 # These were only added to setuptools in 59.0.1.
 try:
