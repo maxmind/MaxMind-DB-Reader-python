@@ -6,13 +6,10 @@ from typing import AnyStr, TypeAlias
 
 Primitive: TypeAlias = AnyStr | bool | float | int
 
+RecordList: TypeAlias = list["Record"]
+"""RecordList is a type for lists in a database record."""
 
-class RecordList(list["Record"]):
-    """RecordList is a type for lists in a database record."""
-
-
-class RecordDict(dict[str, "Record"]):
-    """RecordDict is a type for dicts in a database record."""
-
+RecordDict: TypeAlias = dict[str, "Record"]
+"""RecordDict is a type for dicts in a database record."""
 
 Record: TypeAlias = Primitive | RecordList | RecordDict

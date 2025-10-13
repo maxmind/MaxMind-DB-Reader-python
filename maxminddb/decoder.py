@@ -10,12 +10,15 @@ try:
 except ImportError:
     mmap = None  # type: ignore[assignment]
 
-
 from maxminddb.errors import InvalidDatabaseError
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from maxminddb.file import FileBuffer
     from maxminddb.types import Record
+
+    DecoderFunc = Callable[["Decoder", int, int], tuple[Record, int]]
 
 
 class Decoder:
@@ -118,7 +121,7 @@ class Decoder:
         new_offset = offset + size
         return self._buffer[offset:new_offset].decode("utf-8"), new_offset
 
-    _type_decoder: ClassVar = {
+    _type_decoder: ClassVar[dict[int, DecoderFunc]] = {
         1: _decode_pointer,
         2: _decode_utf8_string,
         3: _decode_double,
