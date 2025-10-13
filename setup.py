@@ -1,5 +1,4 @@
 import os
-import re
 import sys
 
 from setuptools import Extension, setup
@@ -93,20 +92,6 @@ class ve_build_ext(build_ext):
 cmdclass["build_ext"] = ve_build_ext
 
 
-ROOT = os.path.dirname(__file__)
-
-with open(os.path.join(ROOT, "README.rst"), encoding="utf-8") as fd:
-    README = fd.read()
-
-with open(os.path.join(ROOT, "maxminddb", "__init__.py"), encoding="utf-8") as fd:
-    maxminddb_text = fd.read()
-    VERSION = (
-        re.compile(r".*__version__ = \"(.*?)\"", re.DOTALL)
-        .match(maxminddb_text)
-        .group(1)
-    )
-
-
 def status_msgs(*msgs):
     print("*" * 75)
     for msg in msgs:
@@ -131,7 +116,7 @@ def run_setup(with_cext) -> None:
         kwargs["ext_modules"] = ext_module
         loc_cmdclass["bdist_wheel"] = bdist_wheel
 
-    setup(version=VERSION, cmdclass=loc_cmdclass, **kwargs)
+    setup(cmdclass=loc_cmdclass, **kwargs)
 
 
 try:

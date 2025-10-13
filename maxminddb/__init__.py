@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from importlib.metadata import version
 from typing import IO, TYPE_CHECKING, AnyStr, cast
 
 from .const import (
@@ -87,8 +88,4 @@ def open_database(
     return cast("Reader", _extension.Reader(database, mode))
 
 
-__title__ = "maxminddb"
-__version__ = "2.8.2"
-__author__ = "Gregory Oschwald"
-__license__ = "Apache License, Version 2.0"
-__copyright__ = "Copyright 2013-2025 MaxMind, Inc."
+__version__ = version("maxminddb")
