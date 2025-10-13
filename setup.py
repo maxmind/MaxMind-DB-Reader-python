@@ -9,7 +9,6 @@ from setuptools.errors import CCompilerError, ExecError, PlatformError
 
 cmdclass = {}
 PYPY = hasattr(sys, "pypy_version_info")
-JYTHON = sys.platform.startswith("java")
 
 if os.name == "nt":
     # Disable unknown pragma warning
@@ -135,30 +134,23 @@ def run_setup(with_cext) -> None:
     setup(version=VERSION, cmdclass=loc_cmdclass, **kwargs)
 
 
-if JYTHON:
-    run_setup(False)
+try:
+    run_setup(True)
+except BuildFailed as exc:
+    if os.getenv("MAXMINDDB_REQUIRE_EXTENSION"):
+        raise
     status_msgs(
-        "WARNING: Disabling C extension due to Python platform.",
+        exc.cause,
+        "WARNING: The C extension could not be compiled, "
+        + "speedups are not enabled.",
+        "Failure information, if any, is above.",
+        "Retrying the build without the C extension now.",
+    )
+
+    run_setup(False)
+
+    status_msgs(
+        "WARNING: The C extension could not be compiled, "
+        + "speedups are not enabled.",
         "Plain-Python build succeeded.",
     )
-else:
-    try:
-        run_setup(True)
-    except BuildFailed as exc:
-        if os.getenv("MAXMINDDB_REQUIRE_EXTENSION"):
-            raise
-        status_msgs(
-            exc.cause,
-            "WARNING: The C extension could not be compiled, "
-            + "speedups are not enabled.",
-            "Failure information, if any, is above.",
-            "Retrying the build without the C extension now.",
-        )
-
-        run_setup(False)
-
-        status_msgs(
-            "WARNING: The C extension could not be compiled, "
-            + "speedups are not enabled.",
-            "Plain-Python build succeeded.",
-        )
