@@ -31,6 +31,13 @@ History
   including the ``node_byte_size`` and ``search_tree_size`` properties. Note:
   The C extension's Metadata class has always been readonly, so this change
   brings the pure Python implementation into consistency with the C extension.
+* MODE constants have been converted to an ``IntEnum`` (``maxminddb.const.Mode``).
+  The old constants (``MODE_AUTO``, ``MODE_FILE``, etc.) remain available for
+  backward compatibility and are now aliases to the enum members. This provides
+  better IDE support and type safety while maintaining full backward
+  compatibility. You can now use either ``Mode.FILE`` or ``MODE_FILE`` - both
+  work identically. Since ``IntEnum`` is int-compatible, existing code using
+  the constants will continue to work without modification.
 
 2.8.2 (2025-07-25)
 ++++++++++++++++++
