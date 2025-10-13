@@ -22,6 +22,13 @@ History
   Python 3.12+ isolated subinterpreters, multiple independent module
   instances, and future-proofing for Python 3.14's InterpreterPoolExecutor.
   Requested by R. Christian McDonald in GitHub #105.
+* **BREAKING**: The pure Python ``maxminddb.reader.Metadata`` class has been
+  converted to a dataclass. The ``__repr__`` format has changed from
+  ``maxminddb.reader.Metadata(...)`` to ``Metadata(...)``. If you depend on
+  the exact string representation of the Metadata object, you will need to
+  update your code. All functionality remains the same, including the
+  ``node_byte_size`` and ``search_tree_size`` properties. The C extension's
+  Metadata class is unchanged.
 
 2.8.2 (2025-07-25)
 ++++++++++++++++++
