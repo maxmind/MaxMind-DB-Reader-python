@@ -308,7 +308,7 @@ class Reader:
         return self
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, frozen=True)
 class Metadata:
     """Metadata for the MaxMind DB reader."""
 
