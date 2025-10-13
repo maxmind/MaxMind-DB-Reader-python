@@ -65,8 +65,9 @@ ext_errors = (CCompilerError, ExecError, PlatformError)
 
 
 class BuildFailed(Exception):
-    def __init__(self) -> None:
-        self.cause = sys.exc_info()[1]
+    def __init__(self, cause: Exception) -> None:
+        super().__init__()
+        self.cause = cause
 
 
 class ve_build_ext(build_ext):
@@ -75,18 +76,18 @@ class ve_build_ext(build_ext):
     def run(self) -> None:
         try:
             build_ext.run(self)
-        except PlatformError:
-            raise BuildFailed
+        except PlatformError as ex:
+            raise BuildFailed(ex) from ex
 
     def build_extension(self, ext) -> None:
         try:
             build_ext.build_extension(self, ext)
-        except ext_errors:
-            raise BuildFailed
-        except ValueError:
+        except ext_errors as ex:
+            raise BuildFailed(ex) from ex
+        except ValueError as ex:
             # this can happen on Windows 64 bit, see Python issue 7511
-            if "'path'" in str(sys.exc_info()[1]):
-                raise BuildFailed
+            if "'path'" in str(ex):
+                raise BuildFailed(ex) from ex
             raise
 
 
@@ -95,11 +96,11 @@ cmdclass["build_ext"] = ve_build_ext
 
 ROOT = os.path.dirname(__file__)
 
-with open(os.path.join(ROOT, "README.rst"), "rb") as fd:
-    README = fd.read().decode("utf8")
+with open(os.path.join(ROOT, "README.rst"), encoding="utf-8") as fd:
+    README = fd.read()
 
-with open(os.path.join(ROOT, "maxminddb", "__init__.py"), "rb") as fd:
-    maxminddb_text = fd.read().decode("utf8")
+with open(os.path.join(ROOT, "maxminddb", "__init__.py"), encoding="utf-8") as fd:
+    maxminddb_text = fd.read()
     VERSION = (
         re.compile(r".*__version__ = \"(.*?)\"", re.DOTALL)
         .match(maxminddb_text)
