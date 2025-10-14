@@ -13,7 +13,7 @@ jobs:
 
     strategy:
       matrix:
-        env: [3.9, "3.10", 3.11, 3.12, 3.13, 3.14]
+        env: ["3.10", 3.11, 3.12, 3.13, 3.14]
         # We don't test on Windows currently due to issues
         # build libmaxminddb there.
         os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
@@ -56,7 +56,7 @@ jobs:
           echo "LDFLAGS=-L/opt/homebrew/lib" >> "$GITHUB_ENV"
 
       - name: Build with Werror and Wall
-        run: uv build
+        run: uv build --python ${{ matrix.env }}
         env:
           CFLAGS: "${{ env.CFLAGS }} -Werror -Wall -Wextra"
 

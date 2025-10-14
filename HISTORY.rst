@@ -6,9 +6,15 @@ History
 2.9.0
 ++++++++++++++++++
 
+* IMPORTANT: Python 3.10 or greater is required. If you are using an older
+  version, please use an earlier release.
 * Databases can now be loaded from buffers. This can be done by passing in a
   buffer as the database and using mode ``MODE_FD``. Pull request by Emanuel
   Seemann. GitHub #234.
+* The C extension now supports Python 3.13+ free-threading mode and is
+  thread-safe for concurrent reads on platforms with pthread support (such as
+  Linux and macOS) and Windows. On other platforms, the extension will use
+  GIL-based protection.
 
 2.8.2 (2025-07-25)
 ++++++++++++++++++

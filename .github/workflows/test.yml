@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        env: [3.9, "3.10", 3.11, 3.12, 3.13, 3.14]
+        env: ["3.10", 3.11, 3.12, 3.13, 3.14]
         os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v5
@@ -32,6 +32,7 @@ jobs:
       - name: Setup test suite
         run: tox run -vv --notest --skip-missing-interpreters false
         env:
+          MAXMINDDB_REQUIRE_EXTENSION: 1
           TOX_GH_MAJOR_MINOR: ${{ matrix.env }}
       - name: Run test suite
         run: tox run --skip-pkg-install
