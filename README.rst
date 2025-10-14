@@ -39,19 +39,19 @@ provide `free GeoLite2 databases
 files must be decompressed with ``gunzip``.
 
 After you have obtained a database and imported the module, call
-``open_database`` with a path, or file descriptor (in the case of ``MODE_FD``),
+``open_database`` with a path, or file descriptor (in the case of ``Mode.FD``),
 to the database as the first argument. Optionally, you may pass a mode as the
-second argument. The modes are exported from ``maxminddb``. Valid modes are:
+second argument. The modes are available from ``maxminddb.Mode``. Valid modes are:
 
-* ``MODE_MMAP_EXT`` - use the C extension with memory map.
-* ``MODE_MMAP`` - read from memory map. Pure Python.
-* ``MODE_FILE`` - read database as standard file. Pure Python.
-* ``MODE_MEMORY`` - load database into memory. Pure Python.
-* ``MODE_FD`` - load database into memory from a file descriptor. Pure Python.
-* ``MODE_AUTO`` - try ``MODE_MMAP_EXT``, ``MODE_MMAP``, ``MODE_FILE`` in that
+* ``Mode.MMAP_EXT`` - use the C extension with memory map.
+* ``Mode.MMAP`` - read from memory map. Pure Python.
+* ``Mode.FILE`` - read database as standard file. Pure Python.
+* ``Mode.MEMORY`` - load database into memory. Pure Python.
+* ``Mode.FD`` - load database into memory from a file descriptor. Pure Python.
+* ``Mode.AUTO`` - try ``Mode.MMAP_EXT``, ``Mode.MMAP``, ``Mode.FILE`` in that
   order. Default.
 
-**NOTE**: When using ``MODE_FD``, it is the *caller's* responsibility to be
+**NOTE**: When using ``Mode.FD``, it is the *caller's* responsibility to be
 sure that the file descriptor gets closed properly. The caller may close the
 file descriptor immediately after the ``Reader`` object is created.
 

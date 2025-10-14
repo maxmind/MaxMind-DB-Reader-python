@@ -10,6 +10,7 @@ except ImportError:
 import contextlib
 import ipaddress
 import struct
+from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv6Address
 from typing import IO, TYPE_CHECKING, Any, AnyStr
 
@@ -307,6 +308,7 @@ class Reader:
         return self
 
 
+@dataclass(kw_only=True, frozen=True)
 class Metadata:
     """Metadata for the MaxMind DB reader."""
 
@@ -323,19 +325,13 @@ class Metadata:
     """
 
     build_epoch: int
-    """
-    The Unix epoch for the build time of the database.
-    """
+    """The Unix epoch for the build time of the database."""
 
     database_type: str
-    """
-    A string identifying the database type, e.g., "GeoIP2-City".
-    """
+    """A string identifying the database type, e.g., "GeoIP2-City"."""
 
     description: dict[str, str]
-    """
-    A map from locales to text descriptions of the database.
-    """
+    """A map from locales to text descriptions of the database."""
 
     ip_version: int
     """
@@ -345,50 +341,20 @@ class Metadata:
     """
 
     languages: list[str]
-    """
-    A list of locale codes supported by the database.
-    """
+    """A list of locale codes supported by the database."""
 
     node_count: int
-    """
-    The number of nodes in the database.
-    """
+    """The number of nodes in the database."""
 
     record_size: int
-    """
-    The bit size of a record in the search tree.
-    """
-
-    def __init__(self, **kwargs) -> None:
-        """Create new Metadata object. kwargs are key/value pairs from spec."""
-        # Although I could just update __dict__, that is less obvious and it
-        # doesn't work well with static analysis tools and some IDEs
-        self.node_count = kwargs["node_count"]
-        self.record_size = kwargs["record_size"]
-        self.ip_version = kwargs["ip_version"]
-        self.database_type = kwargs["database_type"]
-        self.languages = kwargs["languages"]
-        self.binary_format_major_version = kwargs["binary_format_major_version"]
-        self.binary_format_minor_version = kwargs["binary_format_minor_version"]
-        self.build_epoch = kwargs["build_epoch"]
-        self.description = kwargs["description"]
+    """The bit size of a record in the search tree."""
 
     @property
     def node_byte_size(self) -> int:
-        """The size of a node in bytes.
-
-        :type: int
-        """
+        """The size of a node in bytes."""
         return self.record_size // 4
 
     @property
     def search_tree_size(self) -> int:
-        """The size of the search tree.
-
-        :type: int
-        """
+        """The size of the search tree."""
         return self.node_count * self.node_byte_size
-
-    def __repr__(self) -> str:
-        args = ", ".join(f"{k}={v!r}" for k, v in self.__dict__.items())
-        return f"{self.__module__}.{self.__class__.__name__}({args})"

@@ -3,7 +3,7 @@
 History
 -------
 
-2.9.0
+3.0.0
 ++++++++++++++++++
 
 * IMPORTANT: Python 3.10 or greater is required. If you are using an older
@@ -15,6 +15,29 @@ History
   thread-safe for concurrent reads on platforms with pthread support (such as
   Linux and macOS) and Windows. On other platforms, the extension will use
   GIL-based protection.
+* The C extension now uses PEP 489 multi-phase initialization, enabling
+  proper subinterpreter support and module isolation for Python 3.12+. This
+  modernizes the extension to use heap types instead of static types and
+  implements per-module state management. Key benefits include support for
+  Python 3.12+ isolated subinterpreters, multiple independent module
+  instances, and future-proofing for Python 3.14's InterpreterPoolExecutor.
+  Requested by R. Christian McDonald in GitHub #105.
+* **BREAKING**: The pure Python ``maxminddb.reader.Metadata`` class has been
+  converted to a frozen dataclass. The ``__repr__`` format has changed from
+  ``maxminddb.reader.Metadata(...)`` to ``Metadata(...)``. More importantly,
+  all Metadata attributes are now readonly and cannot be modified after
+  creation. If you were modifying metadata attributes after object creation,
+  you will need to update your code. All functionality remains the same,
+  including the ``node_byte_size`` and ``search_tree_size`` properties. Note:
+  The C extension's Metadata class has always been readonly, so this change
+  brings the pure Python implementation into consistency with the C extension.
+* MODE constants have been converted to an ``IntEnum`` (``maxminddb.const.Mode``).
+  The old constants (``MODE_AUTO``, ``MODE_FILE``, etc.) remain available for
+  backward compatibility and are now aliases to the enum members. This provides
+  better IDE support and type safety while maintaining full backward
+  compatibility. You can now use either ``Mode.FILE`` or ``MODE_FILE`` - both
+  work identically. Since ``IntEnum`` is int-compatible, existing code using
+  the constants will continue to work without modification.
 
 2.8.2 (2025-07-25)
 ++++++++++++++++++
