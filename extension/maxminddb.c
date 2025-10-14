@@ -641,11 +641,18 @@ static PyObject *Reader_close(PyObject *self, PyObject *UNUSED(args)) {
 static PyObject *Reader__enter__(PyObject *self, PyObject *UNUSED(args)) {
     Reader_obj *mmdb_obj = (Reader_obj *)self;
 
+    if (reader_acquire_read_lock(mmdb_obj) != 0) {
+        return NULL;
+    }
+
     if (mmdb_obj->closed == Py_True) {
+        reader_release_read_lock(mmdb_obj);
         PyErr_SetString(PyExc_ValueError,
                         "Attempt to reopen a closed MaxMind DB.");
         return NULL;
     }
+
+    reader_release_read_lock(mmdb_obj);
 
     Py_INCREF(self);
     return (PyObject *)self;
@@ -669,11 +676,19 @@ static void Reader_dealloc(PyObject *self) {
 
 static PyObject *Reader_iter(PyObject *obj) {
     Reader_obj *reader = (Reader_obj *)obj;
+
+    if (reader_acquire_read_lock(reader) != 0) {
+        return NULL;
+    }
+
     if (reader->closed == Py_True) {
+        reader_release_read_lock(reader);
         PyErr_SetString(PyExc_ValueError,
                         "Attempt to iterate over a closed MaxMind DB.");
         return NULL;
     }
+
+    reader_release_read_lock(reader);
 
     ReaderIter_obj *ri = PyObject_New(ReaderIter_obj, &ReaderIter_Type);
     if (ri == NULL) {
@@ -705,13 +720,15 @@ static bool is_ipv6(char ip[16]) {
 
 static PyObject *ReaderIter_next(PyObject *self) {
     ReaderIter_obj *ri = (ReaderIter_obj *)self;
-    if (ri->reader->closed == Py_True) {
-        PyErr_SetString(PyExc_ValueError,
-                        "Attempt to iterate over a closed MaxMind DB.");
+
+    if (reader_acquire_read_lock(ri->reader) != 0) {
         return NULL;
     }
 
-    if (reader_acquire_read_lock(ri->reader) != 0) {
+    if (ri->reader->closed == Py_True) {
+        reader_release_read_lock(ri->reader);
+        PyErr_SetString(PyExc_ValueError,
+                        "Attempt to iterate over a closed MaxMind DB.");
         return NULL;
     }
 
