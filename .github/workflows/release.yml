@@ -25,7 +25,7 @@ jobs:
           - linux-arm
           - linux-intel
           - macos-arm
-          - macos-15-intel
+          - macos-intel
           - windows-arm
           - windows-intel
         include:
@@ -45,8 +45,7 @@ jobs:
           - os: linux-intel
             runs-on: ubuntu-latest
           - os: macos-intel
-            # macos-13 was the last x86_64 runner
-            runs-on: macos-13
+            runs-on: macos-15-intel
           - os: macos-arm
             # macos-14+ (including latest) are ARM64 runners
             runs-on: macos-latest
