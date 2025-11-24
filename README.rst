@@ -104,12 +104,6 @@ macOS) and Windows. On other platforms, the extension will use GIL-based
 protection. Calling ``close()`` while reads are in progress may cause
 exceptions in those threads.
 
-Requirements
-------------
-
-This code requires Python 3.10+. Older versions are not supported. The C
-extension requires CPython.
-
 Versioning
 ----------
 
