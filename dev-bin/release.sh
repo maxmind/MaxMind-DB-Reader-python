@@ -31,7 +31,7 @@ if ! git ls-remote origin &> /dev/null; then
 fi
 
 check_command perl
-check_command tox
+check_command uv
 
 # Check that we're not on the main branch
 current_branch=$(git branch --show-current)
@@ -85,7 +85,7 @@ fi
 perl -pi -e "s/(?<=^version = \").+?(?=\")/$version/gsm" pyproject.toml
 
 echo $"Test results:"
-tox
+uv run tox
 
 echo $'\nDiff:'
 git diff
