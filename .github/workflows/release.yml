@@ -82,7 +82,7 @@ jobs:
           CIBW_ARCHS: ${{ matrix.archs || 'auto' }}
           MAXMINDDB_REQUIRE_EXTENSION: 1
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: maxminddb-whl-${{ matrix.os }}-${{ strategy.job-index }}
           path: ./wheelhouse/*.whl
@@ -99,7 +99,7 @@ jobs:
       - name: Build sdist
         run: pipx run build --sdist
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: maxminddb-sdist
           path: dist/*.tar.gz
