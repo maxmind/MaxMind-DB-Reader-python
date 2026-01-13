@@ -75,7 +75,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@63fd63b352a9a8bdcc24791c9dbee952ee9a8abc # 3.3.0
+        uses: pypa/cibuildwheel@298ed2fb2c105540f5ed055e8a6ad78d82dd3a7e # 3.3.1
         env:
           CIBW_ENABLE: pypy pypy-eol
           CIBW_PLATFORM: ${{ matrix.platform }}
