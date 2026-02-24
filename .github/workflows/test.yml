@@ -29,13 +29,8 @@ jobs:
       - name: Install Python
         if: matrix.env != '3.14'
         run: uv python install --python-preference only-managed ${{ matrix.env }}
-      - name: Setup test suite
-        run: tox run -vv --notest --skip-missing-interpreters false
-        env:
-          MAXMINDDB_REQUIRE_EXTENSION: 1
-          TOX_GH_MAJOR_MINOR: ${{ matrix.env }}
       - name: Run test suite
-        run: tox run --skip-pkg-install
+        run: tox run --skip-missing-interpreters false
         env:
           MAXMINDDB_REQUIRE_EXTENSION: 1
           MM_FORCE_EXT_TESTS: 1

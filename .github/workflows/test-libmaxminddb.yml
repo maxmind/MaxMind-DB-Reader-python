@@ -60,12 +60,7 @@ jobs:
         env:
           CFLAGS: "${{ env.CFLAGS }} -Werror -Wall -Wextra"
 
-      - name: Setup test suite
-        run: tox run -vv --notest --skip-missing-interpreters false
-        env:
-          TOX_GH_MAJOR_MINOR: ${{ matrix.env }}
-
       - name: Run test suite
-        run: tox run --skip-pkg-install
+        run: tox run --skip-missing-interpreters false
         env:
           TOX_GH_MAJOR_MINOR: ${{ matrix.env }}
