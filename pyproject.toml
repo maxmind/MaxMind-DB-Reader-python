@@ -1,6 +1,6 @@
 [project]
 name = "maxminddb"
-version = "3.0.0"
+version = "3.1.0"
 description = "Reader for the MaxMind DB format"
 authors = [
     {name = "Gregory Oschwald", email = "goschwald@maxmind.com"},
@@ -33,6 +33,7 @@ Documentation = "https://maxminddb.readthedocs.org/"
 [dependency-groups]
 dev = [
     "pytest>=8.3.5",
+    "tox-uv>=1.29.0",
 ]
 lint = [
     "mypy>=1.15.0",
