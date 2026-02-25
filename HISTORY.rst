@@ -3,6 +3,14 @@
 History
 -------
 
+3.1.0 (2026-02-24)
+++++++++++++++++++
+
+* The vendored ``libmaxminddb`` has been updated to 1.13.1. This includes
+  several security hardening improvements when reading corrupt or malicious
+  database files, including fixes for integer overflows, bounds checking, and
+  use-after-free prevention.
+
 3.0.0 (2025-10-15)
 ++++++++++++++++++
 
