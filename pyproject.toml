@@ -111,6 +111,7 @@ skip_missing_interpreters = false
 
 [tool.tox.env_run_base]
 runner = "uv-venv-lock-runner"
+uv_python_preference = "managed"
 dependency_groups = [
   "dev",
 ]
