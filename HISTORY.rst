@@ -3,6 +3,15 @@
 History
 -------
 
+3.1.1 (2026-03-05)
+++++++++++++++++++
+
+* The vendored ``libmaxminddb`` has been updated to 1.13.3. This includes
+  a fix for the validation of empty maps and arrays at the end of the
+  metadata section. Previously, the extension would incorrectly reject
+  databases where a 0-element map or array was the last field in metadata.
+  Reported in vimt/MaxMind-DB-Writer-python#16.
+
 3.1.0 (2026-02-24)
 ++++++++++++++++++
 
