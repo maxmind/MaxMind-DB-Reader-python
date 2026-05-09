@@ -442,9 +442,18 @@ static int get_record(PyObject *self, PyObject *args, PyObject **record) {
         return -1;
     }
 
+    // Release the GIL across the libmaxminddb tree walk. The walk only
+    // touches the read-only mmap and stack-local state, the rwlock is
+    // already held, and the module is declared Py_MOD_GIL_NOT_USED - so
+    // no Python state is accessed here. On systems where the mmdb's
+    // pages are not resident (cold cache, slow disk, memory pressure)
+    // an individual page-in can stall this call for seconds; without
+    // releasing the GIL, the entire interpreter stalls with it.
     int mmdb_error = MMDB_SUCCESS;
-    MMDB_lookup_result_s result =
-        MMDB_lookup_sockaddr(mmdb, ip_address, &mmdb_error);
+    MMDB_lookup_result_s result;
+    Py_BEGIN_ALLOW_THREADS
+    result = MMDB_lookup_sockaddr(mmdb, ip_address, &mmdb_error);
+    Py_END_ALLOW_THREADS
 
     if (mmdb_error != MMDB_SUCCESS) {
         reader_release_read_lock(reader);
@@ -478,8 +487,13 @@ static int get_record(PyObject *self, PyObject *args, PyObject **record) {
         return prefix_len;
     }
 
+    // Same reasoning as above: read the data section from the mmap
+    // without holding the GIL.
     MMDB_entry_data_list_s *entry_data_list = NULL;
-    int status = MMDB_get_entry_data_list(&result.entry, &entry_data_list);
+    int status;
+    Py_BEGIN_ALLOW_THREADS
+    status = MMDB_get_entry_data_list(&result.entry, &entry_data_list);
+    Py_END_ALLOW_THREADS
     if (status != MMDB_SUCCESS) {
         reader_release_read_lock(reader);
         char ipstr[INET6_ADDRSTRLEN] = {0};
