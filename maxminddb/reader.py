@@ -220,6 +220,7 @@ class Reader:
         base_offset = node_number * self._metadata.node_byte_size
 
         record_size = self._metadata.record_size
+        node_bytes: bytes | bytearray
         if record_size == 24:
             offset = base_offset + index * 3
             node_bytes = b"\x00" + self._buffer[offset : offset + 3]
