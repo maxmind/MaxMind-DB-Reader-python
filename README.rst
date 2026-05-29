@@ -34,7 +34,7 @@ Usage
 -----
 
 To use this module, you must first download or create a MaxMind DB file. We
-provide `free GeoLite2 databases
+provide `free GeoLite databases
 <https://dev.maxmind.com/geoip/geolocate-an-ip/databases?lang=en>`_. These
 files must be decompressed with ``gunzip``.
 
@@ -58,7 +58,7 @@ file descriptor immediately after the ``Reader`` object is created.
 The ``open_database`` function returns a ``Reader`` object. To look up an IP
 address, use the ``get`` method on this object. The method will return the
 corresponding values for the IP address from the database (e.g., a dictionary
-for GeoIP2/GeoLite2 databases). If the database does not contain a record for
+for GeoIP/GeoLite databases). If the database does not contain a record for
 that IP address, the method will return ``None``.
 
 If you wish to also retrieve the prefix length for the record, use the
