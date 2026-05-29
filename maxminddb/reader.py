@@ -54,7 +54,7 @@ class Reader:
         """Reader for the MaxMind DB file format.
 
         Arguments:
-            database: A path to a valid MaxMind DB file such as a GeoIP2 database
+            database: A path to a valid MaxMind DB file such as a GeoIP database
                       file, or a file descriptor in the case of MODE_FD.
             mode: mode to open the database with. Valid mode are:
                   * MODE_MMAP - read from memory map.
