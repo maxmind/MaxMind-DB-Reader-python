@@ -35,7 +35,7 @@ Usage
 
 To use this module, you must first download or create a MaxMind DB file. We
 provide `free GeoLite databases
-<https://dev.maxmind.com/geoip/geolocate-an-ip/databases?lang=en>`_. These
+<https://dev.maxmind.com/geoip/geolocate-an-ip/databases/?lang=en>`_. These
 files must be decompressed with ``gunzip``.
 
 After you have obtained a database and imported the module, call
@@ -116,5 +116,6 @@ Please report all issues with this code using the `GitHub issue tracker
 <https://github.com/maxmind/MaxMind-DB-Reader-python/issues>`_
 
 If you are having an issue with a MaxMind service that is not specific to this
-API, please contact `MaxMind support <https://www.maxmind.com/en/support>`_ for
+API, please contact `MaxMind support
+<https://support.maxmind.com/knowledge-base>`_ for
 assistance.
