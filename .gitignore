@@ -8,6 +8,7 @@
 .coverage
 .eggs
 .idea
+.lycheecache
 .pyre
 .tox
 build
