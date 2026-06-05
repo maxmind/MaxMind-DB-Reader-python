@@ -25,8 +25,8 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://www.maxmind.com/"
-Documentation = "https://maxminddb.readthedocs.org/"
+Homepage = "https://www.maxmind.com/en/home"
+Documentation = "https://maxminddb.readthedocs.io/en/latest/"
 "Source Code" = "https://github.com/maxmind/MaxMind-DB-Reader-python"
 "Issue Tracker" = "https://github.com/maxmind/MaxMind-DB-Reader-python/issues"
 
