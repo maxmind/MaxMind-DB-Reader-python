@@ -152,19 +152,19 @@ class BaseTestReader(unittest.TestCase):
                 "ip": "200.0.2.1",
                 "file_name": "MaxMind-DB-no-ipv4-search-tree.mmdb",
                 "expected_prefix_len": 0,
-                "expected_record": "::0/64",
+                "expected_record": "::/64",
             },
             {
                 "ip": "::200.0.2.1",
                 "file_name": "MaxMind-DB-no-ipv4-search-tree.mmdb",
                 "expected_prefix_len": 64,
-                "expected_record": "::0/64",
+                "expected_record": "::/64",
             },
             {
                 "ip": "0:0:0:0:ffff:ffff:ffff:ffff",
                 "file_name": "MaxMind-DB-no-ipv4-search-tree.mmdb",
                 "expected_prefix_len": 64,
-                "expected_record": "::0/64",
+                "expected_record": "::/64",
             },
             {
                 "ip": "ef00::",
@@ -294,8 +294,8 @@ class BaseTestReader(unittest.TestCase):
             self.mode,
         )
 
-        self.assertEqual(reader.get(self.ipf("1.1.1.1")), "::0/64")
-        self.assertEqual(reader.get(self.ipf("192.1.1.1")), "::0/64")
+        self.assertEqual(reader.get(self.ipf("1.1.1.1")), "::/64")
+        self.assertEqual(reader.get(self.ipf("192.1.1.1")), "::/64")
         reader.close()
 
     def test_ipv6_address_in_ipv4_database(self) -> None:
