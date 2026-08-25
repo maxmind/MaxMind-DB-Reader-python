@@ -3,6 +3,22 @@
 History
 -------
 
+3.2.0
++++++
+
+* Bounded the resources the pure Python decoder spends on one record, or on
+  the metadata read when a database is opened. A crafted database could nest
+  data-section pointers to shared targets so that decoding one record took
+  exponential time and memory. The decoder now follows the Reader Resource
+  Limits section of the MaxMind DB specification. Each record is limited to
+  65,536 values and 512 levels of nesting.
+
+  * A database that exceeds a limit raises ``InvalidDatabaseError``. The
+    depth limit also stops pointer cycles.
+  * Under CPython's default recursion limit, the interpreter may reject a
+    record before 512 levels. That failure also raises
+    ``InvalidDatabaseError``.
+
 3.1.1 (2026-03-05)
 ++++++++++++++++++
 

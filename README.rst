@@ -94,6 +94,11 @@ The module will return an ``InvalidDatabaseError`` if the database is corrupt
 or otherwise invalid. A ``ValueError`` will be thrown if you look up an
 invalid IP address or an IPv6 address in an IPv4 database.
 
+The reader also raises ``InvalidDatabaseError`` when one record, or the
+database metadata, exceeds its resource limits: 65,536 decoded values, 512
+levels of nesting, or 2 MiB of string and bytes data. Real databases stay far
+below these limits.
+
 Thread Safety
 -------------
 
