@@ -18,7 +18,27 @@ if TYPE_CHECKING:
     from maxminddb.file import FileBuffer
     from maxminddb.types import Record
 
-    DecoderFunc = Callable[["Decoder", int, int], tuple[Record, int]]
+    DecoderFunc = Callable[["Decoder", int, int, list[int]], tuple[Record, int]]
+
+
+# Per-lookup limit on the number of values decoded, recommended by the MaxMind
+# DB specification. It stops a pointer fan-out, where nested pointers to shared
+# targets would otherwise cost 2**depth decode operations. The count follows
+# the specification's flat rule: the root is one value, each array and map
+# charges its declared children, and a pointer costs nothing beyond the value
+# it resolves to, which its container already charged. The largest real
+# records decode a few hundred values, so the limit leaves a wide margin.
+# Pointer cycles and over-deep data are caught by an explicit, call-local depth
+# limit (see ``decode``). Each level costs about two interpreter frames, so
+# under CPython's default recursion limit RecursionError can fire first; decode
+# converts it to the same error. The explicit limit matters when a caller has
+# raised the recursion limit.
+_MAX_VALUES = 1 << 16
+_MAX_DEPTH = 512
+_TOO_MANY_VALUES = (
+    "The MaxMind DB file's data section exceeds the maximum number of values"
+)
+_TOO_DEEP = "The MaxMind DB file's data section exceeds the maximum depth"
 
 
 class Decoder:
@@ -42,35 +62,74 @@ class Decoder:
         self._buffer = database_buffer
         self._pointer_base = pointer_base
 
-    def _decode_array(self, size: int, offset: int) -> tuple[list[Record], int]:
+    def _decode_array(
+        self,
+        size: int,
+        offset: int,
+        budget: list[int],
+    ) -> tuple[list[Record], int]:
+        remaining = budget[0] - size
+        if remaining < 0:
+            raise InvalidDatabaseError(_TOO_MANY_VALUES)
+        budget[0] = remaining
+        depth = budget[1] + 1
+        if depth > _MAX_DEPTH:
+            raise InvalidDatabaseError(_TOO_DEEP)
+        budget[1] = depth
         array = []
         for _ in range(size):
-            (value, offset) = self.decode(offset)
+            (value, offset) = self._decode(offset, budget)
             array.append(value)
+        budget[1] -= 1
         return array, offset
 
-    def _decode_boolean(self, size: int, offset: int) -> tuple[bool, int]:
+    def _decode_boolean(
+        self,
+        size: int,
+        offset: int,
+        _budget: list[int],
+    ) -> tuple[bool, int]:
         return size != 0, offset
 
-    def _decode_bytes(self, size: int, offset: int) -> tuple[bytes, int]:
+    def _decode_bytes(
+        self,
+        size: int,
+        offset: int,
+        _budget: list[int],
+    ) -> tuple[bytes, int]:
         new_offset = offset + size
         return self._buffer[offset:new_offset], new_offset
 
-    def _decode_double(self, size: int, offset: int) -> tuple[float, int]:
+    def _decode_double(
+        self,
+        size: int,
+        offset: int,
+        _budget: list[int],
+    ) -> tuple[float, int]:
         self._verify_size(size, 8)
         new_offset = offset + size
         packed_bytes = self._buffer[offset:new_offset]
         (value,) = struct.unpack(b"!d", packed_bytes)
         return value, new_offset
 
-    def _decode_float(self, size: int, offset: int) -> tuple[float, int]:
+    def _decode_float(
+        self,
+        size: int,
+        offset: int,
+        _budget: list[int],
+    ) -> tuple[float, int]:
         self._verify_size(size, 4)
         new_offset = offset + size
         packed_bytes = self._buffer[offset:new_offset]
         (value,) = struct.unpack(b"!f", packed_bytes)
         return value, new_offset
 
-    def _decode_int32(self, size: int, offset: int) -> tuple[int, int]:
+    def _decode_int32(
+        self,
+        size: int,
+        offset: int,
+        _budget: list[int],
+    ) -> tuple[int, int]:
         if size == 0:
             return 0, offset
         new_offset = offset + size
@@ -81,15 +140,35 @@ class Decoder:
         (value,) = struct.unpack(b"!i", packed_bytes)
         return value, new_offset
 
-    def _decode_map(self, size: int, offset: int) -> tuple[dict[str, Record], int]:
+    def _decode_map(
+        self,
+        size: int,
+        offset: int,
+        budget: list[int],
+    ) -> tuple[dict[str, Record], int]:
+        # A map entry decodes a key and a value, so it costs two values.
+        remaining = budget[0] - size * 2
+        if remaining < 0:
+            raise InvalidDatabaseError(_TOO_MANY_VALUES)
+        budget[0] = remaining
+        depth = budget[1] + 1
+        if depth > _MAX_DEPTH:
+            raise InvalidDatabaseError(_TOO_DEEP)
+        budget[1] = depth
         container: dict[str, Record] = {}
         for _ in range(size):
-            (key, offset) = self.decode(offset)
-            (value, offset) = self.decode(offset)
+            (key, offset) = self._decode(offset, budget)
+            (value, offset) = self._decode(offset, budget)
             container[cast("str", key)] = value
+        budget[1] -= 1
         return container, offset
 
-    def _decode_pointer(self, size: int, offset: int) -> tuple[Record, int]:
+    def _decode_pointer(
+        self,
+        size: int,
+        offset: int,
+        budget: list[int],
+    ) -> tuple[Record, int]:
         pointer_size = (size >> 3) + 1
 
         buf = self._buffer[offset : offset + pointer_size]
@@ -109,15 +188,33 @@ class Decoder:
 
         if self._pointer_test:
             return pointer, new_offset
-        (value, _) = self.decode(pointer)
+
+        # The value at the pointer's position was charged by its containing
+        # array or map, so the target costs nothing more. Only the depth changes.
+        depth = budget[1] + 1
+        if depth > _MAX_DEPTH:
+            raise InvalidDatabaseError(_TOO_DEEP)
+        budget[1] = depth
+        (value, _) = self._decode(pointer, budget)
+        budget[1] -= 1
         return value, new_offset
 
-    def _decode_uint(self, size: int, offset: int) -> tuple[int, int]:
+    def _decode_uint(
+        self,
+        size: int,
+        offset: int,
+        _budget: list[int],
+    ) -> tuple[int, int]:
         new_offset = offset + size
         uint_bytes = self._buffer[offset:new_offset]
         return int.from_bytes(uint_bytes, "big"), new_offset
 
-    def _decode_utf8_string(self, size: int, offset: int) -> tuple[str, int]:
+    def _decode_utf8_string(
+        self,
+        size: int,
+        offset: int,
+        _budget: list[int],
+    ) -> tuple[str, int]:
         new_offset = offset + size
         return self._buffer[offset:new_offset].decode("utf-8"), new_offset
 
@@ -144,6 +241,20 @@ class Decoder:
             offset: the location of the data structure to decode
 
         """
+        # Bound the work per lookup so a crafted database cannot exhaust CPU or
+        # memory. ``budget`` carries the remaining value count and current
+        # nested decode depth so both are shared across the recursion. It is
+        # call-local, which keeps the decoder safe for concurrent reads. The
+        # root value is charged here; containers charge their children. The
+        # explicit depth limit is independent of Python's process-wide recursion
+        # limit; RecursionError remains a fallback on interpreters whose stack
+        # limit is reached first.
+        try:
+            return self._decode(offset, [_MAX_VALUES - 1, 0])
+        except RecursionError as ex:
+            raise InvalidDatabaseError(_TOO_DEEP) from ex
+
+    def _decode(self, offset: int, budget: list[int]) -> tuple[Record, int]:
         new_offset = offset + 1
         ctrl_byte = self._buffer[offset]
         type_num = ctrl_byte >> 5
@@ -160,7 +271,7 @@ class Decoder:
             ) from ex
 
         (size, new_offset) = self._size_from_ctrl_byte(ctrl_byte, new_offset, type_num)
-        return decoder(self, size, new_offset)
+        return decoder(self, size, new_offset, budget)
 
     def _read_extended(self, offset: int) -> tuple[int, int]:
         next_byte = self._buffer[offset]
