@@ -13,10 +13,16 @@ from maxminddb import (
     MODE_FILE,
     MODE_MEMORY,
     MODE_MMAP,
+    MODE_MMAP_EXT,
     open_database,
 )
 from maxminddb.decoder import Decoder
 from maxminddb.errors import InvalidDatabaseError
+
+try:
+    import maxminddb.extension as _extension
+except ImportError:
+    _extension = None  # type: ignore[assignment]
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -651,3 +657,109 @@ class TestFDResourceLimits(BaseResourceLimitTest):
 
 
 del BaseResourceLimitTest
+
+
+def _has_extension() -> bool:
+    return _extension is not None and hasattr(_extension, "Reader")
+
+
+# The patched libmaxminddb reports its decoder resource limits through this
+# text (MMDB_DECODER_LIMIT_ERROR). A libmaxminddb without the fix decodes the
+# DoS fixtures instead, so the tests below skip rather than run the extension's
+# decoder out of memory.
+_EXTENSION_LIMIT_MESSAGE = "exceeds the configured resource limits"
+
+
+@unittest.skipUnless(_has_extension(), "C extension not available")
+class TestExtensionResourceLimits(unittest.TestCase):
+    """DoS-fixture checks for the C extension's libmaxminddb decoder.
+
+    The extension decodes through libmaxminddb, so these limits live in that
+    library, not in the pure-Python decoder that the BaseResourceLimitTest
+    subclasses cover. A system libmaxminddb without the limits skips the
+    checks; see setUp.
+    """
+
+    @staticmethod
+    def _lookup(filename: str, ip: str = "0.0.0.1") -> object:
+        # MODE_MMAP_EXT forces the C extension. Each DoS fixture resolves any
+        # IPv4 address to its single crafted record.
+        with open_database(
+            f"{_TEST_DATA_DIR}/{filename}",
+            mode=MODE_MMAP_EXT,
+        ) as reader:
+            return reader.get(ip)
+
+    def setUp(self) -> None:
+        # Probe with a fixture one byte over the 2 MiB payload limit, which is
+        # small and safe to decode even without the limits. The bundled
+        # libmaxminddb has them, so it must reject the probe with the
+        # decoder-limit message; anything else is a failure. A system library
+        # selected with MAXMINDDB_USE_SYSTEM_LIBMAXMINDDB may predate the
+        # limits and decode the probe. Skip then, rather than run the large
+        # DoS fixtures through a decoder that would exhaust memory.
+        try:
+            self._lookup("MaxMind-DB-test-decoder-payload-limit-over.mmdb")
+        except InvalidDatabaseError as exc:
+            if _EXTENSION_LIMIT_MESSAGE in str(exc):
+                return
+            raise
+        if not os.environ.get("MAXMINDDB_USE_SYSTEM_LIBMAXMINDDB"):
+            self.fail(
+                "the bundled libmaxminddb decoded a record over the payload limit"
+            )
+        self.skipTest(
+            "system libmaxminddb predates the decoder resource limits "
+            "(needs the release that adds MMDB_DECODER_LIMIT_ERROR)",
+        )
+
+    def test_pointer_fan_out_fixture_is_rejected(self) -> None:
+        # A full database whose record nests arrays of pointers to the level
+        # below, the classic 2**depth fan-out.
+        with (
+            _bounded(),
+            self.assertRaisesRegex(InvalidDatabaseError, _EXTENSION_LIMIT_MESSAGE),
+        ):
+            self._lookup("MaxMind-DB-test-pointer-decoder-dos.mmdb")
+
+    def test_pointer_fan_out_ipv6_fixture_is_rejected(self) -> None:
+        # The IPv6 fan-out database, so the extension's IPv6 tree path is
+        # covered too.
+        with (
+            _bounded(),
+            self.assertRaisesRegex(InvalidDatabaseError, _EXTENSION_LIMIT_MESSAGE),
+        ):
+            self._lookup("MaxMind-DB-test-pointer-decoder-dos-ipv6.mmdb", "2001:db8::1")
+
+    def test_metadata_payload_limit_is_enforced_on_open(self) -> None:
+        # libmaxminddb rejects the amplified metadata in MMDB_open, which the
+        # extension reports as a generic open failure.
+        with _bounded(), self.assertRaisesRegex(InvalidDatabaseError, "Error opening"):
+            open_database(
+                f"{_TEST_DATA_DIR}/MaxMind-DB-test-metadata-payload-limit.mmdb",
+                mode=MODE_MMAP_EXT,
+            )
+
+    def test_payload_amplification_is_rejected(self) -> None:
+        # An array of 8,192 pointers to one 65,535-byte value.
+        with (
+            _bounded(),
+            self.assertRaisesRegex(InvalidDatabaseError, _EXTENSION_LIMIT_MESSAGE),
+        ):
+            self._lookup("MaxMind-DB-test-payload-amplification-dos.mmdb")
+
+    def test_payload_amplification_string_is_rejected(self) -> None:
+        # The UTF-8 string variant, so the string decode path is exercised.
+        with (
+            _bounded(),
+            self.assertRaisesRegex(InvalidDatabaseError, _EXTENSION_LIMIT_MESSAGE),
+        ):
+            self._lookup("MaxMind-DB-test-payload-amplification-dos-string.mmdb")
+
+    def test_payload_amplification_worst_case_is_rejected(self) -> None:
+        # 65,535 pointers to one 65,535-byte value, exactly the value limit.
+        with (
+            _bounded(),
+            self.assertRaisesRegex(InvalidDatabaseError, _EXTENSION_LIMIT_MESSAGE),
+        ):
+            self._lookup("MaxMind-DB-test-payload-amplification-dos-worst-case.mmdb")

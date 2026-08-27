@@ -22,6 +22,8 @@ History
     ``InvalidDatabaseError``.
   * An integer that declares more bytes than its type allows is rejected
     before its bytes are read.
+  * The vendored libmaxminddb was updated to the commit that adds the same
+    limits to the C extension.
 
 3.1.1 (2026-03-05)
 ++++++++++++++++++
