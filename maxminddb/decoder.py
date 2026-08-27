@@ -35,10 +35,25 @@ if TYPE_CHECKING:
 # raised the recursion limit.
 _MAX_VALUES = 1 << 16
 _MAX_DEPTH = 512
+# Per-lookup limit on the total string and bytes payload materialized, matching
+# libmaxminddb and the Go reader. It stops a payload amplification, where many
+# pointers to one large value would otherwise materialize N * size bytes from a
+# small file. Each string or bytes value is charged its length wherever it is
+# decoded, so re-decoding a shared target through another pointer recharges.
+_MAX_PAYLOAD_BYTES = 1 << 21
+# The widest fixed-width integer the format defines is the 16-byte uint128; a
+# declared size past that is malformed and could copy attacker-controlled bytes.
+_MAX_UINT_BYTES = 16
+_MAX_INT32_BYTES = 4
 _TOO_MANY_VALUES = (
     "The MaxMind DB file's data section exceeds the maximum number of values"
 )
 _TOO_DEEP = "The MaxMind DB file's data section exceeds the maximum depth"
+_TOO_LARGE = "The MaxMind DB file's data section exceeds the maximum payload size"
+_BAD_DATA = (
+    "The MaxMind DB file's data section contains bad data "
+    "(unknown data type or corrupt data)"
+)
 
 
 class Decoder:
@@ -95,8 +110,14 @@ class Decoder:
         self,
         size: int,
         offset: int,
-        _budget: list[int],
+        budget: list[int],
     ) -> tuple[bytes, int]:
+        # Charge the payload before copying so a crafted size cannot force a
+        # large allocation, and so pointers reusing one target recharge.
+        remaining = budget[2] - size
+        if remaining < 0:
+            raise InvalidDatabaseError(_TOO_LARGE)
+        budget[2] = remaining
         new_offset = offset + size
         return self._buffer[offset:new_offset], new_offset
 
@@ -130,6 +151,8 @@ class Decoder:
         offset: int,
         _budget: list[int],
     ) -> tuple[int, int]:
+        if size > _MAX_INT32_BYTES:
+            raise InvalidDatabaseError(_BAD_DATA)
         if size == 0:
             return 0, offset
         new_offset = offset + size
@@ -205,6 +228,10 @@ class Decoder:
         offset: int,
         _budget: list[int],
     ) -> tuple[int, int]:
+        # Reject a declared size past the widest defined unsigned integer before
+        # copying, so a crafted size cannot force a large allocation.
+        if size > _MAX_UINT_BYTES:
+            raise InvalidDatabaseError(_BAD_DATA)
         new_offset = offset + size
         uint_bytes = self._buffer[offset:new_offset]
         return int.from_bytes(uint_bytes, "big"), new_offset
@@ -213,8 +240,14 @@ class Decoder:
         self,
         size: int,
         offset: int,
-        _budget: list[int],
+        budget: list[int],
     ) -> tuple[str, int]:
+        # Charge the payload before copying so a crafted size cannot force a
+        # large allocation, and so pointers reusing one target recharge.
+        remaining = budget[2] - size
+        if remaining < 0:
+            raise InvalidDatabaseError(_TOO_LARGE)
+        budget[2] = remaining
         new_offset = offset + size
         return self._buffer[offset:new_offset].decode("utf-8"), new_offset
 
@@ -242,15 +275,15 @@ class Decoder:
 
         """
         # Bound the work per lookup so a crafted database cannot exhaust CPU or
-        # memory. ``budget`` carries the remaining value count and current
-        # nested decode depth so both are shared across the recursion. It is
-        # call-local, which keeps the decoder safe for concurrent reads. The
-        # root value is charged here; containers charge their children. The
-        # explicit depth limit is independent of Python's process-wide recursion
-        # limit; RecursionError remains a fallback on interpreters whose stack
-        # limit is reached first.
+        # memory. ``budget`` carries the remaining value count, the current
+        # nested decode depth, and the remaining string and bytes payload, so
+        # all three are shared across the recursion. It is call-local, which
+        # keeps the decoder safe for concurrent reads. The root value is charged
+        # here; containers charge their children. The explicit depth limit
+        # is independent of Python's process-wide recursion limit; RecursionError
+        # remains a fallback on interpreters whose stack limit is reached first.
         try:
-            return self._decode(offset, [_MAX_VALUES - 1, 0])
+            return self._decode(offset, [_MAX_VALUES - 1, 0, _MAX_PAYLOAD_BYTES])
         except RecursionError as ex:
             raise InvalidDatabaseError(_TOO_DEEP) from ex
 
@@ -289,13 +322,7 @@ class Decoder:
     @staticmethod
     def _verify_size(expected: int, actual: int) -> None:
         if expected != actual:
-            msg = (
-                "The MaxMind DB file's data section contains bad data "
-                "(unknown data type or corrupt data)"
-            )
-            raise InvalidDatabaseError(
-                msg,
-            )
+            raise InvalidDatabaseError(_BAD_DATA)
 
     def _size_from_ctrl_byte(
         self,

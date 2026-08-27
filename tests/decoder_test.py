@@ -1,17 +1,30 @@
 from __future__ import annotations
 
+import contextlib
 import mmap
+import os
 import sys
 import threading
 import unittest
-from typing import TYPE_CHECKING, Any, ClassVar, SupportsIndex
+from typing import TYPE_CHECKING, Any, ClassVar, SupportsIndex, cast
 
+from maxminddb import (
+    MODE_FD,
+    MODE_FILE,
+    MODE_MEMORY,
+    MODE_MMAP,
+    open_database,
+)
 from maxminddb.decoder import Decoder
 from maxminddb.errors import InvalidDatabaseError
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from _typeshed import SizedBuffer
     from typing_extensions import Self
+
+    from maxminddb.reader import Reader
 
 # Each structural level uses about two Python frames. This lets the 513-level
 # cases reach the decoder's explicit limit with ample test-harness headroom.
@@ -43,6 +56,13 @@ class _HeaderOnlyBuffer(bytes):
             msg = f"decoder read past the {self.header_len}-byte header"
             raise AssertionError(msg)
         return bytes.__getitem__(self, index)
+
+
+# Directory holding the shared MaxMind DB test fixtures.
+_TEST_DATA_DIR = "tests/data/test-data"
+_PAYLOAD_TOO_LARGE = (
+    "^The MaxMind DB file's data section exceeds the maximum payload size$"
+)
 
 
 class TestDecoder(unittest.TestCase):
@@ -401,3 +421,233 @@ class TestDecoder(unittest.TestCase):
         header = _HeaderOnlyBuffer(bytes([0xFE, 0x7E, 0xE4]), 3)
         with self.assertRaisesRegex(InvalidDatabaseError, _TOO_MANY_VALUES):
             Decoder(header, pointer_base=0).decode(0)
+
+    def test_oversized_string_payload_is_bounded(self) -> None:
+        # A single string that declares one byte more than the 2 MiB payload
+        # limit is rejected before its bytes are read. 0x5f: string with size
+        # code 31; 0x1efee4: 2,097,153 - 65,821, one byte over 2 MiB.
+        oversized_string = _HeaderOnlyBuffer(bytes([0x5F, 0x1E, 0xFE, 0xE4]), 4)
+        with self.assertRaisesRegex(InvalidDatabaseError, _PAYLOAD_TOO_LARGE):
+            Decoder(oversized_string, pointer_base=0).decode(0)
+
+    def test_oversized_bytes_payload_is_bounded(self) -> None:
+        # As above for the bytes type. 0x9f: bytes with size code 31.
+        oversized_bytes = _HeaderOnlyBuffer(bytes([0x9F, 0x1E, 0xFE, 0xE4]), 4)
+        with self.assertRaisesRegex(InvalidDatabaseError, _PAYLOAD_TOO_LARGE):
+            Decoder(oversized_bytes, pointer_base=0).decode(0)
+
+    def test_oversized_uint_is_bounded(self) -> None:
+        # A uint128 that declares 17 bytes exceeds the 16-byte format maximum
+        # and is rejected before the declared bytes are copied. 0x11: extended
+        # type, size 17; 0x03: extended type number 10 (uint128).
+        oversized_uint = _HeaderOnlyBuffer(bytes([0x11, 0x03]), 2)
+        with self.assertRaises(InvalidDatabaseError):
+            Decoder(oversized_uint, pointer_base=0).decode(0)
+
+    def test_oversized_int32_is_bounded(self) -> None:
+        # An int32 that declares 5 bytes exceeds its 4-byte maximum and is
+        # rejected before the declared bytes are copied. 0x05: extended type,
+        # size 5; 0x01: extended type number 8 (int32).
+        oversized_int32 = _HeaderOnlyBuffer(bytes([0x05, 0x01]), 2)
+        with self.assertRaises(InvalidDatabaseError):
+            Decoder(oversized_int32, pointer_base=0).decode(0)
+
+    @classmethod
+    def _wrapped_string_pointers(cls, pointer_count: int) -> tuple[bytes, int]:
+        # Offset 0: a one-element array holding an inline 1 MiB string. After
+        # it: an array of pointers to that array. The string is inline in a
+        # pointed-to container, so only a charge at the string decoder itself
+        # catches the amplification. 0x5f: string with size code 31.
+        size = 1 << 20
+        leaf = bytes([0x01, 0x04, 0x5F]) + (size - 65_821).to_bytes(3, "big")
+        leaf += b"a" * size
+        outer = bytes([pointer_count, 0x04]) + cls._pointer(0) * pointer_count
+        return leaf + outer, len(leaf)
+
+    def test_wrapped_payload_is_charged(self) -> None:
+        # Two pointers materialize 2 MiB, exactly the limit. Three exceed it.
+        buf, start = self._wrapped_string_pointers(2)
+        (decoded, _) = Decoder(buf, pointer_base=0).decode(start)
+        self.assertEqual(decoded, [["a" * (1 << 20)]] * 2)
+        buf, start = self._wrapped_string_pointers(3)
+        with self.assertRaisesRegex(InvalidDatabaseError, _PAYLOAD_TOO_LARGE):
+            Decoder(buf, pointer_base=0).decode(start)
+
+    def test_pointer_backed_map_key_is_charged(self) -> None:
+        # Offset 0: a string one byte over 2 MiB. Offset 4: a one-entry map
+        # whose key is a pointer to it. The key is decoded through the string
+        # decoder, so it is rejected before its bytes are read.
+        key = bytes([0x5F, 0x1E, 0xFE, 0xE4])
+        buf = key + bytes([0xE1]) + self._pointer(0) + bytes([0xA0])
+        with self.assertRaisesRegex(InvalidDatabaseError, _PAYLOAD_TOO_LARGE):
+            Decoder(_HeaderOnlyBuffer(buf, len(buf)), pointer_base=0).decode(len(key))
+
+
+@contextlib.contextmanager
+def _bounded(seconds: int = 60, address_space: int = 2 << 30) -> Iterator[None]:
+    """Fail, rather than hang or exhaust memory, if a limit regresses.
+
+    POSIX only. macOS refuses to lower RLIMIT_AS, and a process that already
+    uses more address space than the cap, such as one under AddressSanitizer,
+    would die on its next allocation; only the alarm applies in those cases.
+    """
+    if sys.platform == "win32":
+        yield
+        return
+    import resource  # noqa: PLC0415
+    import signal  # noqa: PLC0415
+
+    def on_alarm(*_: object) -> None:
+        msg = f"hostile decode did not stop within {seconds}s"
+        raise TimeoutError(msg)
+
+    def address_space_in_use() -> int:
+        # Linux only; elsewhere the size is unknown and the cap applies.
+        try:
+            with open("/proc/self/statm") as statm:
+                return int(statm.read().split()[0]) * resource.getpagesize()
+        except (OSError, ValueError):
+            return 0
+
+    cap_memory = sys.platform != "darwin" and address_space_in_use() < address_space
+    if cap_memory:
+        soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+        limit = (
+            address_space
+            if hard == resource.RLIM_INFINITY
+            else min(address_space, hard)
+        )
+        resource.setrlimit(resource.RLIMIT_AS, (limit, hard))
+    old_handler = signal.signal(signal.SIGALRM, on_alarm)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
+        if cap_memory:
+            resource.setrlimit(resource.RLIMIT_AS, (soft, hard))
+
+
+class BaseResourceLimitTest(unittest.TestCase):
+    """Fixture-backed checks for the pure-Python decoder resource limits.
+
+    Subclasses set ``mode`` so every pure-Python I/O path is covered.
+    """
+
+    mode: int
+
+    def _open(self, filename: str) -> Reader:
+        path = f"{_TEST_DATA_DIR}/{filename}"
+        if self.mode == MODE_FD:
+            with open(path, "rb") as fh:
+                return open_database(fh, MODE_FD)
+        return open_database(path, self.mode)
+
+    def _lookup(self, filename: str, ip: str = "0.0.0.1") -> object:
+        # Each DoS fixture resolves any address to its single crafted record.
+        with self._open(filename) as reader:
+            return reader.get(ip)
+
+    def test_payload_amplification_is_rejected(self) -> None:
+        # An array of 8,192 pointers to one 65,535-byte value. The value count
+        # stays low, but copying each target would materialize about 512 MiB.
+        with (
+            _bounded(),
+            self.assertRaisesRegex(InvalidDatabaseError, _PAYLOAD_TOO_LARGE),
+        ):
+            self._lookup("MaxMind-DB-test-payload-amplification-dos.mmdb")
+
+    def test_payload_amplification_string_is_rejected(self) -> None:
+        # The UTF-8 string variant, so the decode path for strings is exercised.
+        with (
+            _bounded(),
+            self.assertRaisesRegex(InvalidDatabaseError, _PAYLOAD_TOO_LARGE),
+        ):
+            self._lookup("MaxMind-DB-test-payload-amplification-dos-string.mmdb")
+
+    def test_payload_amplification_worst_case_is_rejected(self) -> None:
+        # 65,535 pointers to one 65,535-byte value. The record is exactly
+        # 65,536 values under the flat rule, so only the payload budget can
+        # reject it.
+        with (
+            _bounded(),
+            self.assertRaisesRegex(InvalidDatabaseError, _PAYLOAD_TOO_LARGE),
+        ):
+            self._lookup("MaxMind-DB-test-payload-amplification-dos-worst-case.mmdb")
+
+    def test_value_count_boundary(self) -> None:
+        # The at-limit fixture decodes to exactly 65,536 values and must decode.
+        # The pointer-heavy fixture reaches 65,535 values through pointers,
+        # which cost nothing beyond the values they resolve to. One value more
+        # than the limit is rejected.
+        self.assertIsInstance(
+            self._lookup("MaxMind-DB-test-decoder-value-limit.mmdb"),
+            list,
+        )
+        self.assertIsInstance(
+            self._lookup("MaxMind-DB-test-decoder-value-limit-pointer-heavy.mmdb"),
+            list,
+        )
+        with self.assertRaisesRegex(InvalidDatabaseError, _TOO_MANY_VALUES):
+            self._lookup("MaxMind-DB-test-decoder-value-limit-over.mmdb")
+
+    def test_pointer_fan_out_fixture_is_rejected(self) -> None:
+        # A full database whose record nests arrays of pointers to the level
+        # below, the classic 2**depth fan-out.
+        with _bounded(), self.assertRaises(InvalidDatabaseError):
+            self._lookup("MaxMind-DB-test-pointer-decoder-dos.mmdb")
+
+    def test_pointer_fan_out_ipv6_fixture_is_rejected(self) -> None:
+        # The same fan-out in a conventional IPv6 database that maps the whole
+        # address space to the record, so the IPv6 tree path is covered too.
+        with _bounded(), self.assertRaises(InvalidDatabaseError):
+            self._lookup("MaxMind-DB-test-pointer-decoder-dos-ipv6.mmdb", "2001:db8::1")
+
+    def test_payload_at_limit_is_accepted(self) -> None:
+        # References totaling exactly 2 MiB of payload decode successfully, so
+        # the limit does not reject a record at the boundary.
+        self.assertIsInstance(
+            self._lookup("MaxMind-DB-test-decoder-payload-limit.mmdb"),
+            list,
+        )
+
+    def test_payload_one_over_limit_is_rejected(self) -> None:
+        # One byte more than 2 MiB is rejected, catching an off-by-one.
+        with self.assertRaisesRegex(InvalidDatabaseError, _PAYLOAD_TOO_LARGE):
+            self._lookup("MaxMind-DB-test-decoder-payload-limit-over.mmdb")
+
+    def test_metadata_payload_limit_is_enforced_on_open(self) -> None:
+        # The same decoder reads metadata on open, so an over-limit metadata
+        # structure is rejected there too.
+        with self.assertRaisesRegex(InvalidDatabaseError, _PAYLOAD_TOO_LARGE):
+            self._open("MaxMind-DB-test-metadata-payload-limit.mmdb")
+
+    def test_normal_record_still_decodes(self) -> None:
+        # A record with ordinary string and bytes values, which the payload
+        # budget also charges, decodes unchanged.
+        record = cast(
+            "dict",
+            self._lookup("MaxMind-DB-test-decoder.mmdb", "::1.1.1.0"),
+        )
+        self.assertEqual(record["utf8_string"], "unicode! ☯ - ♫")
+        self.assertEqual(record["bytes"], b"\x00\x00\x00*")
+
+
+class TestMemoryResourceLimits(BaseResourceLimitTest):
+    mode = MODE_MEMORY
+
+
+class TestFileResourceLimits(BaseResourceLimitTest):
+    mode = MODE_FILE
+
+
+class TestMMAPResourceLimits(BaseResourceLimitTest):
+    mode = MODE_MMAP
+
+
+class TestFDResourceLimits(BaseResourceLimitTest):
+    mode = MODE_FD
+
+
+del BaseResourceLimitTest
