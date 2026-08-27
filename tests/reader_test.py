@@ -44,6 +44,7 @@ _TOO_MANY_VALUES = (
     "^The MaxMind DB file's data section exceeds the maximum number of values$"
 )
 _TOO_DEEP = "^The MaxMind DB file's data section exceeds the maximum depth$"
+_EXTENSION_LIMIT_MESSAGE = "exceeds the configured resource limits"
 
 
 @contextlib.contextmanager
@@ -124,8 +125,39 @@ class BaseTestReader(unittest.TestCase):
         return ip
 
     def _require_resource_limits(self) -> None:
-        if self.reader_class is not maxminddb.reader.Reader:
-            self.skipTest("resource limits require the pure Python reader")
+        # Only resource-limit tests call this, so older system libraries still
+        # run the other reader tests. reader_class also handles MODE_AUTO.
+        if self.reader_class is maxminddb.reader.Reader:
+            return
+        self.payload_error = _EXTENSION_LIMIT_MESSAGE
+        self.value_count_error = _EXTENSION_LIMIT_MESSAGE
+        self.fan_out_error = _EXTENSION_LIMIT_MESSAGE
+        # libmaxminddb reports metadata rejection as a generic open failure.
+        self.metadata_error = "Error opening"
+
+        # Probe with a fixture one byte over the 2 MiB payload limit, which is
+        # small and safe to decode even without the limits. The bundled
+        # libmaxminddb has them, so it must reject the probe with the
+        # decoder-limit message; anything else is a failure. A system library
+        # selected with MAXMINDDB_USE_SYSTEM_LIBMAXMINDDB may predate the
+        # limits and decode the probe. Skip then, rather than run the large
+        # DoS fixtures through a decoder that would exhaust memory.
+        try:
+            self._lookup_resource_record(
+                "MaxMind-DB-test-decoder-payload-limit-over.mmdb"
+            )
+        except InvalidDatabaseError as exc:
+            if _EXTENSION_LIMIT_MESSAGE in str(exc):
+                return
+            raise
+        if not os.environ.get("MAXMINDDB_USE_SYSTEM_LIBMAXMINDDB"):
+            self.fail(
+                "the bundled libmaxminddb decoded a record over the payload limit"
+            )
+        self.skipTest(
+            "system libmaxminddb predates the decoder resource limits "
+            "(needs the release that adds MMDB_DECODER_LIMIT_ERROR)",
+        )
 
     def _lookup_resource_record(self, filename: str, ip: str = "0.0.0.1") -> object:
         # Each DoS fixture resolves any address to its single crafted record.

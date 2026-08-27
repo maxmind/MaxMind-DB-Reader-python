@@ -13,6 +13,8 @@ History
   which raises the same error.
 * Rejected unsigned integers longer than 16 bytes and signed integers longer
   than 4 bytes before reading their payload.
+* Updated the vendored libmaxminddb to 1.14.0, which adds the same resource
+  limits to the C extension.
 
 3.1.1 (2026-03-05)
 ++++++++++++++++++
