@@ -45,6 +45,11 @@ class _HeaderOnlyBuffer(bytes):
         return bytes.__getitem__(self, index)
 
 
+_PAYLOAD_TOO_LARGE = (
+    "^The MaxMind DB file's data section exceeds the maximum payload size$"
+)
+
+
 class TestDecoder(unittest.TestCase):
     def test_arrays(self) -> None:
         arrays = {
@@ -418,3 +423,63 @@ class TestDecoder(unittest.TestCase):
         header = _HeaderOnlyBuffer(bytes([0xFE, 0x7E, 0xE4]), 3)
         with self.assertRaisesRegex(InvalidDatabaseError, _TOO_MANY_VALUES):
             Decoder(header, pointer_base=0).decode(0)
+
+    def test_oversized_string_payload_is_bounded(self) -> None:
+        # A single string that declares one byte more than the 2 MiB payload
+        # limit is rejected before its bytes are read. 0x5f: string with size
+        # code 31; 0x1efee4: 2,097,153 - 65,821, one byte over 2 MiB.
+        oversized_string = _HeaderOnlyBuffer(bytes([0x5F, 0x1E, 0xFE, 0xE4]), 4)
+        with self.assertRaisesRegex(InvalidDatabaseError, _PAYLOAD_TOO_LARGE):
+            Decoder(oversized_string, pointer_base=0).decode(0)
+
+    def test_oversized_bytes_payload_is_bounded(self) -> None:
+        # As above for the bytes type. 0x9f: bytes with size code 31.
+        oversized_bytes = _HeaderOnlyBuffer(bytes([0x9F, 0x1E, 0xFE, 0xE4]), 4)
+        with self.assertRaisesRegex(InvalidDatabaseError, _PAYLOAD_TOO_LARGE):
+            Decoder(oversized_bytes, pointer_base=0).decode(0)
+
+    def test_oversized_uint_is_bounded(self) -> None:
+        # A uint128 that declares 17 bytes exceeds the 16-byte format maximum
+        # and is rejected before the declared bytes are copied. 0x11: extended
+        # type, size 17; 0x03: extended type number 10 (uint128).
+        oversized_uint = _HeaderOnlyBuffer(bytes([0x11, 0x03]), 2)
+        with self.assertRaises(InvalidDatabaseError):
+            Decoder(oversized_uint, pointer_base=0).decode(0)
+
+    def test_oversized_int32_is_bounded(self) -> None:
+        # An int32 that declares 5 bytes exceeds its 4-byte maximum and is
+        # rejected before the declared bytes are copied. 0x05: extended type,
+        # size 5; 0x01: extended type number 8 (int32).
+        oversized_int32 = _HeaderOnlyBuffer(bytes([0x05, 0x01]), 2)
+        with self.assertRaises(InvalidDatabaseError):
+            Decoder(oversized_int32, pointer_base=0).decode(0)
+
+    @classmethod
+    def _wrapped_string_pointers(cls, pointer_count: int) -> tuple[bytes, int]:
+        # Offset 0: a one-element array holding an inline 1 MiB string. After
+        # it: an array of pointers to that array. The string is inline in a
+        # pointed-to container, so only a charge at the string decoder itself
+        # catches the amplification. 0x5f: string with size code 31.
+        size = 1 << 20
+        leaf = bytes([0x01, 0x04, 0x5F]) + (size - 65_821).to_bytes(3, "big")
+        leaf += b"a" * size
+        outer = bytes([pointer_count, 0x04]) + cls._pointer(0) * pointer_count
+        return leaf + outer, len(leaf)
+
+    def test_wrapped_payload_is_charged(self) -> None:
+        # Two pointers materialize 2 MiB, exactly the limit. Three exceed it.
+        buf, start = self._wrapped_string_pointers(2)
+        (decoded, _) = Decoder(buf, pointer_base=0).decode(start)
+        self.assertEqual(decoded, [["a" * (1 << 20)]] * 2)
+        buf, start = self._wrapped_string_pointers(3)
+        with self.assertRaisesRegex(InvalidDatabaseError, _PAYLOAD_TOO_LARGE):
+            Decoder(buf, pointer_base=0).decode(start)
+
+    def test_pointer_backed_map_key_is_charged(self) -> None:
+        # Offset 0: a string one byte over 2 MiB. Offset 4: a one-entry map
+        # whose key is a pointer to it. The key is decoded through the string
+        # decoder, so it is rejected before its bytes are read.
+        key = bytes([0x5F, 0x1E, 0xFE, 0xE4])
+        buf = key + bytes([0xE1]) + self._pointer(0) + bytes([0xA0])
+        with self.assertRaisesRegex(InvalidDatabaseError, _PAYLOAD_TOO_LARGE):
+            Decoder(_HeaderOnlyBuffer(buf, len(buf)), pointer_base=0).decode(len(key))

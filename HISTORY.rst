@@ -7,10 +7,12 @@ History
 +++++
 
 * Added limits to pure Python record and metadata decoding to prevent denial
-  of service from crafted databases: 65,536 values and 512 nesting levels.
-  Exceeding a limit raises
+  of service from crafted databases: 65,536 values, 512 nesting levels, and
+  2 MiB of string and bytes payload. Exceeding a limit raises
   ``InvalidDatabaseError``. CPython may reach its recursion limit earlier,
   which raises the same error.
+* Rejected unsigned integers longer than 16 bytes and signed integers longer
+  than 4 bytes before reading their payload.
 
 3.1.1 (2026-03-05)
 ++++++++++++++++++
