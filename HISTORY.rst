@@ -15,6 +15,8 @@ History
   than 4 bytes before reading their payload.
 * Updated the vendored libmaxminddb to 1.14.0, which adds the same resource
   limits to the C extension.
+* Truncated reads that previously raised ``IndexError`` or ``struct.error``
+  now raise ``InvalidDatabaseError``.
 
 3.1.1 (2026-03-05)
 ++++++++++++++++++

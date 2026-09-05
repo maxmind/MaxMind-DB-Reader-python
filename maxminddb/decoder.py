@@ -286,6 +286,9 @@ class Decoder:
             return self._decode(offset, [_MAX_VALUES - 1, 0, _MAX_PAYLOAD_BYTES])
         except RecursionError as ex:
             raise InvalidDatabaseError(_TOO_DEEP) from ex
+        except (IndexError, struct.error) as ex:
+            # Truncated data: a ctrl, size, or pointer read ran off the buffer.
+            raise InvalidDatabaseError(_BAD_DATA) from ex
 
     def _decode(self, offset: int, budget: list[int]) -> tuple[Record, int]:
         new_offset = offset + 1
