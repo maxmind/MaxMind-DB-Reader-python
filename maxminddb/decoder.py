@@ -232,21 +232,6 @@ class Decoder:
         uint_bytes = self._buffer[offset:new_offset]
         return int.from_bytes(uint_bytes, "big"), new_offset
 
-    def _decode_utf8_string(
-        self,
-        size: int,
-        offset: int,
-        budget: list[int],
-    ) -> tuple[str, int]:
-        # Charge the payload before copying so a crafted size cannot force a
-        # large allocation, and so pointers reusing one target recharge.
-        remaining = budget[2] - size
-        if remaining < 0:
-            raise InvalidDatabaseError(_TOO_LARGE)
-        budget[2] = remaining
-        new_offset = offset + size
-        return self._buffer[offset:new_offset].decode("utf-8"), new_offset
-
     def decode(self, offset: int) -> tuple[Record, int]:
         """Decode a section of the data section starting at offset.
 
@@ -289,7 +274,16 @@ class Decoder:
         # Put common types first to reduce comparisons during real lookups.
         match type_num:
             case 2:
-                return self._decode_utf8_string(size, new_offset, budget)
+                # Strings are most of the values in a real database. Decode them
+                # here to save a method call.
+                # Charge the payload before copying so a crafted size cannot force
+                # a large allocation, and so pointers reusing one target recharge.
+                remaining = budget[2] - size
+                if remaining < 0:
+                    raise InvalidDatabaseError(_TOO_LARGE)
+                budget[2] = remaining
+                end = new_offset + size
+                return self._buffer[new_offset:end].decode("utf-8"), end
             case 1:
                 return self._decode_pointer(size, new_offset, budget)
             case 7:
