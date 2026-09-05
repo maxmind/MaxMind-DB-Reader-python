@@ -346,6 +346,17 @@ class BaseTestReader(unittest.TestCase):
             reader.get(self.ipf("2001:220::"))
         reader.close()
 
+    def test_search_tree_past_end_of_file(self) -> None:
+        # The metadata claims more nodes than the file holds. The pure Python
+        # reader rejects this when the database is opened; libmaxminddb does
+        # the same or fails the first lookup.
+        with self.assertRaises(InvalidDatabaseError):
+            reader = open_database(
+                "tests/data/test-data/GeoIP2-City-Test-Invalid-Node-Count.mmdb",
+                self.mode,
+            )
+            reader.get(self.ipf("1.1.1.1"))
+
     def test_ip_validation(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",

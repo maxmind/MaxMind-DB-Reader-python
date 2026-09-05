@@ -9,7 +9,6 @@ except ImportError:
 
 import contextlib
 import ipaddress
-import struct
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv6Address
 from typing import IO, TYPE_CHECKING, Any, AnyStr
@@ -44,6 +43,7 @@ class Reader:
     closed: bool
     _decoder: Decoder
     _metadata: Metadata
+    _record_size: int
     _ipv4_start: int
 
     def __init__(
@@ -93,6 +93,18 @@ class Reader:
             )
 
         self._metadata = Metadata(**metadata)
+        self._record_size = self._metadata.record_size
+
+        # Every node read stays inside the buffer once the tree fits, so the
+        # node reads below need no length checks of their own.
+        tree_end = self._metadata.search_tree_size + self._DATA_SECTION_SEPARATOR_SIZE
+        if tree_end > self._buffer_size:
+            self.close()
+            msg = (
+                f"Error opening database file ({filename}). The search tree "
+                "extends past the end of the file."
+            )
+            raise InvalidDatabaseError(msg)
 
         self._decoder = Decoder(
             self._buffer,
@@ -217,28 +229,25 @@ class Reader:
         return 0
 
     def _read_node(self, node_number: int, index: int) -> int:
-        base_offset = node_number * self._metadata.node_byte_size
-
-        record_size = self._metadata.record_size
-        node_bytes: bytes | bytearray
-        if record_size == 24:
-            offset = base_offset + index * 3
-            node_bytes = b"\x00" + self._buffer[offset : offset + 3]
-        elif record_size == 28:
-            offset = base_offset + 3 * index
-            node_bytes = bytearray(self._buffer[offset : offset + 4])
+        record_size = self._record_size
+        if record_size == 28:
+            # Two 28-bit records share the middle byte: its high nibble
+            # belongs to the left record and its low nibble to the right.
+            base_offset = node_number * 7
             if index:
-                node_bytes[0] = 0x0F & node_bytes[0]
-            else:
-                middle = (0xF0 & node_bytes.pop()) >> 4
-                node_bytes.insert(0, middle)
-        elif record_size == 32:
-            offset = base_offset + index * 4
-            node_bytes = self._buffer[offset : offset + 4]
-        else:
-            msg = f"Unknown record size: {record_size}"
-            raise InvalidDatabaseError(msg)
-        return struct.unpack(b"!I", node_bytes)[0]
+                offset = base_offset + 3
+                record = int.from_bytes(self._buffer[offset : offset + 4], "big")
+                return record & 0x0FFFFFFF
+            record = int.from_bytes(self._buffer[base_offset : base_offset + 4], "big")
+            return (record >> 8) | ((record & 0xF0) << 20)
+        if record_size == 24:
+            offset = node_number * 6 + index * 3
+            return int.from_bytes(self._buffer[offset : offset + 3], "big")
+        if record_size == 32:
+            offset = node_number * 8 + index * 4
+            return int.from_bytes(self._buffer[offset : offset + 4], "big")
+        msg = f"Unknown record size: {record_size}"
+        raise InvalidDatabaseError(msg)
 
     def _resolve_data_pointer(self, pointer: int) -> Record:
         resolved = pointer - self._metadata.node_count + self._metadata.search_tree_size

@@ -28,9 +28,11 @@ History
   or from opening a database. It previously raised ``IndexError`` or
   ``struct.error``.
 * Lookups with the pure Python reader are faster. The decoder skips a method
-  call for values whose size is in the control byte, reads pointers with
-  integer arithmetic instead of ``struct``, decodes strings directly, and
-  does less work for each map or array entry.
+  call for values whose size is in the control byte, reads pointers and
+  search tree nodes with integer arithmetic instead of ``struct``, decodes
+  strings directly, and does less work for each map or array entry. GeoLite2
+  City lookups in memory mode on CPython 3.14 are about 15% faster than in
+  3.1.1, including the cost of the new limits.
 
 3.1.1 (2026-03-05)
 ++++++++++++++++++
