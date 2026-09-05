@@ -45,6 +45,8 @@ _MAX_PAYLOAD_BYTES = 1 << 21
 # declared size past that is malformed and could copy attacker-controlled bytes.
 _MAX_UINT_BYTES = 16
 _MAX_INT32_BYTES = 4
+# Added to a pointer value, by pointer size. A 4-byte pointer adds nothing.
+_POINTER_VALUE_OFFSETS = (0, 0, 2048, 526336)
 _TOO_MANY_VALUES = (
     "The MaxMind DB file's data section exceeds the maximum number of values"
 )
@@ -193,21 +195,17 @@ class Decoder:
         budget: list[int],
     ) -> tuple[Record, int]:
         pointer_size = (size >> 3) + 1
-
-        buf = self._buffer[offset : offset + pointer_size]
         new_offset = offset + pointer_size
-
-        if pointer_size == 1:
-            buf = bytes([size & 0x7]) + buf
-            pointer = struct.unpack(b"!H", buf)[0] + self._pointer_base
-        elif pointer_size == 2:
-            buf = b"\x00" + bytes([size & 0x7]) + buf
-            pointer = struct.unpack(b"!I", buf)[0] + 2048 + self._pointer_base
-        elif pointer_size == 3:
-            buf = bytes([size & 0x7]) + buf
-            pointer = struct.unpack(b"!I", buf)[0] + 526336 + self._pointer_base
-        else:
-            pointer = struct.unpack(b"!I", buf)[0] + self._pointer_base
+        pointer_bytes = self._buffer[offset:new_offset]
+        if len(pointer_bytes) != pointer_size:
+            raise InvalidDatabaseError(_BAD_DATA)
+        pointer = int.from_bytes(pointer_bytes, "big")
+        if pointer_size < 4:
+            # The low three bits of the ctrl byte are the high bits of the
+            # pointer, and sizes 2 and 3 add a fixed offset.
+            pointer |= (size & 0x7) << (pointer_size << 3)
+            pointer += _POINTER_VALUE_OFFSETS[pointer_size]
+        pointer += self._pointer_base
 
         if self._pointer_test:
             return pointer, new_offset
