@@ -27,6 +27,8 @@ History
 * A truncated data section now raises ``InvalidDatabaseError`` from a lookup
   or from opening a database. It previously raised ``IndexError`` or
   ``struct.error``.
+* Lookups with the pure Python reader are faster. The decoder skips a method
+  call for values whose size is in the control byte.
 
 3.1.1 (2026-03-05)
 ++++++++++++++++++
