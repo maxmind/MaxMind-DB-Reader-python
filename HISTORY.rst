@@ -29,8 +29,8 @@ History
   ``struct.error``.
 * Lookups with the pure Python reader are faster. The decoder skips a method
   call for values whose size is in the control byte, reads pointers with
-  integer arithmetic instead of ``struct``, and does less work for each map
-  or array entry.
+  integer arithmetic instead of ``struct``, decodes strings directly, and
+  does less work for each map or array entry.
 
 3.1.1 (2026-03-05)
 ++++++++++++++++++

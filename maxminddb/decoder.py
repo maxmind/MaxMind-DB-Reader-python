@@ -236,24 +236,8 @@ class Decoder:
         uint_bytes = self._buffer[offset:new_offset]
         return int.from_bytes(uint_bytes, "big"), new_offset
 
-    def _decode_utf8_string(
-        self,
-        size: int,
-        offset: int,
-        budget: list[int],
-    ) -> tuple[str, int]:
-        # Charge the payload before copying so a crafted size cannot force a
-        # large allocation, and so pointers reusing one target recharge.
-        remaining = budget[2] - size
-        if remaining < 0:
-            raise InvalidDatabaseError(_TOO_LARGE)
-        budget[2] = remaining
-        new_offset = offset + size
-        return self._buffer[offset:new_offset].decode("utf-8"), new_offset
-
     _type_decoder: ClassVar[dict[int, DecoderFunc]] = {
         1: _decode_pointer,
-        2: _decode_utf8_string,
         3: _decode_double,
         4: _decode_bytes,
         5: _decode_uint,  # uint16
@@ -298,19 +282,27 @@ class Decoder:
         if not type_num:
             (type_num, new_offset) = self._read_extended(new_offset)
 
-        try:
-            decoder = self._type_decoder[type_num]
-        except KeyError as ex:
-            msg = f"Unexpected type number ({type_num}) encountered"
-            raise InvalidDatabaseError(
-                msg,
-            ) from ex
-
         size = ctrl_byte & 0x1F
         # Sizes under 29 are stored in the ctrl byte, and a pointer's size bits
         # are not a size. Skip the call for that common case.
         if size >= 29 and type_num != 1:
             (size, new_offset) = self._size_from_ctrl_byte(size, new_offset)
+        if type_num == 2:
+            # Strings are most of the values in a real database. Decode them
+            # here rather than through the dispatch table to save a call.
+            # Charge the payload before copying so a crafted size cannot force
+            # a large allocation, and so pointers reusing one target recharge.
+            remaining = budget[2] - size
+            if remaining < 0:
+                raise InvalidDatabaseError(_TOO_LARGE)
+            budget[2] = remaining
+            end = new_offset + size
+            return self._buffer[new_offset:end].decode("utf-8"), end
+        try:
+            decoder = self._type_decoder[type_num]
+        except KeyError as ex:
+            msg = f"Unexpected type number ({type_num}) encountered"
+            raise InvalidDatabaseError(msg) from ex
         return decoder(self, size, new_offset, budget)
 
     def _read_extended(self, offset: int) -> tuple[int, int]:
