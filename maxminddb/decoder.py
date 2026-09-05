@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import struct
-from typing import TYPE_CHECKING, ClassVar, cast
+from typing import TYPE_CHECKING, ClassVar
 
 try:
     import mmap
@@ -94,8 +94,9 @@ class Decoder:
             raise InvalidDatabaseError(_TOO_DEEP)
         budget[1] = depth
         array = []
+        decode = self._decode
         for _ in range(size):
-            (value, offset) = self._decode(offset, budget)
+            (value, offset) = decode(offset, budget)
             array.append(value)
         budget[1] -= 1
         return array, offset
@@ -181,10 +182,11 @@ class Decoder:
             raise InvalidDatabaseError(_TOO_DEEP)
         budget[1] = depth
         container: dict[str, Record] = {}
+        decode = self._decode
         for _ in range(size):
-            (key, offset) = self._decode(offset, budget)
-            (value, offset) = self._decode(offset, budget)
-            container[cast("str", key)] = value
+            (key, offset) = decode(offset, budget)
+            (value, offset) = decode(offset, budget)
+            container[key] = value  # type: ignore[index]
         budget[1] -= 1
         return container, offset
 
