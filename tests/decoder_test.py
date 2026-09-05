@@ -458,6 +458,14 @@ class TestDecoder(unittest.TestCase):
         with self.assertRaises(InvalidDatabaseError):
             Decoder(oversized_int32, pointer_base=0).decode(0)
 
+    def test_truncated_data_raises_invalid_database_error(self) -> None:
+        # A ctrl byte past the buffer end, a string header missing its size
+        # bytes, and a pointer missing its offset byte must not escape as
+        # IndexError or struct.error.
+        for truncated in (b"", bytes([0x5F]), bytes([0x20])):
+            with self.assertRaisesRegex(InvalidDatabaseError, "bad data"):
+                Decoder(truncated, pointer_base=0).decode(0)
+
     @classmethod
     def _wrapped_string_pointers(cls, pointer_count: int) -> tuple[bytes, int]:
         # Offset 0: a one-element array holding an inline 1 MiB string. After

@@ -24,6 +24,9 @@ History
     before its bytes are read.
   * The vendored libmaxminddb was updated to the commit that adds the same
     limits to the C extension.
+* A truncated data section now raises ``InvalidDatabaseError`` from a lookup
+  or from opening a database. It previously raised ``IndexError`` or
+  ``struct.error``.
 
 3.1.1 (2026-03-05)
 ++++++++++++++++++
