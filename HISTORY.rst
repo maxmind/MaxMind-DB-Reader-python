@@ -17,6 +17,7 @@ History
   limits to the C extension.
 * Truncated reads that previously raised ``IndexError`` or ``struct.error``
   now raise ``InvalidDatabaseError``.
+* Improved pure Python lookup performance.
 
 3.1.1 (2026-03-05)
 ++++++++++++++++++

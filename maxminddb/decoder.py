@@ -306,7 +306,11 @@ class Decoder:
                 msg,
             ) from ex
 
-        (size, new_offset) = self._size_from_ctrl_byte(ctrl_byte, new_offset, type_num)
+        size = ctrl_byte & 0x1F
+        # Sizes under 29 are stored in the ctrl byte, and a pointer's size bits
+        # are not a size. Skip the call for that common case.
+        if size >= 29 and type_num != 1:
+            (size, new_offset) = self._size_from_ctrl_byte(size, new_offset)
         return decoder(self, size, new_offset, budget)
 
     def _read_extended(self, offset: int) -> tuple[int, int]:
@@ -327,16 +331,8 @@ class Decoder:
         if expected != actual:
             raise InvalidDatabaseError(_BAD_DATA)
 
-    def _size_from_ctrl_byte(
-        self,
-        ctrl_byte: int,
-        offset: int,
-        type_num: int,
-    ) -> tuple[int, int]:
-        size = ctrl_byte & 0x1F
-        if type_num == 1 or size < 29:
-            return size, offset
-
+    def _size_from_ctrl_byte(self, size: int, offset: int) -> tuple[int, int]:
+        # Called only for size codes 29 to 31, which are followed by size bytes.
         if size == 29:
             size = 29 + self._buffer[offset]
             return size, offset + 1
