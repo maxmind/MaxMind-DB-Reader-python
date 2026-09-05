@@ -3,6 +3,37 @@
 History
 -------
 
+3.2.0
++++++
+
+* Bounded the resources the pure Python decoder spends on one record, or on
+  the metadata read when a database is opened. A crafted database could nest
+  data-section pointers to shared targets so that decoding one record took
+  exponential time and memory, or point at one large string or bytes value
+  many times so that a small file produced far more data than it holds. The
+  decoder now follows the Reader Resource Limits section of the MaxMind DB
+  specification. Each record is limited to 65,536 values, 512 levels of
+  nesting, and 2 MiB of string and bytes data.
+
+  * A database that exceeds a limit raises ``InvalidDatabaseError``. The
+    depth limit also stops pointer cycles.
+  * Under CPython's default recursion limit, the interpreter may reject a
+    record before 512 levels. That failure also raises
+    ``InvalidDatabaseError``.
+  * An integer that declares more bytes than its type allows is rejected
+    before its bytes are read.
+  * The vendored libmaxminddb was updated to the commit that adds the same
+    limits to the C extension.
+* A truncated data section now raises ``InvalidDatabaseError`` from a lookup
+  or from opening a database. It previously raised ``IndexError`` or
+  ``struct.error``.
+* Lookups with the pure Python reader are faster. The decoder skips a method
+  call for values whose size is in the control byte, reads pointers and
+  search tree nodes with integer arithmetic instead of ``struct``, decodes
+  strings directly, and does less work for each map or array entry. GeoLite2
+  City lookups in memory mode on CPython 3.14 are about 15% faster than in
+  3.1.1, including the cost of the new limits.
+
 3.1.1 (2026-03-05)
 ++++++++++++++++++
 

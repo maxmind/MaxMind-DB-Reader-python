@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import struct
-from typing import TYPE_CHECKING, ClassVar, cast
+from typing import TYPE_CHECKING, ClassVar
 
 try:
     import mmap
@@ -18,7 +18,44 @@ if TYPE_CHECKING:
     from maxminddb.file import FileBuffer
     from maxminddb.types import Record
 
-    DecoderFunc = Callable[["Decoder", int, int], tuple[Record, int]]
+    DecoderFunc = Callable[["Decoder", int, int, list[int]], tuple[Record, int]]
+
+
+# Per-lookup limit on the number of values decoded, recommended by the MaxMind
+# DB specification. It stops a pointer fan-out, where nested pointers to shared
+# targets would otherwise cost 2**depth decode operations. The count follows
+# the specification's flat rule: the root is one value, each array and map
+# charges its declared children, and a pointer costs nothing beyond the value
+# it resolves to, which its container already charged. The largest real
+# records decode a few hundred values, so the limit leaves a wide margin.
+# Pointer cycles and over-deep data are caught by an explicit, call-local depth
+# limit (see ``decode``). Each level costs about two interpreter frames, so
+# under CPython's default recursion limit RecursionError can fire first; decode
+# converts it to the same error. The explicit limit matters when a caller has
+# raised the recursion limit.
+_MAX_VALUES = 1 << 16
+_MAX_DEPTH = 512
+# Per-lookup limit on the total string and bytes payload materialized, matching
+# libmaxminddb and the Go reader. It stops a payload amplification, where many
+# pointers to one large value would otherwise materialize N * size bytes from a
+# small file. Each string or bytes value is charged its length wherever it is
+# decoded, so re-decoding a shared target through another pointer recharges.
+_MAX_PAYLOAD_BYTES = 1 << 21
+# The widest fixed-width integer the format defines is the 16-byte uint128; a
+# declared size past that is malformed and could copy attacker-controlled bytes.
+_MAX_UINT_BYTES = 16
+_MAX_INT32_BYTES = 4
+# Added to a pointer value, by pointer size. A 4-byte pointer adds nothing.
+_POINTER_VALUE_OFFSETS = (0, 0, 2048, 526336)
+_TOO_MANY_VALUES = (
+    "The MaxMind DB file's data section exceeds the maximum number of values"
+)
+_TOO_DEEP = "The MaxMind DB file's data section exceeds the maximum depth"
+_TOO_LARGE = "The MaxMind DB file's data section exceeds the maximum payload size"
+_BAD_DATA = (
+    "The MaxMind DB file's data section contains bad data "
+    "(unknown data type or corrupt data)"
+)
 
 
 class Decoder:
@@ -42,35 +79,83 @@ class Decoder:
         self._buffer = database_buffer
         self._pointer_base = pointer_base
 
-    def _decode_array(self, size: int, offset: int) -> tuple[list[Record], int]:
+    def _decode_array(
+        self,
+        size: int,
+        offset: int,
+        budget: list[int],
+    ) -> tuple[list[Record], int]:
+        remaining = budget[0] - size
+        if remaining < 0:
+            raise InvalidDatabaseError(_TOO_MANY_VALUES)
+        budget[0] = remaining
+        depth = budget[1] + 1
+        if depth > _MAX_DEPTH:
+            raise InvalidDatabaseError(_TOO_DEEP)
+        budget[1] = depth
         array = []
+        decode = self._decode
         for _ in range(size):
-            (value, offset) = self.decode(offset)
+            (value, offset) = decode(offset, budget)
             array.append(value)
+        budget[1] -= 1
         return array, offset
 
-    def _decode_boolean(self, size: int, offset: int) -> tuple[bool, int]:
+    def _decode_boolean(
+        self,
+        size: int,
+        offset: int,
+        _budget: list[int],
+    ) -> tuple[bool, int]:
         return size != 0, offset
 
-    def _decode_bytes(self, size: int, offset: int) -> tuple[bytes, int]:
+    def _decode_bytes(
+        self,
+        size: int,
+        offset: int,
+        budget: list[int],
+    ) -> tuple[bytes, int]:
+        # Charge the payload before copying so a crafted size cannot force a
+        # large allocation, and so pointers reusing one target recharge.
+        remaining = budget[2] - size
+        if remaining < 0:
+            raise InvalidDatabaseError(_TOO_LARGE)
+        budget[2] = remaining
         new_offset = offset + size
         return self._buffer[offset:new_offset], new_offset
 
-    def _decode_double(self, size: int, offset: int) -> tuple[float, int]:
+    def _decode_double(
+        self,
+        size: int,
+        offset: int,
+        _budget: list[int],
+    ) -> tuple[float, int]:
         self._verify_size(size, 8)
         new_offset = offset + size
         packed_bytes = self._buffer[offset:new_offset]
         (value,) = struct.unpack(b"!d", packed_bytes)
         return value, new_offset
 
-    def _decode_float(self, size: int, offset: int) -> tuple[float, int]:
+    def _decode_float(
+        self,
+        size: int,
+        offset: int,
+        _budget: list[int],
+    ) -> tuple[float, int]:
         self._verify_size(size, 4)
         new_offset = offset + size
         packed_bytes = self._buffer[offset:new_offset]
         (value,) = struct.unpack(b"!f", packed_bytes)
         return value, new_offset
 
-    def _decode_int32(self, size: int, offset: int) -> tuple[int, int]:
+    def _decode_int32(
+        self,
+        size: int,
+        offset: int,
+        _budget: list[int],
+    ) -> tuple[int, int]:
+        if size > _MAX_INT32_BYTES:
+            raise InvalidDatabaseError(_BAD_DATA)
         if size == 0:
             return 0, offset
         new_offset = offset + size
@@ -81,49 +166,78 @@ class Decoder:
         (value,) = struct.unpack(b"!i", packed_bytes)
         return value, new_offset
 
-    def _decode_map(self, size: int, offset: int) -> tuple[dict[str, Record], int]:
+    def _decode_map(
+        self,
+        size: int,
+        offset: int,
+        budget: list[int],
+    ) -> tuple[dict[str, Record], int]:
+        # A map entry decodes a key and a value, so it costs two values.
+        remaining = budget[0] - size * 2
+        if remaining < 0:
+            raise InvalidDatabaseError(_TOO_MANY_VALUES)
+        budget[0] = remaining
+        depth = budget[1] + 1
+        if depth > _MAX_DEPTH:
+            raise InvalidDatabaseError(_TOO_DEEP)
+        budget[1] = depth
         container: dict[str, Record] = {}
+        decode = self._decode
         for _ in range(size):
-            (key, offset) = self.decode(offset)
-            (value, offset) = self.decode(offset)
-            container[cast("str", key)] = value
+            (key, offset) = decode(offset, budget)
+            (value, offset) = decode(offset, budget)
+            container[key] = value  # type: ignore[index]
+        budget[1] -= 1
         return container, offset
 
-    def _decode_pointer(self, size: int, offset: int) -> tuple[Record, int]:
+    def _decode_pointer(
+        self,
+        size: int,
+        offset: int,
+        budget: list[int],
+    ) -> tuple[Record, int]:
         pointer_size = (size >> 3) + 1
-
-        buf = self._buffer[offset : offset + pointer_size]
         new_offset = offset + pointer_size
-
-        if pointer_size == 1:
-            buf = bytes([size & 0x7]) + buf
-            pointer = struct.unpack(b"!H", buf)[0] + self._pointer_base
-        elif pointer_size == 2:
-            buf = b"\x00" + bytes([size & 0x7]) + buf
-            pointer = struct.unpack(b"!I", buf)[0] + 2048 + self._pointer_base
-        elif pointer_size == 3:
-            buf = bytes([size & 0x7]) + buf
-            pointer = struct.unpack(b"!I", buf)[0] + 526336 + self._pointer_base
-        else:
-            pointer = struct.unpack(b"!I", buf)[0] + self._pointer_base
+        pointer_bytes = self._buffer[offset:new_offset]
+        if len(pointer_bytes) != pointer_size:
+            raise InvalidDatabaseError(_BAD_DATA)
+        pointer = int.from_bytes(pointer_bytes, "big")
+        if pointer_size < 4:
+            # The low three bits of the ctrl byte are the high bits of the
+            # pointer, and sizes 2 and 3 add a fixed offset.
+            pointer |= (size & 0x7) << (pointer_size << 3)
+            pointer += _POINTER_VALUE_OFFSETS[pointer_size]
+        pointer += self._pointer_base
 
         if self._pointer_test:
             return pointer, new_offset
-        (value, _) = self.decode(pointer)
+
+        # The value at the pointer's position was charged by its containing
+        # array or map, so the target costs nothing more. Only the depth changes.
+        depth = budget[1] + 1
+        if depth > _MAX_DEPTH:
+            raise InvalidDatabaseError(_TOO_DEEP)
+        budget[1] = depth
+        (value, _) = self._decode(pointer, budget)
+        budget[1] -= 1
         return value, new_offset
 
-    def _decode_uint(self, size: int, offset: int) -> tuple[int, int]:
+    def _decode_uint(
+        self,
+        size: int,
+        offset: int,
+        _budget: list[int],
+    ) -> tuple[int, int]:
+        # Reject a declared size past the widest defined unsigned integer before
+        # copying, so a crafted size cannot force a large allocation.
+        if size > _MAX_UINT_BYTES:
+            raise InvalidDatabaseError(_BAD_DATA)
         new_offset = offset + size
         uint_bytes = self._buffer[offset:new_offset]
         return int.from_bytes(uint_bytes, "big"), new_offset
 
-    def _decode_utf8_string(self, size: int, offset: int) -> tuple[str, int]:
-        new_offset = offset + size
-        return self._buffer[offset:new_offset].decode("utf-8"), new_offset
-
     _type_decoder: ClassVar[dict[int, DecoderFunc]] = {
         1: _decode_pointer,
-        2: _decode_utf8_string,
         3: _decode_double,
         4: _decode_bytes,
         5: _decode_uint,  # uint16
@@ -144,6 +258,23 @@ class Decoder:
             offset: the location of the data structure to decode
 
         """
+        # Bound the work per lookup so a crafted database cannot exhaust CPU or
+        # memory. ``budget`` carries the remaining value count, the current
+        # nested decode depth, and the remaining string and bytes payload, so
+        # all three are shared across the recursion. It is call-local, which
+        # keeps the decoder safe for concurrent reads. The root value is charged
+        # here; containers charge their children. The explicit depth limit
+        # is independent of Python's process-wide recursion limit; RecursionError
+        # remains a fallback on interpreters whose stack limit is reached first.
+        try:
+            return self._decode(offset, [_MAX_VALUES - 1, 0, _MAX_PAYLOAD_BYTES])
+        except RecursionError as ex:
+            raise InvalidDatabaseError(_TOO_DEEP) from ex
+        except (IndexError, struct.error) as ex:
+            # Truncated data: a ctrl, size, or pointer read ran off the buffer.
+            raise InvalidDatabaseError(_BAD_DATA) from ex
+
+    def _decode(self, offset: int, budget: list[int]) -> tuple[Record, int]:
         new_offset = offset + 1
         ctrl_byte = self._buffer[offset]
         type_num = ctrl_byte >> 5
@@ -151,16 +282,28 @@ class Decoder:
         if not type_num:
             (type_num, new_offset) = self._read_extended(new_offset)
 
+        size = ctrl_byte & 0x1F
+        # Sizes under 29 are stored in the ctrl byte, and a pointer's size bits
+        # are not a size. Skip the call for that common case.
+        if size >= 29 and type_num != 1:
+            (size, new_offset) = self._size_from_ctrl_byte(size, new_offset)
+        if type_num == 2:
+            # Strings are most of the values in a real database. Decode them
+            # here rather than through the dispatch table to save a call.
+            # Charge the payload before copying so a crafted size cannot force
+            # a large allocation, and so pointers reusing one target recharge.
+            remaining = budget[2] - size
+            if remaining < 0:
+                raise InvalidDatabaseError(_TOO_LARGE)
+            budget[2] = remaining
+            end = new_offset + size
+            return self._buffer[new_offset:end].decode("utf-8"), end
         try:
             decoder = self._type_decoder[type_num]
         except KeyError as ex:
             msg = f"Unexpected type number ({type_num}) encountered"
-            raise InvalidDatabaseError(
-                msg,
-            ) from ex
-
-        (size, new_offset) = self._size_from_ctrl_byte(ctrl_byte, new_offset, type_num)
-        return decoder(self, size, new_offset)
+            raise InvalidDatabaseError(msg) from ex
+        return decoder(self, size, new_offset, budget)
 
     def _read_extended(self, offset: int) -> tuple[int, int]:
         next_byte = self._buffer[offset]
@@ -178,24 +321,10 @@ class Decoder:
     @staticmethod
     def _verify_size(expected: int, actual: int) -> None:
         if expected != actual:
-            msg = (
-                "The MaxMind DB file's data section contains bad data "
-                "(unknown data type or corrupt data)"
-            )
-            raise InvalidDatabaseError(
-                msg,
-            )
+            raise InvalidDatabaseError(_BAD_DATA)
 
-    def _size_from_ctrl_byte(
-        self,
-        ctrl_byte: int,
-        offset: int,
-        type_num: int,
-    ) -> tuple[int, int]:
-        size = ctrl_byte & 0x1F
-        if type_num == 1 or size < 29:
-            return size, offset
-
+    def _size_from_ctrl_byte(self, size: int, offset: int) -> tuple[int, int]:
+        # Called only for size codes 29 to 31, which are followed by size bytes.
         if size == 29:
             size = 29 + self._buffer[offset]
             return size, offset + 1
