@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import struct
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING
 
 try:
     import mmap
@@ -13,12 +13,8 @@ except ImportError:
 from maxminddb.errors import InvalidDatabaseError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from maxminddb.file import FileBuffer
     from maxminddb.types import Record
-
-    DecoderFunc = Callable[["Decoder", int, int, list[int]], tuple[Record, int]]
 
 
 # Per-lookup limit on the number of values decoded, recommended by the MaxMind
@@ -251,22 +247,6 @@ class Decoder:
         new_offset = offset + size
         return self._buffer[offset:new_offset].decode("utf-8"), new_offset
 
-    _type_decoder: ClassVar[dict[int, DecoderFunc]] = {
-        1: _decode_pointer,
-        2: _decode_utf8_string,
-        3: _decode_double,
-        4: _decode_bytes,
-        5: _decode_uint,  # uint16
-        6: _decode_uint,  # uint32
-        7: _decode_map,
-        8: _decode_int32,
-        9: _decode_uint,  # uint64
-        10: _decode_uint,  # uint128
-        11: _decode_array,
-        14: _decode_boolean,
-        15: _decode_float,
-    }
-
     def decode(self, offset: int) -> tuple[Record, int]:
         """Decode a section of the data section starting at offset.
 
@@ -290,7 +270,10 @@ class Decoder:
             # Truncated data: a ctrl, size, or pointer read ran off the buffer.
             raise InvalidDatabaseError(_BAD_DATA) from ex
 
-    def _decode(self, offset: int, budget: list[int]) -> tuple[Record, int]:
+    # Keep type dispatch inline to avoid another call for every decoded value.
+    def _decode(  # noqa: C901, PLR0911, PLR0912
+        self, offset: int, budget: list[int]
+    ) -> tuple[Record, int]:
         new_offset = offset + 1
         ctrl_byte = self._buffer[offset]
         type_num = ctrl_byte >> 5
@@ -298,20 +281,36 @@ class Decoder:
         if not type_num:
             (type_num, new_offset) = self._read_extended(new_offset)
 
-        try:
-            decoder = self._type_decoder[type_num]
-        except KeyError as ex:
-            msg = f"Unexpected type number ({type_num}) encountered"
-            raise InvalidDatabaseError(
-                msg,
-            ) from ex
-
         size = ctrl_byte & 0x1F
         # Sizes under 29 are stored in the ctrl byte, and a pointer's size bits
         # are not a size. Skip the call for that common case.
         if size >= 29 and type_num != 1:
             (size, new_offset) = self._size_from_ctrl_byte(size, new_offset)
-        return decoder(self, size, new_offset, budget)
+        # Put common types first to reduce comparisons during real lookups.
+        match type_num:
+            case 2:
+                return self._decode_utf8_string(size, new_offset, budget)
+            case 1:
+                return self._decode_pointer(size, new_offset, budget)
+            case 7:
+                return self._decode_map(size, new_offset, budget)
+            case 6 | 5 | 9 | 10:  # uint32, uint16, uint64, uint128
+                return self._decode_uint(size, new_offset, budget)
+            case 11:
+                return self._decode_array(size, new_offset, budget)
+            case 3:
+                return self._decode_double(size, new_offset, budget)
+            case 4:
+                return self._decode_bytes(size, new_offset, budget)
+            case 8:
+                return self._decode_int32(size, new_offset, budget)
+            case 14:
+                return self._decode_boolean(size, new_offset, budget)
+            case 15:
+                return self._decode_float(size, new_offset, budget)
+            case _:
+                msg = f"Unexpected type number ({type_num}) encountered"
+                raise InvalidDatabaseError(msg)
 
     def _read_extended(self, offset: int) -> tuple[int, int]:
         next_byte = self._buffer[offset]
