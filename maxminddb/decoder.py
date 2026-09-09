@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import struct
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 try:
@@ -50,6 +51,15 @@ _BAD_DATA = (
 )
 
 
+@dataclass
+class _DecodeBudget:
+    """Shared counters for one record or metadata decode."""
+
+    values_left: int
+    depth: int
+    payload_left: int
+
+
 class Decoder:
     """Decoder for the data section of the MaxMind DB."""
 
@@ -75,29 +85,29 @@ class Decoder:
         self,
         size: int,
         offset: int,
-        budget: list[int],
+        budget: _DecodeBudget,
     ) -> tuple[list[Record], int]:
-        remaining = budget[0] - size
+        remaining = budget.values_left - size
         if remaining < 0:
             raise InvalidDatabaseError(_TOO_MANY_VALUES)
-        budget[0] = remaining
-        depth = budget[1] + 1
+        budget.values_left = remaining
+        depth = budget.depth + 1
         if depth > _MAX_DEPTH:
             raise InvalidDatabaseError(_TOO_DEEP)
-        budget[1] = depth
+        budget.depth = depth
         array = []
         decode = self._decode
         for _ in range(size):
             (value, offset) = decode(offset, budget, False)  # noqa: FBT003
             array.append(value)
-        budget[1] -= 1
+        budget.depth -= 1
         return array, offset
 
     def _decode_boolean(
         self,
         size: int,
         offset: int,
-        _budget: list[int],
+        _budget: _DecodeBudget,
     ) -> tuple[bool, int]:
         return size != 0, offset
 
@@ -105,14 +115,14 @@ class Decoder:
         self,
         size: int,
         offset: int,
-        budget: list[int],
+        budget: _DecodeBudget,
     ) -> tuple[bytes, int]:
         # Charge the payload before copying so a crafted size cannot force a
         # large allocation, and so pointers reusing one target recharge.
-        remaining = budget[2] - size
+        remaining = budget.payload_left - size
         if remaining < 0:
             raise InvalidDatabaseError(_TOO_LARGE)
-        budget[2] = remaining
+        budget.payload_left = remaining
         new_offset = offset + size
         return self._buffer[offset:new_offset], new_offset
 
@@ -120,7 +130,7 @@ class Decoder:
         self,
         size: int,
         offset: int,
-        _budget: list[int],
+        _budget: _DecodeBudget,
     ) -> tuple[float, int]:
         self._verify_size(size, 8)
         new_offset = offset + size
@@ -132,7 +142,7 @@ class Decoder:
         self,
         size: int,
         offset: int,
-        _budget: list[int],
+        _budget: _DecodeBudget,
     ) -> tuple[float, int]:
         self._verify_size(size, 4)
         new_offset = offset + size
@@ -144,7 +154,7 @@ class Decoder:
         self,
         size: int,
         offset: int,
-        _budget: list[int],
+        _budget: _DecodeBudget,
     ) -> tuple[int, int]:
         if size > _MAX_INT32_BYTES:
             raise InvalidDatabaseError(_BAD_DATA)
@@ -162,31 +172,31 @@ class Decoder:
         self,
         size: int,
         offset: int,
-        budget: list[int],
+        budget: _DecodeBudget,
     ) -> tuple[dict[str, Record], int]:
         # A map entry decodes a key and a value, so it costs two values.
-        remaining = budget[0] - size * 2
+        remaining = budget.values_left - size * 2
         if remaining < 0:
             raise InvalidDatabaseError(_TOO_MANY_VALUES)
-        budget[0] = remaining
-        depth = budget[1] + 1
+        budget.values_left = remaining
+        depth = budget.depth + 1
         if depth > _MAX_DEPTH:
             raise InvalidDatabaseError(_TOO_DEEP)
-        budget[1] = depth
+        budget.depth = depth
         container: dict[str, Record] = {}
         decode = self._decode
         for _ in range(size):
             (key, offset) = decode(offset, budget, False)  # noqa: FBT003
             (value, offset) = decode(offset, budget, False)  # noqa: FBT003
             container[key] = value  # type: ignore[index]
-        budget[1] -= 1
+        budget.depth -= 1
         return container, offset
 
     def _decode_pointer(
         self,
         size: int,
         offset: int,
-        budget: list[int],
+        budget: _DecodeBudget,
     ) -> tuple[Record, int]:
         pointer_size = (size >> 3) + 1
         new_offset = offset + pointer_size
@@ -206,19 +216,19 @@ class Decoder:
 
         # The value at the pointer's position was charged by its containing
         # array or map, so the target costs nothing more. Only the depth changes.
-        depth = budget[1] + 1
+        depth = budget.depth + 1
         if depth > _MAX_DEPTH:
             raise InvalidDatabaseError(_TOO_DEEP)
-        budget[1] = depth
+        budget.depth = depth
         (value, _) = self._decode(pointer, budget, True)  # noqa: FBT003
-        budget[1] -= 1
+        budget.depth -= 1
         return value, new_offset
 
     def _decode_uint(
         self,
         size: int,
         offset: int,
-        _budget: list[int],
+        _budget: _DecodeBudget,
     ) -> tuple[int, int]:
         # Reject a declared size past the widest defined unsigned integer before
         # copying, so a crafted size cannot force a large allocation.
@@ -235,13 +245,12 @@ class Decoder:
             offset: the location of the data structure to decode
 
         """
-        # The call-local budget holds values remaining, current depth, and
-        # string and bytes payload remaining. Recursive calls share it, while
-        # concurrent reads each get their own budget. Charge the root here.
+        # Each call gets its own budget, shared by recursive calls. Charge the
+        # root here.
         try:
             return self._decode(
                 offset,
-                [_MAX_VALUES - 1, 0, _MAX_PAYLOAD_BYTES],
+                _DecodeBudget(_MAX_VALUES - 1, 0, _MAX_PAYLOAD_BYTES),
                 False,  # noqa: FBT003
             )
         except RecursionError as ex:
@@ -257,7 +266,7 @@ class Decoder:
     def _decode(  # noqa: C901, PLR0911, PLR0912
         self,
         offset: int,
-        budget: list[int],
+        budget: _DecodeBudget,
         pointer_target: bool,  # noqa: FBT001
     ) -> tuple[Record, int]:
         new_offset = offset + 1
@@ -279,10 +288,10 @@ class Decoder:
                 # here to save a method call.
                 # Charge the payload before copying so a crafted size cannot force
                 # a large allocation, and so pointers reusing one target recharge.
-                remaining = budget[2] - size
+                remaining = budget.payload_left - size
                 if remaining < 0:
                     raise InvalidDatabaseError(_TOO_LARGE)
-                budget[2] = remaining
+                budget.payload_left = remaining
                 end = new_offset + size
                 return self._buffer[new_offset:end].decode("utf-8"), end
             case 1:
