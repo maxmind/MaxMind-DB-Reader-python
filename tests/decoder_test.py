@@ -142,6 +142,9 @@ class TestDecoder(unittest.TestCase):
             b"\x37\xff\xff\xff": 134744063,
             b"\x38\x7f\xff\xff\xff": 2147483647,
             b"\x38\xff\xff\xff\xff": 4294967295,
+            b"\x3d\xff\xff\xff\xff": 4294967295,
+            b"\x3e\xff\xff\xff\xff": 4294967295,
+            b"\x3f\xff\xff\xff\xff": 4294967295,
         }
         self.validate_type_decoding("pointers", pointers)
 
@@ -339,6 +342,23 @@ class TestDecoder(unittest.TestCase):
             self.assertIsNone(cm.exception.__cause__)
         finally:
             sys.setrecursionlimit(old_recursion_limit)
+
+    def test_python_recursion_limit_raises_database_error(self) -> None:
+        # This nesting fits the decoder's limit but exceeds Python's lower limit.
+        buf = b"\x01\x04" * 128 + b"\xa0"
+        old_recursion_limit = sys.getrecursionlimit()
+        try:
+            sys.setrecursionlimit(200)
+            with self.assertRaisesRegex(InvalidDatabaseError, _TOO_DEEP) as cm:
+                Decoder(buf).decode(0)
+            self.assertIsInstance(cm.exception.__cause__, RecursionError)
+        finally:
+            sys.setrecursionlimit(old_recursion_limit)
+
+    def test_sibling_maps_restore_depth(self) -> None:
+        # An array of 600 empty maps has depth two, regardless of its length.
+        buf = b"\x1e\x04" + (600 - 285).to_bytes(2, "big") + b"\xe0" * 600
+        self.assertEqual(Decoder(buf).decode(0), ([{}] * 600, len(buf)))
 
     def test_container_depth_is_bounded_independently_of_recursion_limit(self) -> None:
         # Each prefix is an array with one element. Raising Python's global
