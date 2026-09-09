@@ -1062,6 +1062,19 @@ class TestReaderInitialization(unittest.TestCase):
                             self.assertTrue(reader._buffer.closed)  # noqa: SLF001
 
 
+class TestSearchTreeNodes(unittest.TestCase):
+    def test_28_bit_records_preserve_high_nibbles(self) -> None:
+        # Node decoding needs only the record size and buffer, not a database.
+        reader = object.__new__(maxminddb.reader.Reader)
+        reader._record_size = 28  # noqa: SLF001
+        # The middle byte holds the left record's high nibble, then the right's.
+        reader._buffer = bytes.fromhex("aabbcc de ff0011 123456 f8 789abc")  # noqa: SLF001
+        self.assertEqual(reader._read_node(0, 0), 0xDAABBCC)  # noqa: SLF001
+        self.assertEqual(reader._read_node(0, 1), 0xEFF0011)  # noqa: SLF001
+        self.assertEqual(reader._read_node(1, 0), 0xF123456)  # noqa: SLF001
+        self.assertEqual(reader._read_node(1, 1), 0x8789ABC)  # noqa: SLF001
+
+
 class TestOldReader(unittest.TestCase):
     def test_old_reader(self) -> None:
         reader = maxminddb.Reader("tests/data/test-data/MaxMind-DB-test-decoder.mmdb")
