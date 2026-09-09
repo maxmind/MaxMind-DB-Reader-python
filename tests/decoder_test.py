@@ -1,13 +1,53 @@
 from __future__ import annotations
 
 import mmap
+import sys
+import threading
 import unittest
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, SupportsIndex
 
 from maxminddb.decoder import Decoder
+from maxminddb.errors import InvalidDatabaseError
 
 if TYPE_CHECKING:
     from _typeshed import SizedBuffer
+    from typing_extensions import Self
+
+# Each structural level uses about two Python frames. This lets the 513-level
+# cases reach the decoder's explicit limit with ample test-harness headroom.
+_DEPTH_TEST_RECURSION_LIMIT = 2_000
+
+_TOO_MANY_VALUES = (
+    "^The MaxMind DB file's data section exceeds the maximum number of values$"
+)
+_TOO_DEEP = "^The MaxMind DB file's data section exceeds the maximum depth$"
+
+
+class _HeaderOnlyBuffer(bytes):
+    """A buffer that fails any read past its first ``header_len`` bytes.
+
+    It proves that a check runs before the decoder touches child or payload
+    bytes, rather than only that the check eventually fires.
+    """
+
+    header_len: int
+
+    def __new__(cls, data: bytes, header_len: int) -> Self:
+        buf = super().__new__(cls, data)
+        buf.header_len = header_len
+        return buf
+
+    def __getitem__(self, index: SupportsIndex | slice) -> int | bytes:  # type: ignore[override]
+        stop = index.stop if isinstance(index, slice) else int(index) + 1
+        if stop > self.header_len:
+            msg = f"decoder read past the {self.header_len}-byte header"
+            raise AssertionError(msg)
+        return bytes.__getitem__(self, index)
+
+
+_PAYLOAD_TOO_LARGE = (
+    "^The MaxMind DB file's data section exceeds the maximum payload size$"
+)
 
 
 class TestDecoder(unittest.TestCase):
@@ -102,6 +142,9 @@ class TestDecoder(unittest.TestCase):
             b"\x37\xff\xff\xff": 134744063,
             b"\x38\x7f\xff\xff\xff": 2147483647,
             b"\x38\xff\xff\xff\xff": 4294967295,
+            b"\x3d\xff\xff\xff\xff": 4294967295,
+            b"\x3e\xff\xff\xff\xff": 4294967295,
+            b"\x3f\xff\xff\xff\xff": 4294967295,
         }
         self.validate_type_decoding("pointers", pointers)
 
@@ -232,3 +275,254 @@ class TestDecoder(unittest.TestCase):
             self.assertEqual(({"long_key2": "long_value2"}, 59), decoder.decode(57))
 
             mm.close()
+
+    @staticmethod
+    def _pointer(target: int) -> bytes:
+        # One-byte-payload pointer (type 1, pointer_size 1) with base 0.
+        return bytes([(1 << 5) | ((target >> 8) & 0x7), target & 0xFF])
+
+    def test_pointer_fan_out_is_bounded(self) -> None:
+        # A data section of nested arrays, each holding two pointers to the
+        # node below, would cost 2**depth decode operations. The decoder bounds
+        # the number of values it decodes per lookup and rejects the database.
+        depth = 100
+        buf = bytearray([0xA0])  # leaf: uint16 with value 0
+        prev = 0
+        for _ in range(depth):
+            offset = len(buf)
+            buf += bytes([0x02, 0x04]) + self._pointer(prev) + self._pointer(prev)
+            prev = offset
+
+        with self.assertRaises(InvalidDatabaseError):
+            Decoder(bytes(buf), pointer_base=0).decode(prev)
+
+    @classmethod
+    def _scalar_pointer_array(cls, pointer_count: int) -> bytes:
+        # A uint16 leaf at offset 0 and, at offset 1, an array of pointers to
+        # it. 0x1e: extended type with size code 30; 0x04: array.
+        header = bytes([0xA0, 0x1E, 0x04]) + (pointer_count - 285).to_bytes(2, "big")
+        return header + cls._pointer(0) * pointer_count
+
+    def test_value_limit_follows_the_flat_rule(self) -> None:
+        # The specification charges the root as one value and each pointer as
+        # the value it resolves to, not as a separate value. An array of 65,535
+        # pointers to a scalar is therefore 65,536 values, exactly the limit,
+        # and decodes. One more pointer exceeds it.
+        (decoded, _) = Decoder(
+            self._scalar_pointer_array(65_535), pointer_base=0
+        ).decode(1)
+        self.assertEqual(decoded, [0] * 65_535)
+
+        with self.assertRaisesRegex(InvalidDatabaseError, _TOO_MANY_VALUES):
+            Decoder(self._scalar_pointer_array(65_536), pointer_base=0).decode(1)
+
+    def test_pointer_to_pointer_is_rejected(self) -> None:
+        # The root array shares a pointer chain that would bypass value counting.
+        buf = b"\xa0" + self._pointer(0) + b"\x02\x04" + self._pointer(1) * 2
+        with self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"):
+            Decoder(buf).decode(3)
+
+    def test_cyclic_pointer_raises(self) -> None:
+        with self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"):
+            Decoder(self._pointer(0)).decode(0)
+
+    def test_pointer_to_container_with_pointer(self) -> None:
+        # A pointer may target an array that contains another pointer.
+        buf = b"\xa0\x01\x04" + self._pointer(0) + self._pointer(1)
+        self.assertEqual(Decoder(buf).decode(5), ([0], 7))
+
+    def test_cyclic_container_hits_depth_limit(self) -> None:
+        # An array containing a pointer to itself still needs a depth limit.
+        cyclic = b"\x01\x04" + self._pointer(0)
+        old_recursion_limit = sys.getrecursionlimit()
+        try:
+            sys.setrecursionlimit(_DEPTH_TEST_RECURSION_LIMIT)
+            with self.assertRaisesRegex(InvalidDatabaseError, _TOO_DEEP) as cm:
+                Decoder(cyclic).decode(0)
+            self.assertIsNone(cm.exception.__cause__)
+        finally:
+            sys.setrecursionlimit(old_recursion_limit)
+
+    def test_python_recursion_limit_raises_database_error(self) -> None:
+        # This nesting fits the decoder's limit but exceeds Python's lower limit.
+        buf = b"\x01\x04" * 128 + b"\xa0"
+        old_recursion_limit = sys.getrecursionlimit()
+        try:
+            sys.setrecursionlimit(200)
+            with self.assertRaisesRegex(InvalidDatabaseError, _TOO_DEEP) as cm:
+                Decoder(buf).decode(0)
+            self.assertIsInstance(cm.exception.__cause__, RecursionError)
+        finally:
+            sys.setrecursionlimit(old_recursion_limit)
+
+    def test_sibling_maps_restore_depth(self) -> None:
+        # An array of 600 empty maps has depth two, regardless of its length.
+        buf = b"\x1e\x04" + (600 - 285).to_bytes(2, "big") + b"\xe0" * 600
+        self.assertEqual(Decoder(buf).decode(0), ([{}] * 600, len(buf)))
+
+    def test_container_depth_is_bounded_independently_of_recursion_limit(self) -> None:
+        # Each prefix is an array with one element. Raising Python's global
+        # recursion limit proves that the decoder's call-local limit is what
+        # accepts 512 containers and rejects the 513th.
+        at_limit = bytes([0x01, 0x04]) * 512 + bytes([0xA0])
+        over_limit = bytes([0x01, 0x04]) * 513 + bytes([0xA0])
+        old_recursion_limit = sys.getrecursionlimit()
+        try:
+            sys.setrecursionlimit(_DEPTH_TEST_RECURSION_LIMIT)
+            Decoder(at_limit, pointer_base=0).decode(0)
+            with self.assertRaisesRegex(InvalidDatabaseError, _TOO_DEEP):
+                Decoder(over_limit, pointer_base=0).decode(0)
+        finally:
+            sys.setrecursionlimit(old_recursion_limit)
+
+    @classmethod
+    def _pointer_chain(cls, levels: int) -> tuple[bytes, int]:
+        # Each level is a one-element array whose element is a pointer to the
+        # level below, so each level costs two depth units: the array and the
+        # pointer follow.
+        buf = bytearray([0xA0])
+        prev = 0
+        for _ in range(levels):
+            offset = len(buf)
+            buf += bytes([0x01, 0x04]) + cls._pointer(prev)
+            prev = offset
+        return bytes(buf), prev
+
+    def test_depth_counts_pointer_follows(self) -> None:
+        # 256 array-plus-pointer levels are exactly 512 depth units and decode.
+        # 257 exceed the limit through the decoder's own counter, not the
+        # interpreter's, so the error has no RecursionError cause.
+        old_recursion_limit = sys.getrecursionlimit()
+        try:
+            sys.setrecursionlimit(_DEPTH_TEST_RECURSION_LIMIT)
+            buf, start = self._pointer_chain(256)
+            Decoder(buf, pointer_base=0).decode(start)
+            buf, start = self._pointer_chain(257)
+            with self.assertRaisesRegex(InvalidDatabaseError, _TOO_DEEP) as cm:
+                Decoder(buf, pointer_base=0).decode(start)
+            self.assertIsNone(cm.exception.__cause__)
+        finally:
+            sys.setrecursionlimit(old_recursion_limit)
+
+    def test_budget_is_local_to_each_decode(self) -> None:
+        # Decoding an at-limit value twice on one Decoder, and from several
+        # threads at once, must succeed every time. A budget stored on the
+        # decoder would drain after the first call.
+        decoder = Decoder(self._scalar_pointer_array(65_535), pointer_base=0)
+        expected = [0] * 65_535
+        self.assertEqual(decoder.decode(1)[0], expected)
+        self.assertEqual(decoder.decode(1)[0], expected)
+
+        # Each thread writes its own slot, so the test itself has no shared
+        # mutable state under free threading.
+        results: list[object] = [None] * 8
+
+        def run(index: int) -> None:
+            results[index] = decoder.decode(1)[0]
+
+        threads = [threading.Thread(target=run, args=(i,)) for i in range(8)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(results, [expected] * 8)
+
+    def test_map_depth_is_bounded(self) -> None:
+        # Each prefix is a one-entry map whose key is the string "a" and
+        # whose value is the next map, so every level goes through
+        # _decode_map's own depth check. 0xe1: map, size 1; 0x41 0x61: "a".
+        at_limit = bytes([0xE1, 0x41, 0x61]) * 512 + bytes([0xA0])
+        over_limit = bytes([0xE1, 0x41, 0x61]) * 513 + bytes([0xA0])
+        old_recursion_limit = sys.getrecursionlimit()
+        try:
+            sys.setrecursionlimit(_DEPTH_TEST_RECURSION_LIMIT)
+            Decoder(at_limit, pointer_base=0).decode(0)
+            with self.assertRaisesRegex(InvalidDatabaseError, _TOO_DEEP):
+                Decoder(over_limit, pointer_base=0).decode(0)
+        finally:
+            sys.setrecursionlimit(old_recursion_limit)
+
+    def test_oversized_array_is_rejected_before_reading_children(self) -> None:
+        # A root array that declares 65,536 elements is 65,537 values. The
+        # buffer fails any read past the header, so the test proves the check
+        # runs before the first element. 0x1e: extended type with size code
+        # 30; 0x04: array; 0xfee3: 65,536 - 285.
+        header = _HeaderOnlyBuffer(bytes([0x1E, 0x04, 0xFE, 0xE3]), 4)
+        with self.assertRaisesRegex(InvalidDatabaseError, _TOO_MANY_VALUES):
+            Decoder(header, pointer_base=0).decode(0)
+
+    def test_oversized_map_is_rejected_before_reading_keys(self) -> None:
+        # A map entry decodes a key and a value, so 32,769 entries cost 65,538
+        # values, just past the limit. 0xfe: map with size code 30, then the
+        # two size bytes for 32,769 - 285 = 32,484 (0x7ee4).
+        header = _HeaderOnlyBuffer(bytes([0xFE, 0x7E, 0xE4]), 3)
+        with self.assertRaisesRegex(InvalidDatabaseError, _TOO_MANY_VALUES):
+            Decoder(header, pointer_base=0).decode(0)
+
+    def test_oversized_string_payload_is_bounded(self) -> None:
+        # A single string that declares one byte more than the 2 MiB payload
+        # limit is rejected before its bytes are read. 0x5f: string with size
+        # code 31; 0x1efee4: 2,097,153 - 65,821, one byte over 2 MiB.
+        oversized_string = _HeaderOnlyBuffer(bytes([0x5F, 0x1E, 0xFE, 0xE4]), 4)
+        with self.assertRaisesRegex(InvalidDatabaseError, _PAYLOAD_TOO_LARGE):
+            Decoder(oversized_string, pointer_base=0).decode(0)
+
+    def test_oversized_bytes_payload_is_bounded(self) -> None:
+        # As above for the bytes type. 0x9f: bytes with size code 31.
+        oversized_bytes = _HeaderOnlyBuffer(bytes([0x9F, 0x1E, 0xFE, 0xE4]), 4)
+        with self.assertRaisesRegex(InvalidDatabaseError, _PAYLOAD_TOO_LARGE):
+            Decoder(oversized_bytes, pointer_base=0).decode(0)
+
+    def test_oversized_uint_is_bounded(self) -> None:
+        # A uint128 that declares 17 bytes exceeds the 16-byte format maximum
+        # and is rejected before the declared bytes are copied. 0x11: extended
+        # type, size 17; 0x03: extended type number 10 (uint128).
+        oversized_uint = _HeaderOnlyBuffer(bytes([0x11, 0x03]), 2)
+        with self.assertRaises(InvalidDatabaseError):
+            Decoder(oversized_uint, pointer_base=0).decode(0)
+
+    def test_oversized_int32_is_bounded(self) -> None:
+        # An int32 that declares 5 bytes exceeds its 4-byte maximum and is
+        # rejected before the declared bytes are copied. 0x05: extended type,
+        # size 5; 0x01: extended type number 8 (int32).
+        oversized_int32 = _HeaderOnlyBuffer(bytes([0x05, 0x01]), 2)
+        with self.assertRaises(InvalidDatabaseError):
+            Decoder(oversized_int32, pointer_base=0).decode(0)
+
+    def test_truncated_data_raises_invalid_database_error(self) -> None:
+        # A ctrl byte past the buffer end, a string header missing its size
+        # bytes, and a pointer missing its offset byte must not escape as
+        # IndexError or struct.error.
+        for truncated in (b"", bytes([0x5F]), bytes([0x20])):
+            with self.assertRaisesRegex(InvalidDatabaseError, "bad data"):
+                Decoder(truncated, pointer_base=0).decode(0)
+
+    @classmethod
+    def _wrapped_string_pointers(cls, pointer_count: int) -> tuple[bytes, int]:
+        # Offset 0: a one-element array holding an inline 1 MiB string. After
+        # it: an array of pointers to that array. The string is inline in a
+        # pointed-to container, so only a charge at the string decoder itself
+        # catches the amplification. 0x5f: string with size code 31.
+        size = 1 << 20
+        leaf = bytes([0x01, 0x04, 0x5F]) + (size - 65_821).to_bytes(3, "big")
+        leaf += b"a" * size
+        outer = bytes([pointer_count, 0x04]) + cls._pointer(0) * pointer_count
+        return leaf + outer, len(leaf)
+
+    def test_wrapped_payload_is_charged(self) -> None:
+        # Two pointers materialize 2 MiB, exactly the limit. Three exceed it.
+        buf, start = self._wrapped_string_pointers(2)
+        (decoded, _) = Decoder(buf, pointer_base=0).decode(start)
+        self.assertEqual(decoded, [["a" * (1 << 20)]] * 2)
+        buf, start = self._wrapped_string_pointers(3)
+        with self.assertRaisesRegex(InvalidDatabaseError, _PAYLOAD_TOO_LARGE):
+            Decoder(buf, pointer_base=0).decode(start)
+
+    def test_pointer_backed_map_key_is_charged(self) -> None:
+        # Offset 0: a string one byte over 2 MiB. Offset 4: a one-entry map
+        # whose key is a pointer to it. The key is decoded through the string
+        # decoder, so it is rejected before its bytes are read.
+        key = bytes([0x5F, 0x1E, 0xFE, 0xE4])
+        buf = key + bytes([0xE1]) + self._pointer(0) + bytes([0xA0])
+        with self.assertRaisesRegex(InvalidDatabaseError, _PAYLOAD_TOO_LARGE):
+            Decoder(_HeaderOnlyBuffer(buf, len(buf)), pointer_base=0).decode(len(key))

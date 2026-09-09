@@ -3,6 +3,24 @@
 History
 -------
 
+3.2.0
++++++
+
+* Added limits to pure Python record and metadata decoding to prevent denial
+  of service from crafted databases: 65,536 values, 512 nesting levels, and
+  2 MiB of string and bytes payload. Exceeding a limit raises
+  ``InvalidDatabaseError``. CPython may reach its recursion limit earlier,
+  which raises the same error.
+* Rejected unsigned integers longer than 16 bytes and signed integers longer
+  than 4 bytes before reading their payload.
+* Updated the vendored libmaxminddb to 1.14.0, which adds the same resource
+  limits to the C extension.
+* Truncated reads that previously raised ``IndexError`` or ``struct.error``
+  now raise ``InvalidDatabaseError``.
+* The pure Python reader now rejects invalid search tree sizes when opening
+  a database.
+* Improved pure Python lookup performance.
+
 3.1.1 (2026-03-05)
 ++++++++++++++++++
 
