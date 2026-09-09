@@ -103,8 +103,8 @@ class Reader:
                 msg = f"Invalid node count: {self._metadata.node_count}"
                 raise InvalidDatabaseError(msg)  # noqa: TRY301
 
-            # Every node read stays inside the buffer once the tree fits, so the
-            # node reads below need no length checks of their own.
+            # Traversal reads nodes below node_count. Once the tree fits, those
+            # reads need no length checks of their own.
             tree_end = (
                 self._metadata.search_tree_size + self._DATA_SECTION_SEPARATOR_SIZE
             )

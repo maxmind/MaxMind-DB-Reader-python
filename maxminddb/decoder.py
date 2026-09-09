@@ -17,18 +17,14 @@ if TYPE_CHECKING:
     from maxminddb.types import Record
 
 
-# Per-lookup limit on the number of values decoded, recommended by the MaxMind
-# DB specification. It stops a pointer fan-out, where nested pointers to shared
-# targets would otherwise cost 2**depth decode operations. The count follows
-# the specification's flat rule: the root is one value, each array and map
-# charges its declared children, and a pointer costs nothing beyond the value
-# it resolves to, which its container already charged. The largest real
-# records decode a few hundred values, so the limit leaves a wide margin.
-# Pointer cycles and over-deep data are caught by an explicit, call-local depth
-# limit (see ``decode``). Each level costs about two interpreter frames, so
-# under CPython's default recursion limit RecursionError can fire first; decode
-# converts it to the same error. The explicit limit matters when a caller has
-# raised the recursion limit.
+# Per-lookup value limit recommended by the MaxMind DB specification. It stops
+# pointer fan-out, where nested containers share targets that would otherwise
+# cost 2**depth decode operations. The root costs one value. Arrays charge each
+# element, maps charge each key and value, and pointers cost no extra value.
+# Real records decode a few hundred values, leaving a wide margin.
+# An explicit depth limit catches container cycles and overly nested data.
+# Python's recursion limit may fire first, which decode converts to the same
+# error. The explicit limit also applies when callers raise Python's limit.
 _MAX_VALUES = 1 << 16
 _MAX_DEPTH = 512
 # Per-lookup limit on the total string and bytes payload materialized, matching
@@ -239,14 +235,9 @@ class Decoder:
             offset: the location of the data structure to decode
 
         """
-        # Bound the work per lookup so a crafted database cannot exhaust CPU or
-        # memory. ``budget`` carries the remaining value count, the current
-        # nested decode depth, and the remaining string and bytes payload, so
-        # all three are shared across the recursion. It is call-local, which
-        # keeps the decoder safe for concurrent reads. The root value is charged
-        # here; containers charge their children. The explicit depth limit
-        # is independent of Python's process-wide recursion limit; RecursionError
-        # remains a fallback on interpreters whose stack limit is reached first.
+        # The call-local budget holds values remaining, current depth, and
+        # string and bytes payload remaining. Recursive calls share it, while
+        # concurrent reads each get their own budget. Charge the root here.
         try:
             return self._decode(
                 offset,
@@ -256,7 +247,7 @@ class Decoder:
         except RecursionError as ex:
             raise InvalidDatabaseError(_TOO_DEEP) from ex
         except (IndexError, struct.error) as ex:
-            # Truncated data: a ctrl, size, or pointer read ran off the buffer.
+            # Convert failed buffer indexing and fixed-width unpacking.
             raise InvalidDatabaseError(_BAD_DATA) from ex
 
     # Keep type dispatch inline to avoid another call for every decoded value.

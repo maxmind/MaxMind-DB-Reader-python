@@ -97,7 +97,7 @@ invalid IP address or an IPv6 address in an IPv4 database.
 The reader also raises ``InvalidDatabaseError`` when one record, or the
 database metadata, exceeds its resource limits: 65,536 decoded values, 512
 levels of nesting, or 2 MiB of string and bytes data. Real databases stay far
-below these limits.
+below these limits. Python's recursion limit may stop decoding sooner.
 
 Thread Safety
 -------------
