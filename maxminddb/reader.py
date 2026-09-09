@@ -67,63 +67,70 @@ class Reader:
         """
         filename = self._load_buffer(database, mode)
 
-        metadata_start = self._buffer.rfind(
-            self._METADATA_START_MARKER,
-            max(0, self._buffer_size - 128 * 1024),
-        )
+        # Include validation errors in this cleanup scope. TRY301 is suppressed
+        # because the handler only closes the buffer and re-raises the error.
+        try:
+            metadata_start = self._buffer.rfind(
+                self._METADATA_START_MARKER,
+                max(0, self._buffer_size - 128 * 1024),
+            )
 
-        if metadata_start == -1:
+            if metadata_start == -1:
+                msg = (
+                    f"Error opening database file ({filename}). "
+                    "Is this a valid MaxMind DB file?"
+                )
+                raise InvalidDatabaseError(  # noqa: TRY301
+                    msg,
+                )
+
+            metadata_start += len(self._METADATA_START_MARKER)
+            metadata_decoder = Decoder(self._buffer, metadata_start)
+            (metadata, _) = metadata_decoder.decode(metadata_start)
+
+            if not isinstance(metadata, dict):
+                msg = f"Error reading metadata in database file ({filename})."
+                raise InvalidDatabaseError(  # noqa: TRY301
+                    msg,
+                )
+
+            self._metadata = Metadata(**metadata)
+            self._record_size = self._metadata.record_size
+
+            # Every node read stays inside the buffer once the tree fits, so the
+            # node reads below need no length checks of their own.
+            tree_end = (
+                self._metadata.search_tree_size + self._DATA_SECTION_SEPARATOR_SIZE
+            )
+            if tree_end > self._buffer_size:
+                msg = (
+                    f"Error opening database file ({filename}). The search tree "
+                    "extends past the end of the file."
+                )
+                raise InvalidDatabaseError(msg)  # noqa: TRY301
+
+            self._decoder = Decoder(
+                self._buffer,
+                self._metadata.search_tree_size + self._DATA_SECTION_SEPARATOR_SIZE,
+            )
+            self.closed = False
+
+            ipv4_start = 0
+            if self._metadata.ip_version == 6:
+                # We store the IPv4 starting node as an optimization for IPv4 lookups
+                # in IPv6 trees. This allows us to skip over the first 96 nodes in
+                # this case.
+                node = 0
+                for _ in range(96):
+                    if node >= self._metadata.node_count:
+                        break
+                    node = self._read_node(node, 0)
+                ipv4_start = node
+            self._ipv4_start = ipv4_start
+        except BaseException:
+            # Release the buffer on any initialization failure.
             self.close()
-            msg = (
-                f"Error opening database file ({filename}). "
-                "Is this a valid MaxMind DB file?"
-            )
-            raise InvalidDatabaseError(
-                msg,
-            )
-
-        metadata_start += len(self._METADATA_START_MARKER)
-        metadata_decoder = Decoder(self._buffer, metadata_start)
-        (metadata, _) = metadata_decoder.decode(metadata_start)
-
-        if not isinstance(metadata, dict):
-            msg = f"Error reading metadata in database file ({filename})."
-            raise InvalidDatabaseError(
-                msg,
-            )
-
-        self._metadata = Metadata(**metadata)
-        self._record_size = self._metadata.record_size
-
-        # Every node read stays inside the buffer once the tree fits, so the
-        # node reads below need no length checks of their own.
-        tree_end = self._metadata.search_tree_size + self._DATA_SECTION_SEPARATOR_SIZE
-        if tree_end > self._buffer_size:
-            self.close()
-            msg = (
-                f"Error opening database file ({filename}). The search tree "
-                "extends past the end of the file."
-            )
-            raise InvalidDatabaseError(msg)
-
-        self._decoder = Decoder(
-            self._buffer,
-            self._metadata.search_tree_size + self._DATA_SECTION_SEPARATOR_SIZE,
-        )
-        self.closed = False
-
-        ipv4_start = 0
-        if self._metadata.ip_version == 6:
-            # We store the IPv4 starting node as an optimization for IPv4 lookups
-            # in IPv6 trees. This allows us to skip over the first 96 nodes in
-            # this case.
-            node = 0
-            for _ in range(96):
-                if node >= self._metadata.node_count:
-                    break
-                node = self._read_node(node, 0)
-            ipv4_start = node
-        self._ipv4_start = ipv4_start
+            raise
 
     def metadata(self) -> Metadata:
         """Return the metadata associated with the MaxMind DB file."""

@@ -7,6 +7,7 @@ import multiprocessing
 import os
 import pathlib
 import sys
+import tempfile
 import threading
 import unittest
 from typing import TYPE_CHECKING, cast
@@ -970,6 +971,47 @@ class TestFDReader(BaseTestReader):
 
     mode = MODE_FD
     reader_class = maxminddb.reader.Reader
+
+
+class TestReaderInitialization(unittest.TestCase):
+    def test_failed_initialization_closes_buffer(self) -> None:
+        reader_class = maxminddb.reader.Reader
+        marker = b"\xab\xcd\xefMaxMind.com"
+        cases = (
+            (b"not a database", InvalidDatabaseError, "Is this a valid MaxMind DB"),
+            (marker + b"\x40", InvalidDatabaseError, "Error reading metadata"),
+            (marker + b"\xe0", TypeError, "required keyword-only arguments"),
+            (
+                pathlib.Path(
+                    f"{_TEST_DATA_DIR}/MaxMind-DB-test-metadata-payload-limit.mmdb"
+                ).read_bytes(),
+                InvalidDatabaseError,
+                _PAYLOAD_TOO_LARGE,
+            ),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "invalid.mmdb"
+            for mode in (MODE_FILE, MODE_MMAP):
+                for data, error, message in cases:
+                    with self.subTest(mode=mode, message=message):
+                        path.write_bytes(data)
+                        with (
+                            mock.patch.object(
+                                reader_class,
+                                "close",
+                                autospec=True,
+                                side_effect=reader_class.close,
+                            ) as close,
+                            self.assertRaisesRegex(error, message),
+                        ):
+                            reader_class(path, mode)
+                        close.assert_called_once()
+                        reader = close.call_args.args[0]
+                        self.assertTrue(reader.closed)
+                        if mode == MODE_FILE:
+                            self.assertTrue(reader._buffer._handle.closed)  # noqa: SLF001
+                        else:
+                            self.assertTrue(reader._buffer.closed)  # noqa: SLF001
 
 
 class TestOldReader(unittest.TestCase):
