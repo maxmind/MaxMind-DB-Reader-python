@@ -92,7 +92,7 @@ class Decoder:
         array = []
         decode = self._decode
         for _ in range(size):
-            (value, offset) = decode(offset, budget)
+            (value, offset) = decode(offset, budget, False)  # noqa: FBT003
             array.append(value)
         budget[1] -= 1
         return array, offset
@@ -180,8 +180,8 @@ class Decoder:
         container: dict[str, Record] = {}
         decode = self._decode
         for _ in range(size):
-            (key, offset) = decode(offset, budget)
-            (value, offset) = decode(offset, budget)
+            (key, offset) = decode(offset, budget, False)  # noqa: FBT003
+            (value, offset) = decode(offset, budget, False)  # noqa: FBT003
             container[key] = value  # type: ignore[index]
         budget[1] -= 1
         return container, offset
@@ -214,7 +214,7 @@ class Decoder:
         if depth > _MAX_DEPTH:
             raise InvalidDatabaseError(_TOO_DEEP)
         budget[1] = depth
-        (value, _) = self._decode(pointer, budget)
+        (value, _) = self._decode(pointer, budget, True)  # noqa: FBT003
         budget[1] -= 1
         return value, new_offset
 
@@ -248,7 +248,11 @@ class Decoder:
         # is independent of Python's process-wide recursion limit; RecursionError
         # remains a fallback on interpreters whose stack limit is reached first.
         try:
-            return self._decode(offset, [_MAX_VALUES - 1, 0, _MAX_PAYLOAD_BYTES])
+            return self._decode(
+                offset,
+                [_MAX_VALUES - 1, 0, _MAX_PAYLOAD_BYTES],
+                False,  # noqa: FBT003
+            )
         except RecursionError as ex:
             raise InvalidDatabaseError(_TOO_DEEP) from ex
         except (IndexError, struct.error) as ex:
@@ -256,8 +260,14 @@ class Decoder:
             raise InvalidDatabaseError(_BAD_DATA) from ex
 
     # Keep type dispatch inline to avoid another call for every decoded value.
+    # The positional booleans are intentional: keywords and omitted defaults
+    # prevented CPython from using its fastest call path in our benchmarks.
+    # pointer_target rejects pointers to other pointers.
     def _decode(  # noqa: C901, PLR0911, PLR0912
-        self, offset: int, budget: list[int]
+        self,
+        offset: int,
+        budget: list[int],
+        pointer_target: bool,  # noqa: FBT001
     ) -> tuple[Record, int]:
         new_offset = offset + 1
         ctrl_byte = self._buffer[offset]
@@ -285,6 +295,8 @@ class Decoder:
                 end = new_offset + size
                 return self._buffer[new_offset:end].decode("utf-8"), end
             case 1:
+                if pointer_target:
+                    raise InvalidDatabaseError(_BAD_DATA)
                 return self._decode_pointer(size, new_offset, budget)
             case 7:
                 return self._decode_map(size, new_offset, budget)

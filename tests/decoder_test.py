@@ -313,15 +313,30 @@ class TestDecoder(unittest.TestCase):
         with self.assertRaisesRegex(InvalidDatabaseError, _TOO_MANY_VALUES):
             Decoder(self._scalar_pointer_array(65_536), pointer_base=0).decode(1)
 
+    def test_pointer_to_pointer_is_rejected(self) -> None:
+        # The root array shares a pointer chain that would bypass value counting.
+        buf = b"\xa0" + self._pointer(0) + b"\x02\x04" + self._pointer(1) * 2
+        with self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"):
+            Decoder(buf).decode(3)
+
     def test_cyclic_pointer_raises(self) -> None:
-        # A pointer to itself must hit the decoder's own depth limit even when
-        # Python's process-wide recursion limit is much higher.
-        cyclic = bytes([0x20, 0x00])  # pointer (base 0) to offset 0, itself
+        with self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"):
+            Decoder(self._pointer(0)).decode(0)
+
+    def test_pointer_to_container_with_pointer(self) -> None:
+        # A pointer may target an array that contains another pointer.
+        buf = b"\xa0\x01\x04" + self._pointer(0) + self._pointer(1)
+        self.assertEqual(Decoder(buf).decode(5), ([0], 7))
+
+    def test_cyclic_container_hits_depth_limit(self) -> None:
+        # An array containing a pointer to itself still needs a depth limit.
+        cyclic = b"\x01\x04" + self._pointer(0)
         old_recursion_limit = sys.getrecursionlimit()
         try:
             sys.setrecursionlimit(_DEPTH_TEST_RECURSION_LIMIT)
-            with self.assertRaisesRegex(InvalidDatabaseError, _TOO_DEEP):
-                Decoder(cyclic, pointer_base=0).decode(0)
+            with self.assertRaisesRegex(InvalidDatabaseError, _TOO_DEEP) as cm:
+                Decoder(cyclic).decode(0)
+            self.assertIsNone(cm.exception.__cause__)
         finally:
             sys.setrecursionlimit(old_recursion_limit)
 
