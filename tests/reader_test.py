@@ -1044,6 +1044,7 @@ class TestReaderInitialization(unittest.TestCase):
                     with self.subTest(mode=mode, message=message):
                         path.write_bytes(data)
                         with (
+                            _bounded(),
                             mock.patch.object(
                                 reader_class,
                                 "close",
