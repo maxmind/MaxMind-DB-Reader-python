@@ -577,6 +577,19 @@ class BaseTestReader(unittest.TestCase):
         # The metadata claims more nodes than the file holds. The pure Python
         # reader rejects this when the database is opened; libmaxminddb does
         # the same or fails the first lookup.
+        if self.reader_class is maxminddb.reader.Reader:
+            with (
+                self.assertRaisesRegex(
+                    InvalidDatabaseError,
+                    "The search tree extends past the end of the file",
+                ),
+                open_database(
+                    f"{_TEST_DATA_DIR}/GeoIP2-City-Test-Invalid-Node-Count.mmdb",
+                    self.mode,
+                ),
+            ):
+                pass
+            return
         with (
             self.assertRaises(InvalidDatabaseError),
             open_database(
@@ -974,6 +987,41 @@ class TestFDReader(BaseTestReader):
 
 
 class TestReaderInitialization(unittest.TestCase):
+    def test_empty_search_tree_is_accepted(self) -> None:
+        data = pathlib.Path(
+            f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb"
+        ).read_bytes()
+        original = b"node_count\xc1\xa3"
+        self.assertEqual(data.count(original), 1)
+        with (
+            io.BytesIO(data.replace(original, b"node_count\xc0")) as database,
+            maxminddb.reader.Reader(database, MODE_FD) as reader,
+        ):
+            self.assertIsNone(reader.get("1.1.1.1"))
+            self.assertEqual(list(reader), [])
+
+    def test_invalid_tree_metadata_is_rejected_on_open(self) -> None:
+        data = pathlib.Path(
+            f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb"
+        ).read_bytes()
+        cases = (
+            (b"record_size\xa1\x18", b"record_size\xa1\x1e", "Unknown record size: 30"),
+            (
+                b"node_count\xc1\xa3",
+                b"node_count\x04\x01\xff\xff\xff\xff",
+                "Invalid node count: -1",
+            ),
+        )
+        for original, replacement, message in cases:
+            with self.subTest(message=message):
+                self.assertEqual(data.count(original), 1)
+                with (
+                    io.BytesIO(data.replace(original, replacement)) as database,
+                    self.assertRaisesRegex(InvalidDatabaseError, message),
+                    maxminddb.reader.Reader(database, MODE_FD),
+                ):
+                    pass
+
     def test_failed_initialization_closes_buffer(self) -> None:
         reader_class = maxminddb.reader.Reader
         marker = b"\xab\xcd\xefMaxMind.com"

@@ -96,6 +96,12 @@ class Reader:
 
             self._metadata = Metadata(**metadata)
             self._record_size = self._metadata.record_size
+            if self._record_size not in (24, 28, 32):
+                msg = f"Unknown record size: {self._record_size}"
+                raise InvalidDatabaseError(msg)  # noqa: TRY301
+            if self._metadata.node_count < 0:
+                msg = f"Invalid node count: {self._metadata.node_count}"
+                raise InvalidDatabaseError(msg)  # noqa: TRY301
 
             # Every node read stays inside the buffer once the tree fits, so the
             # node reads below need no length checks of their own.
