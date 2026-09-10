@@ -3,8 +3,8 @@
 History
 -------
 
-3.2.0
-+++++
+3.2.0 (2026-09-10)
+++++++++++++++++++
 
 * Added limits to pure Python record and metadata decoding to prevent denial
   of service from crafted databases: 65,536 values, 512 nesting levels, and
