@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import mmap
+import pathlib
 import sys
+import tempfile
 import threading
 import unittest
 from typing import TYPE_CHECKING, Any, ClassVar, SupportsIndex
 
 from maxminddb.decoder import Decoder
 from maxminddb.errors import InvalidDatabaseError
+from maxminddb.file import FileBuffer
 
 if TYPE_CHECKING:
     from _typeshed import SizedBuffer
@@ -276,6 +279,25 @@ class TestDecoder(unittest.TestCase):
 
             mm.close()
 
+    def test_default_data_end_for_each_buffer_type(self) -> None:
+        path = "tests/data/test-data/maps-with-pointers.raw"
+        expected = ({"long_key": "long_value1"}, 22)
+
+        self.assertEqual(expected, Decoder(pathlib.Path(path).read_bytes()).decode(0))
+
+        with open(path, "rb") as db_file:
+            mm = mmap.mmap(db_file.fileno(), 0, access=mmap.ACCESS_READ)
+            try:
+                self.assertEqual(expected, Decoder(mm).decode(0))
+            finally:
+                mm.close()
+
+        file_buffer = FileBuffer(path)
+        try:
+            self.assertEqual(expected, Decoder(file_buffer).decode(0))
+        finally:
+            file_buffer.close()
+
     @staticmethod
     def _pointer(target: int) -> bytes:
         # One-byte-payload pointer (type 1, pointer_size 1) with base 0.
@@ -496,6 +518,46 @@ class TestDecoder(unittest.TestCase):
         for truncated in (b"", bytes([0x5F]), bytes([0x20])):
             with self.assertRaisesRegex(InvalidDatabaseError, "bad data"):
                 Decoder(truncated, pointer_base=0).decode(0)
+
+    def assert_bad_data_in_each_buffer(self, data: bytes) -> None:
+        # A slice past the end of bytes, an mmap, or a file read returns fewer
+        # bytes instead of raising, so check each buffer type.
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "data"
+            path.write_bytes(data)
+            file_buffer = FileBuffer(str(path))
+            mm = mmap.mmap(-1, len(data))
+            mm.write(data)
+            try:
+                for buffer in (data, mm, file_buffer):
+                    with (
+                        self.subTest(data=data.hex(), buffer=type(buffer).__name__),
+                        self.assertRaisesRegex(InvalidDatabaseError, "bad data"),
+                    ):
+                        Decoder(buffer, pointer_base=0, data_end=len(data)).decode(0)
+            finally:
+                mm.close()
+                file_buffer.close()
+
+    def test_truncated_payload_raises_invalid_database_error(self) -> None:
+        for truncated in (
+            "c4ffff",  # uint32 declaring 4 bytes
+            "0303ffff",  # uint128 declaring 3 bytes
+            "456162",  # string declaring 5 bytes
+            "856162",  # bytes declaring 5 bytes
+            "0301ff",  # int32 declaring 3 bytes
+            "040100ffff",  # int32 declaring 4 bytes
+            "680000",  # double
+            "040800",  # float
+        ):
+            self.assert_bad_data_in_each_buffer(bytes.fromhex(truncated))
+
+    def test_non_string_map_key_raises_invalid_database_error(self) -> None:
+        for bad_key in (
+            "e18141a101",  # bytes key
+            "e10104a0a0",  # array key, which is unhashable
+        ):
+            self.assert_bad_data_in_each_buffer(bytes.fromhex(bad_key))
 
     @classmethod
     def _wrapped_string_pointers(cls, pointer_count: int) -> tuple[bytes, int]:

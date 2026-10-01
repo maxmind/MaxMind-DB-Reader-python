@@ -599,6 +599,40 @@ class BaseTestReader(unittest.TestCase):
         ):
             reader.get(self.ipf("1.1.1.1"))
 
+    def test_value_past_data_section_is_rejected(self) -> None:
+        if self.reader_class is not maxminddb.reader.Reader:
+            self.skipTest("libmaxminddb's data section bound includes the metadata")
+        marker = b"\xab\xcd\xefMaxMind.com"
+        fixture = pathlib.Path(
+            f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb"
+        ).read_bytes()
+        metadata = marker + fixture.rsplit(marker, 1)[1]
+        self.assertEqual(metadata.count(b"node_count\xc1\xa3"), 1)
+        metadata = metadata.replace(b"node_count\xc1\xa3", b"node_count\xc1\x01")
+        # One node whose records both point to the start of the data section.
+        # The value is the whole data section, so its payload overruns into
+        # the metadata marker.
+        tree = bytes.fromhex("000011000011") + bytes(16)
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "overrun.mmdb"
+            for value in (
+                "c4ffff",  # uint32 declaring 4 bytes
+                "0303ffff",  # uint128 declaring 3 bytes
+                "456162",  # string declaring 5 bytes
+                "856162",  # bytes declaring 5 bytes
+                "0301ff",  # int32 declaring 3 bytes
+                "680000",  # double
+                "040800",  # float
+                "2800",  # pointer declaring 2 bytes
+            ):
+                path.write_bytes(tree + bytes.fromhex(value) + metadata)
+                with (
+                    self.subTest(value=value),
+                    open_database(str(path), self.mode) as reader,
+                    self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"),
+                ):
+                    reader.get(self.ipf("1.1.1.1"))
+
     def test_ip_validation(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",

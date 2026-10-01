@@ -3,6 +3,16 @@
 History
 -------
 
+3.2.1
++++++
+
+* The pure Python reader now raises ``InvalidDatabaseError`` when a value
+  extends past the end of the data section. Previously, it could return a
+  shorter value or decode bytes from the metadata section.
+* The pure Python reader now raises ``InvalidDatabaseError`` when a map key
+  is not a string. Previously, it returned the non-string key or raised
+  ``TypeError``.
+
 3.2.0 (2026-09-10)
 ++++++++++++++++++
 
