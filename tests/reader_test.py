@@ -666,6 +666,22 @@ class BaseTestReader(unittest.TestCase):
         with self.assertRaises(UnicodeDecodeError):
             reader.get_with_prefix_len("163.254.149.39")
 
+    def test_non_string_map_key_is_rejected(self) -> None:
+        data = pathlib.Path(
+            f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb"
+        ).read_bytes()
+        # Change the type of the shared "ip" key from string (0x42) to bytes
+        # (0x82). Each record map refers to the key through a pointer.
+        self.assertEqual(data.count(b"\x42ip"), 1)
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "bytes-map-key.mmdb"
+            path.write_bytes(data.replace(b"\x42ip", b"\x82ip"))
+            with (
+                open_database(str(path), self.mode) as reader,
+                self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"),
+            ):
+                reader.get(self.ipf("1.1.1.1"))
+
     def test_too_many_constructor_args(self) -> None:
         with self.assertRaises(TypeError):
             self.reader_class("README.md", self.mode, 1)  # type: ignore[arg-type,call-arg]

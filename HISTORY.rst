@@ -12,6 +12,9 @@ History
 * The pure Python reader now raises ``InvalidDatabaseError`` when a map key
   is not a string. Previously, it returned the non-string key or raised
   ``TypeError``.
+* The C extension now raises ``InvalidDatabaseError`` when a map key is not
+  a string. Previously, it could return a wrong key, such as the bytes of a
+  bytes key or an empty string, or raise ``SystemError``.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++
