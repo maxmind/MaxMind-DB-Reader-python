@@ -15,6 +15,8 @@ History
 * The C extension now raises ``InvalidDatabaseError`` when a map key is not
   a string. Previously, it could return a wrong key, such as the bytes of a
   bytes key or an empty string, or raise ``SystemError``.
+* The C extension no longer leaks the partly decoded map when a map key is
+  not valid UTF-8 or when it cannot add an entry to the map.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++
