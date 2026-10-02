@@ -12,6 +12,7 @@ from .const import (
     MODE_MEMORY,
     MODE_MMAP,
     MODE_MMAP_EXT,
+    Mode,
 )
 from .errors import InvalidDatabaseError
 from .reader import Reader
@@ -33,6 +34,7 @@ __all__ = [
     "MODE_MMAP",
     "MODE_MMAP_EXT",
     "InvalidDatabaseError",
+    "Mode",
     "Reader",
     "open_database",
 ]
