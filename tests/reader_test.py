@@ -1085,6 +1085,11 @@ class TestExtensionReaderWithIPObjects(BaseTestReader):
         reader_class = maxminddb.extension.Reader
 
 
+class TestModule(unittest.TestCase):
+    def test_mode_is_exported(self) -> None:
+        self.assertIs(maxminddb.Mode, maxminddb.const.Mode)
+
+
 @unittest.skipIf(
     not has_maxminddb_extension() and not os.environ.get("MM_FORCE_EXT_TESTS"),
     "No C extension module found. Skipping tests",

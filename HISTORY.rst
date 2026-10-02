@@ -40,6 +40,8 @@ History
   * The C extension ignores unknown keys. Previously, ``Reader.metadata()``
     crashed on them.
 
+* Added ``maxminddb.Mode``, which the README already described.
+
 3.2.0 (2026-09-10)
 ++++++++++++++++++
 
