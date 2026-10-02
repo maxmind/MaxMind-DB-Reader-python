@@ -38,6 +38,9 @@ History
     invalid ``ip_version`` or format version, a ``build_epoch`` of 0, or a
     string that is not UTF-8. Previously, the reader opened most of these
     files, and some raised ``TypeError`` or ``UnicodeDecodeError``.
+  * The C extension ignores unknown keys unless a value cannot be decoded,
+    such as a map with a key that is not a string. Previously,
+    ``Reader.metadata()`` crashed on any unknown key.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++

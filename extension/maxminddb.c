@@ -135,6 +135,7 @@ static inline maxminddb_state *get_maxminddb_state_from_self(PyObject *self) {
 static void reader_close_database(Reader_obj *reader);
 static bool can_read(const char *path);
 static int get_record(PyObject *self, PyObject *args, PyObject **record);
+static PyObject *metadata_value(PyObject *map, const char *key);
 static PyObject *reader_iter_next(PyObject *self);
 static bool format_sockaddr(struct sockaddr *addr, char *dst);
 static PyObject *from_entry_data_list(maxminddb_state *state,
@@ -680,41 +681,95 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args)) {
         return NULL;
     }
 
-    MMDB_entry_data_list_s *entry_data_list;
-    int status =
+    // libmaxminddb checked the metadata when it opened the database, so take
+    // the numbers from its copy. Its strings end at the first NUL, so take
+    // the strings from the decoded metadata map, which keeps their lengths.
+    // For a repeated key, the strings come from the last entry, but
+    // libmaxminddb uses the first. This reader accepts the difference. Keys
+    // that Metadata does not know are ignored.
+    const MMDB_metadata_s *m = &mmdb_obj->mmdb->metadata;
+    uint16_t const binary_format_major_version = m->binary_format_major_version;
+    uint16_t const binary_format_minor_version = m->binary_format_minor_version;
+    uint64_t const build_epoch = m->build_epoch;
+    uint16_t const ip_version = m->ip_version;
+    uint32_t const node_count = m->node_count;
+    uint16_t const record_size = m->record_size;
+    MMDB_entry_data_list_s *entry_data_list = NULL;
+    int const status =
         MMDB_get_metadata_as_entry_data_list(mmdb_obj->mmdb, &entry_data_list);
     if (status != MMDB_SUCCESS) {
         reader_release_read_lock(mmdb_obj);
+        MMDB_free_entry_data_list(entry_data_list);
         PyErr_Format(state->MaxMindDB_error,
                      "Error decoding metadata. %s",
                      MMDB_strerror(status));
         return NULL;
     }
     MMDB_entry_data_list_s *original_entry_data_list = entry_data_list;
-
-    PyObject *metadata_dict = from_entry_data_list(state, &entry_data_list);
-    MMDB_free_entry_data_list(original_entry_data_list);
-    if (metadata_dict == NULL || !PyDict_Check(metadata_dict)) {
-        reader_release_read_lock(mmdb_obj);
+    PyObject *map = NULL;
+    if (entry_data_list != NULL &&
+        entry_data_list->entry_data.type == MMDB_DATA_TYPE_MAP) {
+        map = from_map(state, &entry_data_list);
+    } else {
         PyErr_SetString(state->MaxMindDB_error, "Error decoding metadata.");
-        Py_XDECREF(metadata_dict);
-        return NULL;
     }
+    MMDB_free_entry_data_list(original_entry_data_list);
 
+    // Creating a Metadata can run Python code, such as an __init__, and no
+    // Python code may run under the read lock. The values above are copies.
     reader_release_read_lock(mmdb_obj);
 
-    PyObject *args = PyTuple_New(0);
-    if (args == NULL) {
-        Py_DECREF(metadata_dict);
-        return NULL;
+    PyObject *metadata = NULL;
+    if (map != NULL) {
+        PyObject *description = NULL;
+        PyObject *languages = NULL;
+        PyObject *database_type = metadata_value(map, "database_type");
+        if (database_type != NULL) {
+            description = metadata_value(map, "description");
+        }
+        if (description != NULL) {
+            languages = metadata_value(map, "languages");
+        }
+        if (languages == NULL) {
+            // MMDB_open requires these keys, so a missing key is a bug.
+            if (!PyErr_Occurred()) {
+                PyErr_SetString(state->MaxMindDB_error,
+                                "Error decoding metadata.");
+            }
+        } else {
+            // The order of the values must match kwlist in Metadata_new.
+            metadata = PyObject_CallFunction(state->Metadata_Type,
+                                             "HHKOOHOIH",
+                                             binary_format_major_version,
+                                             binary_format_minor_version,
+                                             (unsigned long long)build_epoch,
+                                             database_type,
+                                             description,
+                                             ip_version,
+                                             languages,
+                                             (unsigned int)node_count,
+                                             record_size);
+        }
+        Py_DECREF(map);
     }
 
-    PyObject *metadata =
-        PyObject_Call(state->Metadata_Type, args, metadata_dict);
-
-    Py_DECREF(metadata_dict);
-    Py_DECREF(args);
+    // libmaxminddb does not check that the metadata strings are UTF-8.
+    if (metadata == NULL && PyErr_ExceptionMatches(PyExc_UnicodeDecodeError)) {
+        PyErr_SetString(state->MaxMindDB_error, "Error decoding metadata.");
+    }
     return metadata;
+}
+
+// Return a borrowed reference to the value of key in map. NULL with no
+// exception set means that the key is missing.
+static PyObject *metadata_value(PyObject *map, const char *key) {
+    PyObject *name = PyUnicode_FromString(key);
+    if (name == NULL) {
+        return NULL;
+    }
+    PyObject *value = PyDict_GetItemWithError(map, name);
+    Py_DECREF(name);
+    return value;
 }
 
 static PyObject *Reader_close(PyObject *self, PyObject *UNUSED(args)) {
@@ -1040,6 +1095,7 @@ Metadata_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
         *build_epoch, *database_type, *description, *ip_version, *languages,
         *node_count, *record_size;
 
+    // Reader_metadata passes the values in this order.
     static char *kwlist[] = {"binary_format_major_version",
                              "binary_format_minor_version",
                              "build_epoch",
