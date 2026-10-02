@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
     from typing_extensions import Self
 
-    from maxminddb.types import Record
+    from maxminddb.types import Record, RecordDict
 
 _IPV4_MAX_NUM = 2**32
 _REOPENED = "Attempt to iterate over a reopened MaxMind DB. Create a new iterator."
@@ -113,7 +113,15 @@ class Reader:
 
             metadata_start += len(self._METADATA_START_MARKER)
             metadata_decoder = Decoder(self._buffer, metadata_start)
-            (metadata, _) = metadata_decoder.decode(metadata_start)
+            # For a repeated key, the decoder keeps the last value, but
+            # libmaxminddb uses the first. This reader accepts the difference.
+            try:
+                (metadata, _) = metadata_decoder.decode(metadata_start)
+            except (TypeError, UnicodeDecodeError) as e:
+                # For example, a map key that is a list, or a string that is
+                # not UTF-8. The C extension raises InvalidDatabaseError too.
+                msg = f"Error reading metadata in database file ({filename})."
+                raise InvalidDatabaseError(msg) from e
 
             if not isinstance(metadata, dict):
                 msg = f"Error reading metadata in database file ({filename})."
@@ -121,16 +129,8 @@ class Reader:
                     msg,
                 )
 
-            # The MaxMind DB spec fixes these keys and their value types.
-            fields: dict[str, Any] = metadata
-            self._metadata = Metadata(**fields)
+            self._metadata = Metadata(**_metadata_fields(metadata, filename))
             self._record_size = self._metadata.record_size
-            if self._record_size not in (24, 28, 32):
-                msg = f"Unknown record size: {self._record_size}"
-                raise InvalidDatabaseError(msg)  # noqa: TRY301
-            if self._metadata.node_count < 0:
-                msg = f"Invalid node count: {self._metadata.node_count}"
-                raise InvalidDatabaseError(msg)  # noqa: TRY301
 
             # Traversal reads nodes below node_count. Once the tree fits, those
             # reads need no length checks of their own.
@@ -374,6 +374,81 @@ class Reader:
             msg = "Attempt to reopen a closed MaxMind DB"
             raise ValueError(msg)
         return self
+
+
+# The type of each metadata value. libmaxminddb also rejects a database with a
+# missing key or a value of another type. It also checks the width and sign of
+# each integer, which the decoder does not report.
+_METADATA_TYPES: dict[str, type] = {
+    "binary_format_major_version": int,
+    "binary_format_minor_version": int,
+    "build_epoch": int,
+    "database_type": str,
+    "description": dict,
+    "ip_version": int,
+    "languages": list,
+    "node_count": int,
+    "record_size": int,
+}
+
+
+# The size in bits of each unsigned integer metadata value in libmaxminddb that
+# needs a range check. The other integers must have exact values.
+_METADATA_UINT_BITS: dict[str, int] = {
+    "binary_format_minor_version": 16,
+    "build_epoch": 64,
+    "node_count": 32,
+}
+
+
+def _metadata_fields(metadata: RecordDict, filename: object) -> dict[str, Any]:
+    """Return the known metadata fields after a check of their types.
+
+    A new minor version of the format can add keys. This ignores them.
+    """
+    prefix = f"Error reading metadata in database file ({filename})."
+    fields: dict[str, Any] = {}
+    for key, value_type in _METADATA_TYPES.items():
+        value = metadata.get(key)
+        # The exact type check rejects bool, a subclass of int.
+        valid = type(value) is value_type
+        if valid and isinstance(value, list):
+            valid = all(type(v) is str for v in value)
+        elif valid and isinstance(value, dict):
+            valid = all(type(k) is str and type(v) is str for k, v in value.items())
+        if not valid:
+            msg = f"{prefix} The {key} value is missing or has the wrong type."
+            raise InvalidDatabaseError(msg)
+        fields[key] = value
+
+    _check_metadata_ranges(fields, prefix)
+    return fields
+
+
+def _check_metadata_ranges(fields: dict[str, Any], prefix: str) -> None:
+    """Raise InvalidDatabaseError for a value that libmaxminddb rejects."""
+    # libmaxminddb stores each integer as an unsigned value. Check the size of
+    # those in _METADATA_UINT_BITS. The reader decodes only the version 2 format,
+    # ip_version drives the tree walk, and record_size picks the node layout.
+    # These exact values need no range check. libmaxminddb also rejects
+    # node_count 0, but this reader accepts an empty search tree.
+    if fields["record_size"] not in (24, 28, 32):
+        msg = f"{prefix} Unknown record size: {fields['record_size']}."
+        raise InvalidDatabaseError(msg)
+    for key, bits in _METADATA_UINT_BITS.items():
+        if not 0 <= fields[key] < 1 << bits:
+            msg = f"{prefix} The {key} value {fields[key]} is out of range."
+            raise InvalidDatabaseError(msg)
+    if fields["binary_format_major_version"] != 2:
+        version = fields["binary_format_major_version"]
+        msg = f"{prefix} Unsupported binary format version {version}."
+        raise InvalidDatabaseError(msg)
+    if fields["ip_version"] not in (4, 6):
+        msg = f"{prefix} The ip_version is {fields['ip_version']}, not 4 or 6."
+        raise InvalidDatabaseError(msg)
+    if fields["build_epoch"] == 0:
+        msg = f"{prefix} The build_epoch is 0."
+        raise InvalidDatabaseError(msg)
 
 
 @dataclass(kw_only=True, frozen=True)
