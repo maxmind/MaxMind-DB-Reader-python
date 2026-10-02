@@ -28,6 +28,8 @@ History
     closes, not ``ValueError``.
   * The iterator now stops after it raises an error, as the pure Python
     iterator does.
+  * Added the ``node_byte_size`` and ``search_tree_size`` properties to
+    ``Metadata``, as the pure Python ``Metadata`` has.
 
 * Metadata:
 
