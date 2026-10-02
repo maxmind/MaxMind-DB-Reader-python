@@ -9,6 +9,7 @@ except ImportError:
 
 import contextlib
 import ipaddress
+import os
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from typing import TYPE_CHECKING, Any
@@ -61,7 +62,8 @@ class Reader:
                   * MODE_MMAP - read from memory map.
                   * MODE_FILE - read database as standard file.
                   * MODE_MEMORY - load database into memory.
-                  * MODE_AUTO - tries MODE_MMAP and then MODE_FILE. Default.
+                  * MODE_AUTO - tries MODE_MMAP and then MODE_FILE. Uses
+                                MODE_FD for a file object. Default.
                   * MODE_FD - the param passed via database is a file descriptor, not
                               a path. This mode implies MODE_MEMORY.
 
@@ -305,6 +307,12 @@ class Reader:
         database: DatabaseSource,
         mode: int = MODE_AUTO,
     ) -> str:
+        # MODE_AUTO reads a file object as MODE_FD does. A path wins over
+        # read(), because some path objects also have a text read().
+        if mode == MODE_AUTO and not isinstance(
+            database, (str, bytes, int, os.PathLike)
+        ):
+            mode = MODE_FD
         filename: Any
         if (mode == MODE_AUTO and mmap) or mode == MODE_MMAP:
             with open(database, "rb") as db_file:  # type: ignore[arg-type]

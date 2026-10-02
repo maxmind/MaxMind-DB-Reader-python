@@ -64,6 +64,9 @@ History
     such as a ``gzip.GzipFile``. ``maxminddb.types.SupportsRead`` describes
     this type.
 
+* ``MODE_AUTO`` now accepts a binary file object. Previously, this could
+  raise ``TypeError``.
+
 3.2.0 (2026-09-10)
 ++++++++++++++++++
 
