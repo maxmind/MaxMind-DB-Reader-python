@@ -22,7 +22,7 @@ StrOrBytesPath: TypeAlias = str | bytes | os.PathLike[str] | os.PathLike[bytes]
 
 
 class SupportsRead(Protocol):
-    """SupportsRead is a type for a binary file object for MODE_FD."""
+    """SupportsRead is a type for a binary file object for MODE_FD or MODE_AUTO."""
 
     def read(self) -> bytes:
         """Return the remaining bytes."""

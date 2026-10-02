@@ -28,7 +28,7 @@ class Mode(IntEnum):
     """Load database into memory. Pure Python."""
 
     FD = 16
-    """Database is a file descriptor, not a path. This mode implies MODE_MEMORY."""
+    """Database is a binary file object, not a path. This mode implies MODE_MEMORY."""
 
 
 # Backward compatibility: export both enum members and old-style constants
