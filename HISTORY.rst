@@ -49,6 +49,7 @@ History
 
   * ``Primitive`` includes ``bytearray``, which the C extension returns for
     the ``bytes`` type.
+  * ``Reader.__iter__`` declares its item type.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++

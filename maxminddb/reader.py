@@ -10,7 +10,7 @@ except ImportError:
 import contextlib
 import ipaddress
 from dataclasses import dataclass
-from ipaddress import IPv4Address, IPv6Address
+from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from typing import IO, TYPE_CHECKING, Any
 
 from maxminddb.const import MODE_AUTO, MODE_FD, MODE_FILE, MODE_MEMORY, MODE_MMAP
@@ -188,10 +188,15 @@ class Reader:
             return self._resolve_data_pointer(pointer), prefix_len
         return None, prefix_len
 
-    def __iter__(self) -> Iterator:
+    def __iter__(self) -> Iterator[tuple[IPv4Network | IPv6Network, Record]]:
         return self._generate_children(0, 0, 0)
 
-    def _generate_children(self, node: int, depth: int, ip_acc: int) -> Iterator:
+    def _generate_children(
+        self,
+        node: int,
+        depth: int,
+        ip_acc: int,
+    ) -> Iterator[tuple[IPv4Network | IPv6Network, Record]]:
         if ip_acc != 0 and node == self._ipv4_start:
             # Skip nodes aliased to IPv4
             return
