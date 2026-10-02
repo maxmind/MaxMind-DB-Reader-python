@@ -3,7 +3,7 @@
 from collections.abc import Iterator
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from os import PathLike
-from typing import IO, Any, AnyStr
+from typing import IO, Any
 
 from typing_extensions import Self
 
@@ -19,7 +19,7 @@ class Reader:
 
     def __init__(
         self,
-        database: AnyStr | int | PathLike | IO,
+        database: str | bytes | int | PathLike[str] | PathLike[bytes] | IO[bytes],
         mode: int = ...,
     ) -> None:
         """Reader for the MaxMind DB file format.

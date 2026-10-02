@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import AnyStr, TypeAlias
+from typing import TypeAlias
 
-Primitive: TypeAlias = AnyStr | bool | float | int
+Primitive: TypeAlias = str | bytes | bool | float | int
 
 RecordList: TypeAlias = list["Record"]
 """RecordList is a type for lists in a database record."""
