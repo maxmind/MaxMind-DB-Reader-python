@@ -57,6 +57,9 @@ History
     crashed on them.
 
 * Added ``maxminddb.Mode``, which the README already described.
+* ``maxminddb.types.Record`` and ``Primitive`` are no longer generic type
+  aliases. Remove any subscript, such as ``Record[str]``. Pull request by Adam
+  Hitchcock. GitHub #464.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++
