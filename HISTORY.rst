@@ -45,6 +45,11 @@ History
   aliases. Remove any subscript, such as ``Record[str]``. Pull request by Adam
   Hitchcock. GitHub #464.
 
+* Type hints:
+
+  * ``Primitive`` includes ``bytearray``, which the C extension returns for
+    the ``bytes`` type.
+
 3.2.0 (2026-09-10)
 ++++++++++++++++++
 
