@@ -13,7 +13,7 @@ from .const import (
     MODE_MMAP,
     MODE_MMAP_EXT,
 )
-from .decoder import InvalidDatabaseError
+from .errors import InvalidDatabaseError
 from .reader import Reader
 
 if TYPE_CHECKING:
