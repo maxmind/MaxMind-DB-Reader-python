@@ -314,6 +314,17 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
         return -1;
     }
 
+    // Refuse a second init. The closed field is NULL only before the first
+    // init, so this covers an open reader and a closed one. A second init
+    // would leak the open database and reinitialize the lock. On a closed
+    // reader it would also leave an existing iterator pointing at freed
+    // memory.
+    if (((Reader_obj *)self)->closed != NULL) {
+        PyErr_SetString(PyExc_ValueError,
+                        "Attempt to reinitialize a MaxMind DB reader.");
+        return -1;
+    }
+
     PyObject *filepath = NULL;
     int mode = 0;
 
@@ -712,7 +723,10 @@ static void Reader_dealloc(PyObject *self) {
 
     reader_lock_destroy(&obj->rwlock);
 
+    // An instance of a heap type holds a reference to its type.
+    PyTypeObject *type = Py_TYPE(self);
     PyObject_Del(self);
+    Py_DECREF(type);
 }
 
 static PyObject *Reader_iter(PyObject *obj) {
@@ -950,7 +964,9 @@ static void ReaderIter_dealloc(PyObject *self) {
         next = cur->next;
         free(cur);
     }
+    PyTypeObject *type = Py_TYPE(self);
     PyObject_Del(self);
+    Py_DECREF(type);
 }
 
 static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds) {
@@ -988,17 +1004,35 @@ static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds) {
 
     Metadata_obj *obj = (Metadata_obj *)self;
 
-    obj->binary_format_major_version = Py_NewRef(binary_format_major_version);
-    obj->binary_format_minor_version = Py_NewRef(binary_format_minor_version);
-    obj->build_epoch = Py_NewRef(build_epoch);
-    obj->database_type = Py_NewRef(database_type);
-    obj->description = Py_NewRef(description);
-    obj->ip_version = Py_NewRef(ip_version);
-    obj->languages = Py_NewRef(languages);
-    obj->node_count = Py_NewRef(node_count);
-    obj->record_size = Py_NewRef(record_size);
+    // Refuse a second init, as Reader_init does. Replacing a field would leak
+    // the old value or free it while a getter uses it. On free-threaded
+    // builds, the critical section makes the check and the stores atomic.
+    int status = 0;
+#ifdef Py_GIL_DISABLED
+    Py_BEGIN_CRITICAL_SECTION(self);
+#endif
+    if (obj->binary_format_major_version != NULL) {
+        PyErr_SetString(PyExc_ValueError,
+                        "Attempt to reinitialize a MaxMind DB Metadata.");
+        status = -1;
+    } else {
+        obj->binary_format_major_version =
+            Py_NewRef(binary_format_major_version);
+        obj->binary_format_minor_version =
+            Py_NewRef(binary_format_minor_version);
+        obj->build_epoch = Py_NewRef(build_epoch);
+        obj->database_type = Py_NewRef(database_type);
+        obj->description = Py_NewRef(description);
+        obj->ip_version = Py_NewRef(ip_version);
+        obj->languages = Py_NewRef(languages);
+        obj->node_count = Py_NewRef(node_count);
+        obj->record_size = Py_NewRef(record_size);
+    }
+#ifdef Py_GIL_DISABLED
+    Py_END_CRITICAL_SECTION();
+#endif
 
-    return 0;
+    return status;
 }
 
 static void Metadata_dealloc(PyObject *self) {
@@ -1012,7 +1046,9 @@ static void Metadata_dealloc(PyObject *self) {
     Py_XDECREF(obj->languages);
     Py_XDECREF(obj->node_count);
     Py_XDECREF(obj->record_size);
+    PyTypeObject *type = Py_TYPE(self);
     PyObject_Del(self);
+    Py_DECREF(type);
 }
 
 static PyObject *
