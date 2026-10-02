@@ -49,7 +49,7 @@ second argument. The modes are available from ``maxminddb.Mode``. Valid modes ar
 * ``Mode.MEMORY`` - load database into memory. Pure Python.
 * ``Mode.FD`` - load database into memory from a file descriptor. Pure Python.
 * ``Mode.AUTO`` - try ``Mode.MMAP_EXT``, ``Mode.MMAP``, ``Mode.FILE`` in that
-  order. Default.
+  order. A file object uses ``Mode.FD``. Default.
 
 **NOTE**: When using ``Mode.FD``, it is the *caller's* responsibility to be
 sure that the file descriptor gets closed properly. The caller may close the
