@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from importlib.metadata import version
-from typing import IO, TYPE_CHECKING, AnyStr, cast
+from typing import IO, TYPE_CHECKING, cast
 
 from .const import (
     MODE_AUTO,
@@ -39,7 +39,7 @@ __all__ = [
 
 
 def open_database(
-    database: AnyStr | int | os.PathLike | IO,
+    database: str | bytes | int | os.PathLike[str] | os.PathLike[bytes] | IO[bytes],
     mode: int = MODE_AUTO,
 ) -> Reader:
     """Open a MaxMind DB database.
