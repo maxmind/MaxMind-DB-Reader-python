@@ -962,6 +962,11 @@ class BaseTestReader(unittest.TestCase):
         self.assertGreater(metadata.node_count, 36)
 
         self.assertEqual(metadata.record_size, record_size)
+        self.assertEqual(metadata.node_byte_size, record_size // 4)
+        self.assertEqual(
+            metadata.search_tree_size,
+            metadata.node_count * record_size // 4,
+        )
 
     def _check_ip_v4(self, reader: Reader, file_name: str) -> None:
         for i in range(6):
@@ -1081,6 +1086,10 @@ class TestExtensionObjects(unittest.TestCase):
         metadata_class = maxminddb.extension.Metadata
         metadata = metadata_class.__new__(metadata_class)
         self.assertIsNone(metadata.languages)
+        with self.assertRaisesRegex(AttributeError, "record_size is not set"):
+            _ = metadata.node_byte_size
+        with self.assertRaisesRegex(AttributeError, "node_count is not set"):
+            _ = metadata.search_tree_size
         del metadata
 
     def test_metadata_missing_argument(self) -> None:
