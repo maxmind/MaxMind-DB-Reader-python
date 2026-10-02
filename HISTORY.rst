@@ -29,6 +29,13 @@ History
   * The iterator now stops after it raises an error, as the pure Python
     iterator does.
 
+* Metadata:
+
+  * The pure Python reader ignores unknown keys, which a new minor version of
+    the format can add. It raises ``InvalidDatabaseError`` for a missing key, a
+    value of the wrong type, an invalid ``ip_version`` or format version, or a
+    ``build_epoch`` of 0.
+
 3.2.0 (2026-09-10)
 ++++++++++++++++++
 
