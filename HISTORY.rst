@@ -71,6 +71,8 @@ History
     from the C ``Reader.metadata()`` has the ``UnicodeDecodeError`` as its
     cause.
 
+* Added ``maxminddb.Mode``, which the README already described.
+
 3.2.0 (2026-09-10)
 ++++++++++++++++++
 
