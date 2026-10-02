@@ -1072,6 +1072,11 @@ class BaseTestReader(unittest.TestCase):
         self.assertGreater(metadata.node_count, 36)
 
         self.assertEqual(metadata.record_size, record_size)
+        self.assertEqual(metadata.node_byte_size, record_size // 4)
+        self.assertEqual(
+            metadata.search_tree_size,
+            metadata.node_count * record_size // 4,
+        )
 
     def _check_ip_v4(self, reader: Reader, file_name: str) -> None:
         for i in range(6):

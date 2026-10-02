@@ -1372,6 +1372,44 @@ static PyMemberDef Metadata_members[] = {
      NULL},
     {NULL, 0, 0, 0, NULL}};
 
+static PyObject *Metadata_node_byte_size(PyObject *self,
+                                         void *UNUSED(closure)) {
+    Metadata_obj *obj = (Metadata_obj *)self;
+    PyObject *four = PyLong_FromLong(4);
+    if (four == NULL) {
+        return NULL;
+    }
+    PyObject *node_byte_size = PyNumber_FloorDivide(obj->record_size, four);
+    Py_DECREF(four);
+    return node_byte_size;
+}
+
+static PyObject *Metadata_search_tree_size(PyObject *self,
+                                           void *UNUSED(closure)) {
+    Metadata_obj *obj = (Metadata_obj *)self;
+    PyObject *node_byte_size = Metadata_node_byte_size(self, NULL);
+    if (node_byte_size == NULL) {
+        return NULL;
+    }
+    PyObject *search_tree_size =
+        PyNumber_Multiply(obj->node_count, node_byte_size);
+    Py_DECREF(node_byte_size);
+    return search_tree_size;
+}
+
+// These match the properties of the pure Python Metadata class.
+static PyGetSetDef Metadata_getset[] = {{"node_byte_size",
+                                         Metadata_node_byte_size,
+                                         NULL,
+                                         "The size of a node in bytes.",
+                                         NULL},
+                                        {"search_tree_size",
+                                         Metadata_search_tree_size,
+                                         NULL,
+                                         "The size of the search tree.",
+                                         NULL},
+                                        {NULL, NULL, NULL, NULL, NULL}};
+
 // =============================================================================
 // Type specs for heap type conversion (PEP 489)
 // =============================================================================
@@ -1400,6 +1438,7 @@ static PyType_Slot Metadata_Type_slots[] = {
     {Py_tp_new, Metadata_new},
     {Py_tp_methods, Metadata_methods},
     {Py_tp_members, Metadata_members},
+    {Py_tp_getset, Metadata_getset},
     {0, NULL},
 };
 
