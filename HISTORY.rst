@@ -28,6 +28,8 @@ History
     the format can add. It raises ``InvalidDatabaseError`` for a missing key, a
     value of the wrong type or out of range, an invalid ``ip_version`` or
     format version, or a ``build_epoch`` of 0.
+  * The C extension ignores unknown keys. Previously, ``Reader.metadata()``
+    crashed on them.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++

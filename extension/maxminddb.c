@@ -661,40 +661,64 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args)) {
         return NULL;
     }
 
-    MMDB_entry_data_list_s *entry_data_list;
-    int status =
-        MMDB_get_metadata_as_entry_data_list(mmdb_obj->mmdb, &entry_data_list);
-    if (status != MMDB_SUCCESS) {
-        reader_release_read_lock(mmdb_obj);
-        PyErr_Format(state->MaxMindDB_error,
-                     "Error decoding metadata. %s",
-                     MMDB_strerror(status));
-        return NULL;
+    // libmaxminddb checked the metadata when it opened the database and kept
+    // only the keys that it knows, so build Metadata from its copy.
+    const MMDB_metadata_s *m = &mmdb_obj->mmdb->metadata;
+    PyObject *metadata = NULL;
+    PyObject *description = NULL;
+    PyObject *languages = NULL;
+    PyObject *database_type = PyUnicode_FromString(m->database_type);
+    if (database_type == NULL) {
+        goto done;
     }
-    MMDB_entry_data_list_s *original_entry_data_list = entry_data_list;
-
-    PyObject *metadata_dict = from_entry_data_list(state, &entry_data_list);
-    MMDB_free_entry_data_list(original_entry_data_list);
-    if (metadata_dict == NULL || !PyDict_Check(metadata_dict)) {
-        reader_release_read_lock(mmdb_obj);
-        PyErr_SetString(state->MaxMindDB_error, "Error decoding metadata.");
-        Py_XDECREF(metadata_dict);
-        return NULL;
+    description = PyDict_New();
+    if (description == NULL) {
+        goto done;
     }
+    for (size_t i = 0; i < m->description.count; i++) {
+        const MMDB_description_s *d = m->description.descriptions[i];
+        PyObject *text = PyUnicode_FromString(d->description);
+        if (text == NULL) {
+            goto done;
+        }
+        int status = PyDict_SetItemString(description, d->language, text);
+        Py_DECREF(text);
+        if (status < 0) {
+            goto done;
+        }
+    }
+    languages = PyList_New((Py_ssize_t)m->languages.count);
+    if (languages == NULL) {
+        goto done;
+    }
+    for (size_t i = 0; i < m->languages.count; i++) {
+        PyObject *name = PyUnicode_FromString(m->languages.names[i]);
+        if (name == NULL) {
+            goto done;
+        }
+        PyList_SET_ITEM(languages, (Py_ssize_t)i, name);
+    }
+    metadata = PyObject_CallFunction(state->Metadata_Type,
+                                     "HHKOOHOIH",
+                                     m->binary_format_major_version,
+                                     m->binary_format_minor_version,
+                                     (unsigned long long)m->build_epoch,
+                                     database_type,
+                                     description,
+                                     m->ip_version,
+                                     languages,
+                                     (unsigned int)m->node_count,
+                                     m->record_size);
 
+done:
     reader_release_read_lock(mmdb_obj);
-
-    PyObject *args = PyTuple_New(0);
-    if (args == NULL) {
-        Py_DECREF(metadata_dict);
-        return NULL;
+    Py_XDECREF(database_type);
+    Py_XDECREF(description);
+    Py_XDECREF(languages);
+    // libmaxminddb does not check that the metadata strings are UTF-8.
+    if (metadata == NULL && PyErr_ExceptionMatches(PyExc_UnicodeDecodeError)) {
+        PyErr_SetString(state->MaxMindDB_error, "Error decoding metadata.");
     }
-
-    PyObject *metadata =
-        PyObject_Call(state->Metadata_Type, args, metadata_dict);
-
-    Py_DECREF(metadata_dict);
-    Py_DECREF(args);
     return metadata;
 }
 
