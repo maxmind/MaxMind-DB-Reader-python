@@ -691,6 +691,31 @@ class BaseTestReader(unittest.TestCase):
         ):
             reader.get(self.ipf("1.1.1.1"))
 
+    def test_unknown_metadata_key_is_ignored(self) -> None:
+        # A new minor version of the format can add metadata keys.
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "unknown-key.mmdb"
+            path.write_bytes(_database_with_metadata(unknown_key="value"))
+            with open_database(str(path), self.mode) as reader:
+                metadata = reader.metadata()
+                self.assertEqual(metadata.database_type, "MaxMind DB Decoder Test")
+                self.assertFalse(hasattr(metadata, "unknown_key"))
+
+    def test_metadata_strings_keep_embedded_nuls(self) -> None:
+        changes: dict[str, object] = {
+            "database_type": "one\0two",
+            "description": {"en\0x": "first", "en\0y": "second\0value"},
+            "languages": ["en\0x"],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "nul.mmdb"
+            path.write_bytes(_database_with_metadata(**changes))
+            with open_database(str(path), self.mode) as reader:
+                metadata = reader.metadata()
+        self.assertEqual(metadata.database_type, changes["database_type"])
+        self.assertEqual(metadata.description, changes["description"])
+        self.assertEqual(metadata.languages, changes["languages"])
+
     def test_invalid_metadata_is_rejected(self) -> None:
         cases: dict[str, dict[str, object]] = {
             "missing languages": {"languages": None},
@@ -1666,13 +1691,6 @@ class TestReaderInitialization(unittest.TestCase):
             list(maxminddb.reader._METADATA_TYPES),  # noqa: SLF001
             [field.name for field in dataclasses.fields(maxminddb.reader.Metadata)],
         )
-
-    def test_unknown_metadata_key_is_ignored(self) -> None:
-        data = _database_with_metadata(unknown_key="value")
-        with maxminddb.reader.Reader(io.BytesIO(data), MODE_FD) as reader:
-            metadata = reader.metadata()
-            self.assertEqual(metadata.database_type, "MaxMind DB Decoder Test")
-            self.assertFalse(hasattr(metadata, "unknown_key"))
 
     def test_empty_search_tree_is_accepted(self) -> None:
         data = pathlib.Path(
