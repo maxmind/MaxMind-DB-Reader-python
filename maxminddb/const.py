@@ -10,7 +10,10 @@ class Mode(IntEnum):
     """
 
     AUTO = 0
-    """Try MODE_MMAP_EXT, MODE_MMAP, MODE_FILE in that order. Default mode."""
+    """Try MODE_MMAP_EXT, MODE_MMAP, MODE_FILE in that order. Default mode.
+
+    A file object uses MODE_FD.
+    """
 
     MMAP_EXT = 1
     """Use the C extension with memory map."""

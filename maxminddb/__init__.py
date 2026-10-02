@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from importlib.metadata import version
 from typing import TYPE_CHECKING, cast
 
@@ -57,7 +58,7 @@ def open_database(
               * MODE_FD - the param passed via database is a file descriptor, not
                           a path. This mode implies MODE_MEMORY.
               * MODE_AUTO - tries MODE_MMAP_EXT, MODE_MMAP, MODE_FILE in that
-                          order. Default mode.
+                          order. Uses MODE_FD for a file object. Default mode.
 
     """
     if mode not in (
@@ -72,23 +73,29 @@ def open_database(
         raise ValueError(msg)
 
     has_extension = _extension and hasattr(_extension, "Reader")
-    use_extension = has_extension if mode == MODE_AUTO else mode == MODE_MMAP_EXT
 
-    if not use_extension:
-        return Reader(database, mode)
-
-    if not has_extension:
+    if mode == MODE_MMAP_EXT and not has_extension:
         msg = "MODE_MMAP_EXT requires the maxminddb.extension module to be available"
         raise ValueError(
             msg,
         )
 
-    # The C type exposes the same API as the Python Reader, so for type
-    # checking purposes, pretend it is one. (Ideally this would be a subclass
-    # of, or share a common parent class with, the Python Reader
-    # implementation.) The extension accepts only a path. It raises TypeError
-    # for a file descriptor or a file object.
-    return cast("Reader", _extension.Reader(database, mode))  # type: ignore[arg-type]
+    # The extension accepts only a path, so MODE_AUTO gives a file object to
+    # the pure Python reader. It still refuses a file descriptor, as before.
+    # The cast pretends the C reader is the pure Python Reader, which has the
+    # same API.
+    if mode in (MODE_AUTO, MODE_MMAP_EXT) and has_extension:
+        if isinstance(database, (str, bytes, os.PathLike)):
+            return cast("Reader", _extension.Reader(database, mode))
+        if mode == MODE_MMAP_EXT or isinstance(database, int):
+            msg = (
+                f"The C extension requires a path ({type(database).__name__} "
+                "given). Use MODE_FD for a file object, or MODE_MMAP for a "
+                "file descriptor."
+            )
+            raise TypeError(msg)
+
+    return Reader(database, mode)
 
 
 __version__ = version("maxminddb")
