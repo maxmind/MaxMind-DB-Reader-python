@@ -347,7 +347,7 @@ class Reader:
 
         self.closed = True
 
-    def __exit__(self, *_) -> None:  # noqa: ANN002
+    def __exit__(self, *_: object) -> None:
         self.close()
 
     def __enter__(self) -> Self:
