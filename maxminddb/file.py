@@ -43,6 +43,10 @@ class FileBuffer:
             return pos
         return start + pos
 
+    def __len__(self) -> int:
+        """Size of file."""
+        return self._size
+
     def size(self) -> int:
         """Size of file."""
         return self._size

@@ -3,6 +3,21 @@
 History
 -------
 
+3.2.1
++++++
+
+* The pure Python reader now raises ``InvalidDatabaseError`` when a value
+  extends past the end of the data section. Previously, it could return a
+  shorter value or decode bytes from the metadata section.
+* The pure Python reader now raises ``InvalidDatabaseError`` when a map key
+  is not a string. Previously, it returned the non-string key or raised
+  ``TypeError``.
+* The C extension now raises ``InvalidDatabaseError`` when a map key is not
+  a string. Previously, it could return a wrong key, such as the bytes of a
+  bytes key or an empty string, or raise ``SystemError``.
+* The C extension no longer leaks the partly decoded map when a map key is
+  not valid UTF-8 or when it cannot add an entry to the map.
+
 3.2.0 (2026-09-10)
 ++++++++++++++++++
 

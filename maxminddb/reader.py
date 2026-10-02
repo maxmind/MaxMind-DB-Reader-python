@@ -84,8 +84,11 @@ class Reader:
                     msg,
                 )
 
+            data_section_end = metadata_start
             metadata_start += len(self._METADATA_START_MARKER)
-            metadata_decoder = Decoder(self._buffer, metadata_start)
+            metadata_decoder = Decoder(
+                self._buffer, metadata_start, data_end=self._buffer_size
+            )
             (metadata, _) = metadata_decoder.decode(metadata_start)
 
             if not isinstance(metadata, dict):
@@ -118,6 +121,7 @@ class Reader:
             self._decoder = Decoder(
                 self._buffer,
                 self._metadata.search_tree_size + self._DATA_SECTION_SEPARATOR_SIZE,
+                data_end=data_section_end,
             )
             self.closed = False
 

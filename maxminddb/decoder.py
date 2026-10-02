@@ -68,6 +68,7 @@ class Decoder:
         database_buffer: FileBuffer | mmap.mmap | bytes,
         pointer_base: int = 0,
         pointer_test: bool = False,  # noqa: FBT001, FBT002
+        data_end: int | None = None,
     ) -> None:
         """Create a Decoder for a MaxMind DB.
 
@@ -75,11 +76,16 @@ class Decoder:
             database_buffer: an mmap'd MaxMind DB file.
             pointer_base: the base number to use when decoding a pointer
             pointer_test: used for internal unit testing of pointer code
+            data_end: the offset where the decoded section ends. No value may
+                extend past it. The default is the end of the buffer.
 
         """
         self._pointer_test = pointer_test
         self._buffer = database_buffer
         self._pointer_base = pointer_base
+        if data_end is None:
+            data_end = len(database_buffer)
+        self._data_end = data_end
 
     def _decode_array(
         self,
@@ -124,6 +130,8 @@ class Decoder:
             raise InvalidDatabaseError(_TOO_LARGE)
         budget.payload_left = remaining
         new_offset = offset + size
+        if new_offset > self._data_end:
+            raise InvalidDatabaseError(_BAD_DATA)
         return self._buffer[offset:new_offset], new_offset
 
     def _decode_double(
@@ -134,6 +142,8 @@ class Decoder:
     ) -> tuple[float, int]:
         self._verify_size(size, 8)
         new_offset = offset + size
+        if new_offset > self._data_end:
+            raise InvalidDatabaseError(_BAD_DATA)
         packed_bytes = self._buffer[offset:new_offset]
         (value,) = struct.unpack(b"!d", packed_bytes)
         return value, new_offset
@@ -146,6 +156,8 @@ class Decoder:
     ) -> tuple[float, int]:
         self._verify_size(size, 4)
         new_offset = offset + size
+        if new_offset > self._data_end:
+            raise InvalidDatabaseError(_BAD_DATA)
         packed_bytes = self._buffer[offset:new_offset]
         (value,) = struct.unpack(b"!f", packed_bytes)
         return value, new_offset
@@ -161,6 +173,8 @@ class Decoder:
         if size == 0:
             return 0, offset
         new_offset = offset + size
+        if new_offset > self._data_end:
+            raise InvalidDatabaseError(_BAD_DATA)
         packed_bytes = self._buffer[offset:new_offset]
 
         if size != 4:
@@ -187,8 +201,10 @@ class Decoder:
         decode = self._decode
         for _ in range(size):
             (key, offset) = decode(offset, budget, False)  # noqa: FBT003
+            if type(key) is not str:
+                raise InvalidDatabaseError(_BAD_DATA)
             (value, offset) = decode(offset, budget, False)  # noqa: FBT003
-            container[key] = value  # type: ignore[index]
+            container[key] = value
         budget.depth -= 1
         return container, offset
 
@@ -200,10 +216,9 @@ class Decoder:
     ) -> tuple[Record, int]:
         pointer_size = (size >> 3) + 1
         new_offset = offset + pointer_size
-        pointer_bytes = self._buffer[offset:new_offset]
-        if len(pointer_bytes) != pointer_size:
+        if new_offset > self._data_end:
             raise InvalidDatabaseError(_BAD_DATA)
-        pointer = int.from_bytes(pointer_bytes, "big")
+        pointer = int.from_bytes(self._buffer[offset:new_offset], "big")
         if pointer_size < 4:
             # The low three bits of the ctrl byte are the high bits of the
             # pointer, and sizes 2 and 3 add a fixed offset.
@@ -235,8 +250,9 @@ class Decoder:
         if size > _MAX_UINT_BYTES:
             raise InvalidDatabaseError(_BAD_DATA)
         new_offset = offset + size
-        uint_bytes = self._buffer[offset:new_offset]
-        return int.from_bytes(uint_bytes, "big"), new_offset
+        if new_offset > self._data_end:
+            raise InvalidDatabaseError(_BAD_DATA)
+        return int.from_bytes(self._buffer[offset:new_offset], "big"), new_offset
 
     def decode(self, offset: int) -> tuple[Record, int]:
         """Decode a section of the data section starting at offset.
@@ -293,6 +309,8 @@ class Decoder:
                     raise InvalidDatabaseError(_TOO_LARGE)
                 budget.payload_left = remaining
                 end = new_offset + size
+                if end > self._data_end:
+                    raise InvalidDatabaseError(_BAD_DATA)
                 return self._buffer[new_offset:end].decode("utf-8"), end
             case 1:
                 if pointer_target:
