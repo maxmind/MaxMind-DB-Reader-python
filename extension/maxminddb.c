@@ -686,7 +686,7 @@ static PyObject *Reader__enter__(PyObject *self, PyObject *UNUSED(args)) {
         return NULL;
     }
 
-    if (mmdb_obj->closed == Py_True) {
+    if (mmdb_obj->mmdb == NULL) {
         reader_release_read_lock(mmdb_obj);
         PyErr_SetString(PyExc_ValueError,
                         "Attempt to reopen a closed MaxMind DB.");
@@ -727,7 +727,7 @@ static PyObject *Reader_iter(PyObject *obj) {
         return NULL;
     }
 
-    if (reader->closed == Py_True) {
+    if (reader->mmdb == NULL) {
         reader_release_read_lock(reader);
         PyErr_SetString(PyExc_ValueError,
                         "Attempt to iterate over a closed MaxMind DB.");
@@ -777,7 +777,7 @@ static PyObject *ReaderIter_next(PyObject *self) {
         return NULL;
     }
 
-    if (ri->reader->closed == Py_True) {
+    if (ri->reader->mmdb == NULL) {
         reader_release_read_lock(ri->reader);
         PyErr_SetString(PyExc_ValueError,
                         "Attempt to iterate over a closed MaxMind DB.");
@@ -972,7 +972,7 @@ static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds) {
 
     if (!PyArg_ParseTupleAndKeywords(args,
                                      kwds,
-                                     "|OOOOOOOOO",
+                                     "OOOOOOOOO",
                                      kwlist,
                                      &binary_format_major_version,
                                      &binary_format_minor_version,
@@ -1013,15 +1013,15 @@ static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds) {
 
 static void Metadata_dealloc(PyObject *self) {
     Metadata_obj *obj = (Metadata_obj *)self;
-    Py_DECREF(obj->binary_format_major_version);
-    Py_DECREF(obj->binary_format_minor_version);
-    Py_DECREF(obj->build_epoch);
-    Py_DECREF(obj->database_type);
-    Py_DECREF(obj->description);
-    Py_DECREF(obj->ip_version);
-    Py_DECREF(obj->languages);
-    Py_DECREF(obj->node_count);
-    Py_DECREF(obj->record_size);
+    Py_XDECREF(obj->binary_format_major_version);
+    Py_XDECREF(obj->binary_format_minor_version);
+    Py_XDECREF(obj->build_epoch);
+    Py_XDECREF(obj->database_type);
+    Py_XDECREF(obj->description);
+    Py_XDECREF(obj->ip_version);
+    Py_XDECREF(obj->languages);
+    Py_XDECREF(obj->node_count);
+    Py_XDECREF(obj->record_size);
     PyObject_Del(self);
 }
 
@@ -1305,7 +1305,7 @@ static PyType_Slot ReaderIter_Type_slots[] = {
 static PyType_Spec ReaderIter_Type_spec = {
     .name = "maxminddb.extension.ReaderIter",
     .basicsize = sizeof(ReaderIter_obj),
-    .flags = Py_TPFLAGS_DEFAULT,
+    .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_DISALLOW_INSTANTIATION,
     .slots = ReaderIter_Type_slots,
 };
 

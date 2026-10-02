@@ -942,6 +942,63 @@ class TestExtensionReaderWithIPObjects(BaseTestReader):
         reader_class = maxminddb.extension.Reader
 
 
+@unittest.skipIf(
+    not has_maxminddb_extension() and not os.environ.get("MM_FORCE_EXT_TESTS"),
+    "No C extension module found. Skipping tests",
+)
+class TestExtensionObjects(unittest.TestCase):
+    """Objects in states that crashed the extension."""
+
+    def test_uninitialized_metadata(self) -> None:
+        metadata_class = maxminddb.extension.Metadata
+        metadata = metadata_class.__new__(metadata_class)
+        self.assertIsNone(metadata.languages)
+        del metadata
+
+    def test_metadata_missing_argument(self) -> None:
+        with self.assertRaisesRegex(TypeError, "missing required argument"):
+            maxminddb.extension.Metadata(binary_format_major_version=2)  # type: ignore[call-arg]
+
+    def test_metadata_unknown_argument(self) -> None:
+        with self.assertRaisesRegex(TypeError, "keyword argument"):
+            maxminddb.extension.Metadata(  # type: ignore[call-arg]
+                binary_format_major_version=2,
+                binary_format_minor_version=0,
+                build_epoch=1,
+                database_type="db",
+                description={},
+                ip_version=4,
+                languages=[],
+                node_count=1,
+                record_size=24,
+                unknown=1,
+            )
+
+    def test_iterate_uninitialized_reader(self) -> None:
+        reader_class = maxminddb.extension.Reader
+        reader = reader_class.__new__(reader_class)
+        with self.assertRaisesRegex(ValueError, "closed MaxMind DB"):
+            iter(reader)
+
+    def test_enter_uninitialized_reader(self) -> None:
+        reader_class = maxminddb.extension.Reader
+        reader = reader_class.__new__(reader_class)
+        with self.assertRaisesRegex(ValueError, "closed MaxMind DB"):
+            reader.__enter__()
+
+    def test_iterator_type_is_not_instantiable(self) -> None:
+        reader = maxminddb.extension.Reader(
+            f"{_TEST_DATA_DIR}/MaxMind-DB-test-decoder.mmdb",
+        )
+        iterator_class = type(iter(reader))
+        # The message differs across Python versions, so check only the type.
+        with self.assertRaises(TypeError):
+            iterator_class()
+        with self.assertRaises(TypeError):
+            iterator_class.__new__(iterator_class)
+        reader.close()
+
+
 class TestAutoReader(BaseTestReader):
     mode = MODE_AUTO
 
