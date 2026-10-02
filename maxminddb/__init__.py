@@ -86,8 +86,9 @@ def open_database(
     # The C type exposes the same API as the Python Reader, so for type
     # checking purposes, pretend it is one. (Ideally this would be a subclass
     # of, or share a common parent class with, the Python Reader
-    # implementation.)
-    return cast("Reader", _extension.Reader(database, mode))
+    # implementation.) The extension accepts only a path. It raises TypeError
+    # for a file descriptor or a file object.
+    return cast("Reader", _extension.Reader(database, mode))  # type: ignore[arg-type]
 
 
 __version__ = version("maxminddb")

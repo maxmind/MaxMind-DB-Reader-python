@@ -68,6 +68,8 @@ History
   * ``Reader.__iter__`` declares its item type.
   * Added the ``StrOrBytesPath`` and ``DatabaseSource`` aliases to
     ``maxminddb.types``.
+  * The ``maxminddb.extension.Reader`` stub accepts only a path, as the
+    extension does.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++

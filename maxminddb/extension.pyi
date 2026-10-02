@@ -2,12 +2,10 @@
 
 from collections.abc import Iterator
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
-from os import PathLike
-from typing import IO
 
 from typing_extensions import Self
 
-from maxminddb.types import Record
+from maxminddb.types import Record, StrOrBytesPath
 
 class Reader:
     """A C extension implementation of a reader for the MaxMind DB format.
@@ -19,14 +17,14 @@ class Reader:
 
     def __init__(
         self,
-        database: str | bytes | int | PathLike[str] | PathLike[bytes] | IO[bytes],
+        database: StrOrBytesPath,
         mode: int = ...,
     ) -> None:
         """Reader for the MaxMind DB file format.
 
         Arguments:
             database: A path to a valid MaxMind DB file such as a GeoIP database
-                      file, or a file descriptor in the case of MODE_FD.
+                      file.
             mode: mode to open the database with. The only supported modes are
                   MODE_AUTO and MODE_MMAP_EXT.
 
