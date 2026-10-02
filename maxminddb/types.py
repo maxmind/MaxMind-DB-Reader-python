@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TypeAlias
 
-Primitive: TypeAlias = str | bytes | bool | float | int
+Primitive: TypeAlias = str | bytes | bytearray | bool | float | int
 
 RecordList: TypeAlias = list["Record"]
 """RecordList is a type for lists in a database record."""
