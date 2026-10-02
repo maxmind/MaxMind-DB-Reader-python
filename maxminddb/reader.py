@@ -229,10 +229,12 @@ class Reader:
             return self._resolve_data_pointer(pointer), prefix_len
         return None, prefix_len
 
-    def __iter__(self) -> Iterator:
+    def __iter__(self) -> Iterator[tuple[IPv4Network | IPv6Network, Record]]:
         return self._iterate(self._generation)
 
-    def _iterate(self, generation: int) -> Iterator:
+    def _iterate(
+        self, generation: int
+    ) -> Iterator[tuple[IPv4Network | IPv6Network, Record]]:
         children = self._generate_children(0, 0, 0)
         while True:
             # Check before the walk resumes and reads more nodes, as the C
@@ -247,7 +249,12 @@ class Reader:
                 return
             yield record
 
-    def _generate_children(self, node: int, depth: int, ip_acc: int) -> Iterator:
+    def _generate_children(
+        self,
+        node: int,
+        depth: int,
+        ip_acc: int,
+    ) -> Iterator[tuple[IPv4Network | IPv6Network, Record]]:
         node_count = self._node_count
         bits = self._address_bits
         if node > node_count:
