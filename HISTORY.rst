@@ -60,6 +60,9 @@ History
     ``maxminddb.types``.
   * The ``maxminddb.extension.Reader`` stub accepts only a path, as the
     extension does.
+  * ``MODE_FD`` accepts any object whose ``read()`` method returns ``bytes``,
+    such as a ``gzip.GzipFile``. ``maxminddb.types.SupportsRead`` describes
+    this type.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++
