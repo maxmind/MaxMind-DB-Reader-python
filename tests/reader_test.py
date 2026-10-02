@@ -1058,6 +1058,15 @@ class TestExtensionReader(BaseTestReader):
             ):
                 reader.get("1.1.1.1")
 
+    def test_unknown_metadata_key_is_ignored(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "unknown-key.mmdb"
+            path.write_bytes(_database_with_metadata(unknown_key="value"))
+            with maxminddb.extension.Reader(path) as reader:
+                metadata = reader.metadata()
+                self.assertEqual(metadata.database_type, "MaxMind DB Decoder Test")
+                self.assertFalse(hasattr(metadata, "unknown_key"))
+
 
 @unittest.skipIf(
     not has_maxminddb_extension() and not os.environ.get("MM_FORCE_EXT_TESTS"),

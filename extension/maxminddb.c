@@ -634,6 +634,18 @@ static bool format_sockaddr(struct sockaddr *sa, char *dst) {
     return false;
 }
 
+// The keys that Metadata accepts, in argument order.
+static char *metadata_keys[] = {"binary_format_major_version",
+                                "binary_format_minor_version",
+                                "build_epoch",
+                                "database_type",
+                                "description",
+                                "ip_version",
+                                "languages",
+                                "node_count",
+                                "record_size",
+                                NULL};
+
 static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args)) {
     maxminddb_state *state = get_maxminddb_state_from_self(self);
     if (state == NULL) {
@@ -680,16 +692,38 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args)) {
 
     reader_release_read_lock(mmdb_obj);
 
-    PyObject *args = PyTuple_New(0);
+    // A newer minor version of the format can add metadata keys. Pass only
+    // the keys that Metadata accepts.
+    PyObject *args = PyTuple_New(Py_ARRAY_LENGTH(metadata_keys) - 1);
     if (args == NULL) {
         Py_DECREF(metadata_dict);
         return NULL;
     }
-
-    PyObject *metadata =
-        PyObject_Call(state->Metadata_Type, args, metadata_dict);
-
+    for (Py_ssize_t i = 0; metadata_keys[i] != NULL; i++) {
+        PyObject *key = PyUnicode_FromString(metadata_keys[i]);
+        if (key == NULL) {
+            Py_DECREF(args);
+            Py_DECREF(metadata_dict);
+            return NULL;
+        }
+        PyObject *value = PyDict_GetItemWithError(metadata_dict, key);
+        Py_DECREF(key);
+        if (value == NULL) {
+            if (!PyErr_Occurred()) {
+                PyErr_Format(state->MaxMindDB_error,
+                             "Error decoding metadata. The %s value is "
+                             "missing.",
+                             metadata_keys[i]);
+            }
+            Py_DECREF(args);
+            Py_DECREF(metadata_dict);
+            return NULL;
+        }
+        PyTuple_SET_ITEM(args, i, Py_NewRef(value));
+    }
     Py_DECREF(metadata_dict);
+
+    PyObject *metadata = PyObject_CallObject(state->Metadata_Type, args);
     Py_DECREF(args);
     return metadata;
 }
@@ -1044,21 +1078,10 @@ static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds) {
         *build_epoch, *database_type, *description, *ip_version, *languages,
         *node_count, *record_size;
 
-    static char *kwlist[] = {"binary_format_major_version",
-                             "binary_format_minor_version",
-                             "build_epoch",
-                             "database_type",
-                             "description",
-                             "ip_version",
-                             "languages",
-                             "node_count",
-                             "record_size",
-                             NULL};
-
     if (!PyArg_ParseTupleAndKeywords(args,
                                      kwds,
                                      "OOOOOOOOO",
-                                     kwlist,
+                                     metadata_keys,
                                      &binary_format_major_version,
                                      &binary_format_minor_version,
                                      &build_epoch,
