@@ -127,3 +127,11 @@ class Metadata:
         record_size: int,
     ) -> None:
         """Create new Metadata object from the metadata fields in the spec."""
+
+    @property
+    def node_byte_size(self) -> int:
+        """The size of a node in bytes."""
+
+    @property
+    def search_tree_size(self) -> int:
+        """The size of the search tree."""

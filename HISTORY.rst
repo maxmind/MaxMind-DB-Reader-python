@@ -29,6 +29,8 @@ History
     during iteration, from another thread or from a signal handler.
   * Fixed a crash on free-threaded Python when two threads advanced the same
     iterator.
+  * Added the ``node_byte_size`` and ``search_tree_size`` properties to
+    ``Metadata``, as the pure Python ``Metadata`` has.
 
 * Metadata:
 
