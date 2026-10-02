@@ -11,7 +11,7 @@ import contextlib
 import ipaddress
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
-from typing import IO, TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any
 
 from maxminddb.const import MODE_AUTO, MODE_FD, MODE_FILE, MODE_MEMORY, MODE_MMAP
 from maxminddb.decoder import Decoder
@@ -20,11 +20,10 @@ from maxminddb.file import FileBuffer
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-    from os import PathLike
 
     from typing_extensions import Self
 
-    from maxminddb.types import Record, RecordDict
+    from maxminddb.types import DatabaseSource, Record, RecordDict
 
 _IPV4_MAX_NUM = 2**32
 
@@ -50,7 +49,7 @@ class Reader:
 
     def __init__(
         self,
-        database: str | bytes | int | PathLike[str] | PathLike[bytes] | IO[bytes],
+        database: DatabaseSource,
         mode: int = MODE_AUTO,
     ) -> None:
         """Reader for the MaxMind DB file format.
@@ -298,7 +297,7 @@ class Reader:
 
     def _load_buffer(
         self,
-        database: str | bytes | int | PathLike[str] | PathLike[bytes] | IO[bytes],
+        database: DatabaseSource,
         mode: int = MODE_AUTO,
     ) -> str:
         filename: Any
