@@ -190,10 +190,15 @@ class Reader:
             return self._resolve_data_pointer(pointer), prefix_len
         return None, prefix_len
 
-    def __iter__(self) -> Iterator:
+    def __iter__(self) -> Iterator[tuple[IPv4Network | IPv6Network, Record]]:
         return self._generate_children(0, 0, 0)
 
-    def _generate_children(self, node: int, depth: int, ip_acc: int) -> Iterator:
+    def _generate_children(
+        self,
+        node: int,
+        depth: int,
+        ip_acc: int,
+    ) -> Iterator[tuple[IPv4Network | IPv6Network, Record]]:
         node_count = self._metadata.node_count
         bits = 128 if self._metadata.ip_version == 6 else 32
         # Skip the IPv4 subtree when an address with a set bit in its first 96
