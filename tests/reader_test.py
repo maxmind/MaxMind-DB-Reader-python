@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import gc
 import io
 import ipaddress
 import multiprocessing
@@ -12,6 +13,7 @@ import sysconfig
 import tempfile
 import textwrap
 import threading
+import tracemalloc
 import unittest
 from typing import TYPE_CHECKING, Any, cast
 from unittest import mock
@@ -944,6 +946,28 @@ class TestExtensionReader(BaseTestReader):
 
     if has_maxminddb_extension():
         reader_class = maxminddb.extension.Reader
+
+    def test_invalid_utf8_key_does_not_leak(self) -> None:
+        def fail_to_decode(count: int) -> None:
+            for _ in range(count):
+                with contextlib.suppress(UnicodeDecodeError):
+                    reader.get("163.254.149.39")
+
+        with maxminddb.extension.Reader(
+            "tests/data/bad-data/maxminddb-python/bad-unicode-in-map-key.mmdb",
+        ) as reader:
+            fail_to_decode(100)
+            gc.collect()
+            tracemalloc.start()
+            try:
+                before, _ = tracemalloc.get_traced_memory()
+                fail_to_decode(2000)
+                gc.collect()
+                after, _ = tracemalloc.get_traced_memory()
+            finally:
+                tracemalloc.stop()
+        # A leaked dict on each failure keeps about 128 KB.
+        self.assertLess(after - before, 16_000)
 
 
 @unittest.skipIf(

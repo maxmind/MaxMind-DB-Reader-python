@@ -1152,6 +1152,7 @@ static PyObject *from_map(maxminddb_state *state,
         if (!key) {
             // PyUnicode_FromStringAndSize will set an appropriate exception
             // in this case.
+            Py_DECREF(py_obj);
             return NULL;
         }
 
