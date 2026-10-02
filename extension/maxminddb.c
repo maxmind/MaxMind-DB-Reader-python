@@ -308,20 +308,31 @@ static void reader_release_write_lock(Reader_obj *reader) {
 // Reader implementation
 // =============================================================================
 
+static PyObject *
+Reader_new(PyTypeObject *type, PyObject *UNUSED(args), PyObject *UNUSED(kwds)) {
+    PyObject *self = type->tp_alloc(type, 0);
+    if (self == NULL) {
+        return NULL;
+    }
+
+    // Initialize the lock once, for the whole lifetime of the object.
+    // Reader_dealloc destroys it. A bare __new__ or a failed Reader_init then
+    // still leaves a valid, unlocked lock, so no path uses or destroys an
+    // uninitialized lock.
+    if (reader_lock_init(&((Reader_obj *)self)->rwlock) != 0) {
+        // Skip Reader_dealloc, which would destroy the failed lock. An
+        // instance of a heap type holds a reference to its type.
+        PyObject_Del(self);
+        Py_DECREF(type);
+        return NULL;
+    }
+
+    return self;
+}
+
 static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
     maxminddb_state *state = get_maxminddb_state_from_self(self);
     if (state == NULL) {
-        return -1;
-    }
-
-    // Refuse a second init. The closed field is NULL only before the first
-    // init, so this covers an open reader and a closed one. A second init
-    // would leak the open database and reinitialize the lock. On a closed
-    // reader it would also leave an existing iterator pointing at freed
-    // memory.
-    if (((Reader_obj *)self)->closed != NULL) {
-        PyErr_SetString(PyExc_ValueError,
-                        "Attempt to reinitialize a MaxMind DB reader.");
         return -1;
     }
 
@@ -360,31 +371,36 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
         return -1;
     }
 
+    Reader_obj *mmdb_obj = (Reader_obj *)self;
+    if (reader_acquire_write_lock(mmdb_obj) != 0) {
+        Py_XDECREF(filepath);
+        return -1;
+    }
+
+    // Refuse a second init. closed is NULL until the first init or close(),
+    // and the write lock stops two threads from both passing this check. A
+    // second init would leak the open database. After close(), it would leave
+    // an existing iterator pointing at freed memory.
+    if (mmdb_obj->closed != NULL) {
+        reader_release_write_lock(mmdb_obj);
+        Py_XDECREF(filepath);
+        PyErr_SetString(PyExc_ValueError,
+                        "Attempt to reinitialize a MaxMind DB reader.");
+        return -1;
+    }
+
     MMDB_s *mmdb = (MMDB_s *)malloc(sizeof(MMDB_s));
     if (mmdb == NULL) {
+        reader_release_write_lock(mmdb_obj);
         Py_XDECREF(filepath);
         PyErr_NoMemory();
-        return -1;
-    }
-
-    Reader_obj *mmdb_obj = (Reader_obj *)self;
-    if (!mmdb_obj) {
-        Py_XDECREF(filepath);
-        free(mmdb);
-        PyErr_NoMemory();
-        return -1;
-    }
-
-    if (reader_lock_init(&mmdb_obj->rwlock) != 0) {
-        free(mmdb);
-        Py_XDECREF(filepath);
         return -1;
     }
 
     int const status = MMDB_open(filename, MMDB_MODE_MMAP, mmdb);
 
     if (status != MMDB_SUCCESS) {
-        reader_lock_destroy(&mmdb_obj->rwlock);
+        reader_release_write_lock(mmdb_obj);
         free(mmdb);
         PyErr_Format(state->MaxMindDB_error,
                      "Error opening database file (%s). Is this a valid "
@@ -398,6 +414,7 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
 
     mmdb_obj->mmdb = mmdb;
     mmdb_obj->closed = Py_False;
+    reader_release_write_lock(mmdb_obj);
     return 0;
 }
 
@@ -1289,6 +1306,7 @@ static PyMemberDef Metadata_members[] = {
 static PyType_Slot Reader_Type_slots[] = {
     {Py_tp_doc, "Reader object"},
     {Py_tp_dealloc, Reader_dealloc},
+    {Py_tp_new, Reader_new},
     {Py_tp_init, Reader_init},
     {Py_tp_iter, Reader_iter},
     {Py_tp_methods, Reader_methods},
