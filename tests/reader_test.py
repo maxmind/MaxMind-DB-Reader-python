@@ -1019,6 +1019,9 @@ class TestExtensionObjects(unittest.TestCase):
         with maxminddb.extension.Reader(path) as reader:
             with self.assertRaisesRegex(ValueError, "reinitialize"):
                 reader.__init__(path)  # type: ignore[misc]
+            # The check comes before the arguments are checked.
+            with self.assertRaisesRegex(ValueError, "reinitialize"):
+                reader.__init__("missing.mmdb")  # type: ignore[misc]
             self.assertIsNotNone(reader.get("::1.1.1.0"))
 
         # Re-init on a closed reader would leave this iterator pointing at a
