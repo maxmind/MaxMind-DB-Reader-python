@@ -65,7 +65,10 @@ History
     this type.
 
 * ``MODE_AUTO`` now accepts a binary file object. Previously, this could
-  raise ``TypeError``.
+  raise ``TypeError``. It reads the file object into memory with the pure
+  Python reader, as ``MODE_FD`` does, so lookups are slower than with a path.
+* The pure Python reader raises ``TypeError`` when the database argument does
+  not suit the mode.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++
