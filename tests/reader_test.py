@@ -44,6 +44,7 @@ if TYPE_CHECKING:
     from typing import IO
 
     from maxminddb.reader import Reader
+    from maxminddb.types import DatabaseSource
 
 
 # Directory holding the shared MaxMind DB test fixtures.
@@ -1361,6 +1362,10 @@ class TestExtensionReader(BaseTestReader):
         # A leaked dict on each failure keeps about 128 KB.
         self.assertLess(after - before, 16_000)
 
+    def test_file_object_is_refused(self) -> None:
+        with self.assertRaisesRegex(TypeError, "requires a path"):
+            open_database(io.BytesIO(b""), MODE_MMAP_EXT)
+
 
 @unittest.skipIf(
     not has_maxminddb_extension() and not os.environ.get("MM_FORCE_EXT_TESTS"),
@@ -1871,6 +1876,44 @@ class TestReaderInitialization(unittest.TestCase):
             list(maxminddb.reader._METADATA_TYPES),  # noqa: SLF001
             [field.name for field in dataclasses.fields(maxminddb.reader.Metadata)],
         )
+
+    def test_auto_mode_accepts_any_database_type(self) -> None:
+        path = f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb"
+        data = pathlib.Path(path).read_bytes()
+
+        class PathWithTextRead:
+            """A path object with a text read(), as py.path.local has."""
+
+            def __fspath__(self) -> str:
+                return path
+
+            def read(self) -> str:
+                return "not the database"
+
+        with open(path, "rb") as file_object:
+            sources: list[tuple[str, DatabaseSource]] = [
+                ("path", path),
+                ("file object", file_object),
+                ("BytesIO", io.BytesIO(data)),
+                # A path wins over read().
+                ("path with a text read()", PathWithTextRead()),
+            ]
+            for name, database in sources:
+                with (
+                    self.subTest(name),
+                    maxminddb.open_database(database, MODE_AUTO) as reader,
+                ):
+                    self.assertEqual(reader.get("1.1.1.1"), {"ip": "1.1.1.1"})
+
+        # The pure Python reader takes ownership of a descriptor and closes it.
+        with maxminddb.reader.Reader(os.open(path, os.O_RDONLY), MODE_AUTO) as reader:
+            self.assertEqual(reader.get("1.1.1.1"), {"ip": "1.1.1.1"})
+        if has_maxminddb_extension():
+            # open_database refuses a descriptor with the extension, as before.
+            descriptor = os.open(path, os.O_RDONLY)
+            self.addCleanup(os.close, descriptor)
+            with self.assertRaisesRegex(TypeError, r"\(int given\)"):
+                maxminddb.open_database(descriptor, MODE_AUTO)
 
     def test_empty_search_tree_is_accepted(self) -> None:
         data = pathlib.Path(
