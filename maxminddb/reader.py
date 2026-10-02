@@ -57,15 +57,20 @@ class Reader:
 
         Arguments:
             database: A path to a valid MaxMind DB file such as a GeoIP database
-                      file, or a file descriptor in the case of MODE_FD.
+                      file, or a binary file object for MODE_FD or MODE_AUTO.
+                      MODE_AUTO, MODE_MMAP, MODE_FILE and MODE_MEMORY also
+                      accept the file descriptor of a regular file. MODE_MEMORY
+                      reads it from its current offset, the others from the
+                      start. The reader closes it, even when the file is not a
+                      valid database.
             mode: mode to open the database with. Valid mode are:
                   * MODE_MMAP - read from memory map.
                   * MODE_FILE - read database as standard file.
                   * MODE_MEMORY - load database into memory.
                   * MODE_AUTO - tries MODE_MMAP and then MODE_FILE. Uses
                                 MODE_FD for a file object. Default.
-                  * MODE_FD - the param passed via database is a file descriptor, not
-                              a path. This mode implies MODE_MEMORY.
+                  * MODE_FD - the param passed via database is a binary file
+                              object, not a path. This mode implies MODE_MEMORY.
 
         """
         filename = self._load_buffer(database, mode)
