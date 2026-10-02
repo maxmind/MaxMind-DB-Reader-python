@@ -3,6 +3,14 @@
 History
 -------
 
+3.3.0
+++++++++++++++++++
+
+* C extension:
+
+  * Fixed segmentation faults from invalid use of ``Metadata``, ``Reader`` and
+    the internal iterator type.
+
 3.2.0 (2026-09-10)
 ++++++++++++++++++
 
