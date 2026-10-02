@@ -22,6 +22,13 @@ History
   * Fixed a crash on free-threaded Python when two threads advanced the same
     iterator.
 
+* Metadata:
+
+  * The pure Python reader ignores unknown keys, which a new minor version of
+    the format can add. It raises ``InvalidDatabaseError`` for a missing key, a
+    value of the wrong type or out of range, an invalid ``ip_version`` or
+    format version, or a ``build_epoch`` of 0.
+
 3.2.0 (2026-09-10)
 ++++++++++++++++++
 
