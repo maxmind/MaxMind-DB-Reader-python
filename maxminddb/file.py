@@ -3,18 +3,21 @@
 from __future__ import annotations
 
 import os
-from typing import overload
+from typing import TYPE_CHECKING, overload
 
 try:
     from multiprocessing import Lock
 except ImportError:
     from threading import Lock  # type: ignore[assignment]
 
+if TYPE_CHECKING:
+    from maxminddb.types import StrOrBytesPath
+
 
 class FileBuffer:
     """A slice-able file reader."""
 
-    def __init__(self, database: str) -> None:
+    def __init__(self, database: StrOrBytesPath | int) -> None:
         """Create FileBuffer."""
         self._handle = open(database, "rb")  # noqa: SIM115
         self._size = os.fstat(self._handle.fileno()).st_size

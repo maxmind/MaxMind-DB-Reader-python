@@ -49,11 +49,14 @@ second argument. The modes are available from ``maxminddb.Mode``. Valid modes ar
 * ``Mode.MEMORY`` - load database into memory. Pure Python.
 * ``Mode.FD`` - load database into memory from a binary file object. Pure Python.
 * ``Mode.AUTO`` - try ``Mode.MMAP_EXT``, ``Mode.MMAP``, ``Mode.FILE`` in that
-  order. A file object uses ``Mode.FD``. Default.
+  order. A file object is read into memory with the pure Python reader, as
+  with ``Mode.FD``. Pass a path to use the faster C extension. Default.
 
-**NOTE**: When using ``Mode.FD``, it is the *caller's* responsibility to be
+**NOTE**: When using a file object, it is the *caller's* responsibility to be
 sure that the file object gets closed properly. The caller may close the
-file object immediately after the ``Reader`` object is created.
+file object immediately after the ``Reader`` object is created. A reader
+closes a file descriptor that you pass to ``Mode.MMAP``, ``Mode.FILE`` or
+``Mode.MEMORY``.
 
 The ``open_database`` function returns a ``Reader`` object. To look up an IP
 address, use the ``get`` method on this object. The method will return the
