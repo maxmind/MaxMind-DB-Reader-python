@@ -3,9 +3,9 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import gc
+import gzip
 import io
 import ipaddress
-import mmap
 import multiprocessing
 import os
 import pathlib
@@ -1820,20 +1820,6 @@ class TestReaderInitialization(unittest.TestCase):
         self.assertEqual(records_during_load, [{"ip": "1.1.1.1"}])
         self.assertEqual(reader.metadata().database_type, "MaxMind DB Decoder Test")
 
-    def test_reinitialize_from_a_source_that_returns_the_same_mmap(self) -> None:
-        with open(_DECODER_DB, "rb") as database:
-            buffer = mmap.mmap(database.fileno(), 0, access=mmap.ACCESS_READ)
-        self.addCleanup(buffer.close)
-
-        class Source:
-            def read(self) -> mmap.mmap:
-                return buffer
-
-        reader = maxminddb.reader.Reader(Source(), MODE_FD)  # type: ignore[arg-type]
-        # A reinit must not close the buffer that it then uses.
-        reader.__init__(Source(), MODE_FD)  # type: ignore[misc]
-        self.assertIsNotNone(reader.get("::1.1.1.0"))
-
     def test_reinitialize_from_the_same_source(self) -> None:
         ipv4 = pathlib.Path(f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb")
         ipv6 = pathlib.Path(f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv6-24.mmdb")
@@ -1877,6 +1863,45 @@ class TestReaderInitialization(unittest.TestCase):
             [field.name for field in dataclasses.fields(maxminddb.reader.Metadata)],
         )
 
+    def test_auto_mode_reads_file_object_from_its_position(self) -> None:
+        data = pathlib.Path(
+            f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb",
+        ).read_bytes()
+        with tempfile.TemporaryFile() as file_object:
+            file_object.write(b"header" + data)
+            file_object.seek(len(b"header"))
+            with maxminddb.open_database(file_object, MODE_AUTO) as reader:
+                self.assertEqual(reader.get("1.1.1.1"), {"ip": "1.1.1.1"})
+
+    def test_auto_mode_reads_wrapped_and_piped_streams(self) -> None:
+        path = f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb"
+        data = pathlib.Path(path).read_bytes()
+
+        with tempfile.TemporaryDirectory() as directory:
+            gz_path = pathlib.Path(directory) / "db.mmdb.gz"
+            with gzip.open(gz_path, "wb") as compressed:
+                compressed.write(data)
+            with open(gz_path, "rb") as backing:
+                stream = io.BufferedReader(gzip.GzipFile(fileobj=backing))
+                with maxminddb.open_database(stream, MODE_AUTO) as reader:
+                    self.assertEqual(reader.get("1.1.1.1"), {"ip": "1.1.1.1"})
+                # The reader does not close the caller's stream.
+                self.assertFalse(stream.closed)
+                stream.close()
+
+        # The fixture is far smaller than the pipe buffer, so the write to the
+        # pipe does not block.
+        read_fd, write_fd = os.pipe()
+        os.write(write_fd, data)
+        os.close(write_fd)
+        pipe = os.fdopen(read_fd, "rb")
+        try:
+            with maxminddb.open_database(pipe, MODE_AUTO) as reader:
+                self.assertEqual(reader.get("1.1.1.1"), {"ip": "1.1.1.1"})
+            self.assertFalse(pipe.closed)
+        finally:
+            pipe.close()
+
     def test_auto_mode_accepts_any_database_type(self) -> None:
         path = f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb"
         data = pathlib.Path(path).read_bytes()
@@ -1914,6 +1939,105 @@ class TestReaderInitialization(unittest.TestCase):
             self.addCleanup(os.close, descriptor)
             with self.assertRaisesRegex(TypeError, r"\(int given\)"):
                 maxminddb.open_database(descriptor, MODE_AUTO)
+
+    def test_database_type_must_match_mode(self) -> None:
+        path = f"{_TEST_DATA_DIR}/MaxMind-DB-test-decoder.mmdb"
+        reader_class = maxminddb.reader.Reader
+        with self.assertRaisesRegex(TypeError, r"\(str\)\. MODE_FD takes"):
+            reader_class(path, MODE_FD)
+        with self.assertRaisesRegex(TypeError, r"\(int\)\. MODE_FD takes"):
+            reader_class(3, MODE_FD)
+        with open(path, "rb") as database:
+            for mode in (MODE_FILE, MODE_MEMORY, MODE_MMAP):
+                with (
+                    self.subTest(mode=mode),
+                    self.assertRaisesRegex(TypeError, "Use MODE_FD"),
+                ):
+                    reader_class(database, mode)
+            with self.assertRaisesRegex(ValueError, "Unsupported open mode"):
+                reader_class(database, MODE_MMAP_EXT)
+
+        for bad in (None, object()):
+            with self.assertRaisesRegex(TypeError, "Unsupported database type"):
+                reader_class(bad, MODE_AUTO)  # type: ignore[arg-type]
+
+        for mode in (MODE_AUTO, MODE_FD):
+            with (
+                self.subTest(mode=mode),
+                # The check comes before read(), which fails to decode.
+                open(path, encoding="utf-8") as text_file,
+                self.assertRaisesRegex(TypeError, "binary mode"),
+            ):
+                reader_class(text_file, mode)  # type: ignore[arg-type]
+
+        # A bool is an int, but not a file descriptor.
+        with self.assertRaisesRegex(TypeError, r"\(bool\)"):
+            reader_class(False, MODE_AUTO)  # noqa: FBT003
+        with self.assertRaisesRegex(TypeError, r"\(bool\)\. Pass a path or a file"):
+            reader_class(False, MODE_FILE)  # noqa: FBT003
+
+    def test_path_modes_accept_a_descriptor_with_index(self) -> None:
+        class Descriptor:
+            """A file descriptor object, as numpy.int64 is."""
+
+            def __init__(self, fd: int) -> None:
+                self.fd = fd
+
+            def __index__(self) -> int:
+                return self.fd
+
+        path = f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb"
+        # The reader takes ownership of the descriptor and closes it.
+        descriptor = Descriptor(os.open(path, os.O_RDONLY))
+        with maxminddb.reader.Reader(descriptor, MODE_MMAP) as reader:  # type: ignore[arg-type]
+            self.assertEqual(reader.get("1.1.1.1"), {"ip": "1.1.1.1"})
+
+        if has_maxminddb_extension():
+            # With the extension, MODE_AUTO refuses it, as it refuses an int.
+            fd = os.open(path, os.O_RDONLY)
+            self.addCleanup(os.close, fd)
+            with self.assertRaisesRegex(TypeError, r"\(Descriptor given\)"):
+                maxminddb.open_database(Descriptor(fd))  # type: ignore[arg-type]
+        # A bool gets the bool error, not advice to use MODE_MMAP.
+        with self.assertRaisesRegex(TypeError, r"\(bool\)\. Pass a path"):
+            maxminddb.open_database(False)  # noqa: FBT003
+        if has_maxminddb_extension():
+            with self.assertRaisesRegex(TypeError, r"\(bool given\)\.$"):
+                maxminddb.open_database(False, MODE_MMAP_EXT)  # noqa: FBT003
+
+    def test_fd_mode_reads_any_binary_reader(self) -> None:
+        data = pathlib.Path(
+            f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb",
+        ).read_bytes()
+
+        class FileWithPath(io.BytesIO):
+            def __fspath__(self) -> str:
+                return "does-not-exist.mmdb"
+
+        class BytearrayReader:
+            def read(self) -> bytes:
+                return bytearray(data)  # type: ignore[return-value]
+
+        for database in (FileWithPath(data), BytearrayReader()):
+            with (
+                self.subTest(type(database).__name__),
+                maxminddb.reader.Reader(database, MODE_FD) as reader,
+            ):
+                self.assertEqual(reader.get("1.1.1.1"), {"ip": "1.1.1.1"})
+
+        class NoneReader:
+            def read(self) -> None:
+                return None
+
+        with self.assertRaisesRegex(TypeError, r"returned NoneType, not bytes\.$"):
+            maxminddb.reader.Reader(NoneReader(), MODE_FD)  # type: ignore[arg-type]
+
+        class StrReader:
+            def read(self) -> str:
+                return "text"
+
+        with self.assertRaisesRegex(TypeError, r"returned str, not bytes\. Open"):
+            maxminddb.reader.Reader(StrReader(), MODE_FD)  # type: ignore[arg-type]
 
     def test_empty_search_tree_is_accepted(self) -> None:
         data = pathlib.Path(

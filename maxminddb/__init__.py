@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from importlib.metadata import version
 from typing import TYPE_CHECKING, cast
 
@@ -16,7 +15,7 @@ from .const import (
     Mode,
 )
 from .errors import InvalidDatabaseError
-from .reader import Reader
+from .reader import _PATH_TYPES, Reader
 
 if TYPE_CHECKING:
     from .types import DatabaseSource
@@ -63,7 +62,8 @@ def open_database(
               * MODE_FD - the param passed via database is a binary file
                           object, not a path. This mode implies MODE_MEMORY.
               * MODE_AUTO - tries MODE_MMAP_EXT, MODE_MMAP, MODE_FILE in that
-                          order. Uses MODE_FD for a file object. Default mode.
+                          order. Reads a file object into memory, as MODE_FD
+                          does. Default mode.
 
     """
     if mode not in (
@@ -90,14 +90,19 @@ def open_database(
     # The cast pretends the C reader is the pure Python Reader, which has the
     # same API.
     if mode in (MODE_AUTO, MODE_MMAP_EXT) and has_extension:
-        if isinstance(database, (str, bytes, os.PathLike)):
+        if isinstance(database, _PATH_TYPES):
             return cast("Reader", _extension.Reader(database, mode))
-        if mode == MODE_MMAP_EXT or isinstance(database, int):
-            msg = (
-                f"The C extension requires a path ({type(database).__name__} "
-                "given). Use MODE_FD for a file object, or MODE_MMAP for a "
-                "file descriptor."
-            )
+        # An object with __index__, such as an int, is a file descriptor.
+        # Leave a bool to the pure Python reader, which refuses it.
+        is_descriptor = not isinstance(database, bool) and hasattr(
+            type(database), "__index__"
+        )
+        if mode == MODE_MMAP_EXT or is_descriptor:
+            msg = f"The C extension requires a path ({type(database).__name__} given)."
+            if is_descriptor:
+                msg += " Use MODE_MMAP for a file descriptor."
+            elif callable(getattr(database, "read", None)):
+                msg += " Use MODE_FD for a file object."
             raise TypeError(msg)
 
     return Reader(database, mode)

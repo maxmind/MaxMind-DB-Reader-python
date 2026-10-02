@@ -8,7 +8,9 @@ except ImportError:
     mmap = None  # type: ignore[assignment]
 
 import contextlib
+import io
 import ipaddress
+import operator
 import os
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
@@ -20,15 +22,24 @@ from maxminddb.errors import InvalidDatabaseError
 from maxminddb.file import FileBuffer
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
 
     from typing_extensions import Self
 
-    from maxminddb.types import DatabaseSource, Record, RecordDict
+    from maxminddb.types import (
+        DatabaseSource,
+        Record,
+        RecordDict,
+        StrOrBytesPath,
+    )
 
 _IPV4_MAX_NUM = 2**32
 _REOPENED = "Attempt to iterate over a reopened MaxMind DB. Create a new iterator."
 _CLOSED = "Attempt to iterate over a closed MaxMind DB."
+# The path types, which the C extension also accepts.
+_PATH_TYPES = (str, bytes, os.PathLike)
+# The database types that the path modes pass to open().
+_PATH_OR_FD_TYPES = (*_PATH_TYPES, int)
 
 
 class Reader:
@@ -40,7 +51,7 @@ class Reader:
     _DATA_SECTION_SEPARATOR_SIZE = 16
     _METADATA_START_MARKER = b"\xab\xcd\xefMaxMind.com"
 
-    _buffer: bytes | FileBuffer | "mmap.mmap"  # noqa: UP037
+    _buffer: bytes | bytearray | FileBuffer | "mmap.mmap"  # noqa: UP037
     _buffer_size: int
     # No database is open until __init__ succeeds.
     closed: bool = True
@@ -72,8 +83,9 @@ class Reader:
                   * MODE_MMAP - read from memory map.
                   * MODE_FILE - read database as standard file.
                   * MODE_MEMORY - load database into memory.
-                  * MODE_AUTO - tries MODE_MMAP and then MODE_FILE. Uses
-                                MODE_FD for a file object. Default.
+                  * MODE_AUTO - tries MODE_MMAP and then MODE_FILE. Reads a
+                                file object into memory, as MODE_FD does.
+                                Default.
                   * MODE_FD - the param passed via database is a binary file
                               object, not a path. This mode implies MODE_MEMORY.
 
@@ -349,38 +361,9 @@ class Reader:
         self,
         database: DatabaseSource,
         mode: int = MODE_AUTO,
-    ) -> str:
-        # MODE_AUTO reads a file object as MODE_FD does. A path wins over
-        # read(), because some path objects also have a text read().
-        if mode == MODE_AUTO and not isinstance(
-            database, (str, bytes, int, os.PathLike)
-        ):
-            mode = MODE_FD
-        filename: Any
-        if (mode == MODE_AUTO and mmap) or mode == MODE_MMAP:
-            with open(database, "rb") as db_file:  # type: ignore[arg-type]
-                self._buffer = mmap.mmap(db_file.fileno(), 0, access=mmap.ACCESS_READ)
-                self._buffer_size = self._buffer.size()
-            filename = database
-        elif mode in (MODE_AUTO, MODE_FILE):
-            self._buffer = FileBuffer(database)  # type: ignore[arg-type]
-            self._buffer_size = self._buffer.size()
-            filename = database
-        elif mode == MODE_MEMORY:
-            with open(database, "rb") as db_file:  # type: ignore[arg-type]
-                buf = db_file.read()
-                self._buffer = buf
-                self._buffer_size = len(buf)
-            filename = database
-        elif mode == MODE_FD:
-            self._buffer = database.read()  # type: ignore[union-attr]
-            self._buffer_size = len(self._buffer)  # type: ignore[arg-type]
-            # io buffers are not guaranteed to have a name attribute
-            if hasattr(database, "name"):
-                filename = database.name  # type: ignore[union-attr]
-            else:
-                filename = f"<{type(database)}>"
-        else:
+    ) -> object:
+        """Load the database and return a name for it in error messages."""
+        if mode not in (MODE_AUTO, MODE_FD, MODE_FILE, MODE_MEMORY, MODE_MMAP):
             msg = (
                 f"Unsupported open mode ({mode}). Only MODE_AUTO, MODE_FILE, "
                 "MODE_MEMORY and MODE_FD are supported by the pure Python "
@@ -390,7 +373,71 @@ class Reader:
                 msg,
             )
 
-        return filename
+        # bool is an int, but it is never a file descriptor.
+        if mode != MODE_FD and not isinstance(database, bool):
+            # open() also takes an object with __index__, such as numpy.int64,
+            # as a file descriptor.
+            if not isinstance(database, _PATH_OR_FD_TYPES) and hasattr(
+                type(database), "__index__"
+            ):
+                database = operator.index(database)  # type: ignore[arg-type]
+            # A path wins over read(), because some path objects also have a
+            # text read(). MODE_FD reads any object with read().
+            if isinstance(database, _PATH_OR_FD_TYPES):
+                return self._load_path(database, mode)
+        # MODE_AUTO reads a file object into memory, as MODE_FD does.
+        read = getattr(database, "read", None)
+        if mode in (MODE_AUTO, MODE_FD) and callable(read):
+            return self._load_file_object(database, read)
+        if mode == MODE_AUTO:
+            hint = "Pass a path or a binary file object."
+        elif mode == MODE_FD:
+            hint = (
+                "MODE_FD takes a binary file object. Use MODE_MMAP, MODE_FILE "
+                "or MODE_MEMORY for a path or a file descriptor."
+            )
+        else:
+            hint = "Pass a path or a file descriptor. Use MODE_FD for a file object."
+        msg = f"Unsupported database type ({type(database).__name__}). {hint}"
+        raise TypeError(msg)
+
+    def _load_path(self, database: StrOrBytesPath | int, mode: int) -> object:
+        """Memory-map or read a path or file descriptor."""
+        if (mode == MODE_AUTO and mmap) or mode == MODE_MMAP:
+            with open(database, "rb") as db_file:
+                self._buffer = mmap.mmap(db_file.fileno(), 0, access=mmap.ACCESS_READ)
+                self._buffer_size = self._buffer.size()
+        elif mode in (MODE_AUTO, MODE_FILE):
+            self._buffer = FileBuffer(database)
+            self._buffer_size = self._buffer.size()
+        else:
+            with open(database, "rb") as db_file:
+                buf = db_file.read()
+                self._buffer = buf
+                self._buffer_size = len(buf)
+        return database
+
+    def _load_file_object(self, database: object, read: Callable[[], object]) -> object:
+        """Read a binary file object into memory."""
+        # A text file can fail to decode inside read(), so check it first.
+        if isinstance(database, io.TextIOBase):
+            msg = (
+                f"The database file object is a text file "
+                f"({type(database).__name__}). Open it in binary mode."
+            )
+            raise TypeError(msg)
+        buf = read()
+        if not isinstance(buf, (bytes, bytearray)):
+            msg = f"The database file object returned {type(buf).__name__}, not bytes."
+            if isinstance(buf, str):
+                msg += " Open it in binary mode."
+            raise TypeError(msg)
+        self._buffer = buf
+        self._buffer_size = len(buf)
+        # io buffers are not guaranteed to have a name attribute
+        if hasattr(database, "name"):
+            return database.name
+        return f"<{type(database)}>"
 
     def close(self) -> None:
         """Close the MaxMind DB file and returns the resources to the system.
