@@ -106,6 +106,33 @@ _METADATA_UINT_TYPES = {"build_epoch": 9, "node_count": 6}
 _UINT16_TYPE = 5
 
 
+def _database(records: tuple[int, ...], *, ip_version: int) -> bytes:
+    """Return a database with a 24-bit search tree and one data record.
+
+    The tree has two records per node, and a record of node_count + 16 points
+    at the data record, the string "net".
+    """
+    metadata = {
+        "binary_format_major_version": 2,
+        "binary_format_minor_version": 0,
+        "build_epoch": 1,
+        "database_type": "Test",
+        "description": {"en": "Test"},
+        "ip_version": ip_version,
+        "languages": ["en"],
+        "node_count": len(records) // 2,
+        "record_size": 24,
+    }
+    tree = b"".join(record.to_bytes(3, "big") for record in records)
+    return (
+        tree
+        + bytes(16)
+        + _encode_value("net")
+        + _METADATA_START_MARKER
+        + _encode_value(metadata)
+    )
+
+
 def _database_with_metadata(**changes: object) -> bytes:
     """Return the decoder test database with changed metadata.
 
@@ -720,6 +747,36 @@ class BaseTestReader(unittest.TestCase):
             iterator = iter(reader)
             list(iterator)
         self.assertEqual(next(iterator, "done"), "done")
+
+    def test_search_node_at_full_depth_is_rejected(self) -> None:
+        # Nodes 0 to 32 form a left spine, so node 32 is a search node at
+        # depth 32, which an IPv4 tree cannot have.
+        data = 33 + 16
+        records = [record for i in range(32) for record in (i + 1, data)]
+        records += [data, data]
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "too-deep.mmdb"
+            path.write_bytes(_database(tuple(records), ip_version=4))
+            with (
+                open_database(str(path), self.mode) as reader,
+                self.assertRaisesRegex(InvalidDatabaseError, "search tree is corrupt"),
+            ):
+                list(reader)
+
+    def test_cyclic_search_tree_is_rejected(self) -> None:
+        data = bytearray(
+            pathlib.Path(f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb").read_bytes(),
+        )
+        # Point the left record of node 1 back at node 1.
+        data[6:9] = b"\x00\x00\x01"
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "cyclic.mmdb"
+            path.write_bytes(data)
+            with (
+                open_database(str(path), self.mode) as reader,
+                self.assertRaisesRegex(InvalidDatabaseError, "search tree is corrupt"),
+            ):
+                list(reader)
 
     def test_ip_validation(self) -> None:
         reader = open_database(
