@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 _IPV4_MAX_NUM = 2**32
 _REOPENED = "Attempt to iterate over a reopened MaxMind DB. Create a new iterator."
 _CLOSED = "Attempt to iterate over a closed MaxMind DB."
+_CORRUPT_TREE = "The MaxMind DB file's search tree is corrupt"
 
 
 class Reader:
@@ -241,8 +242,8 @@ class Reader:
             return
 
         node_count = self._metadata.node_count
+        bits = 128 if self._metadata.ip_version == 6 else 32
         if node > node_count:
-            bits = 128 if self._metadata.ip_version == 6 else 32
             ip_acc <<= bits - depth
             if ip_acc <= _IPV4_MAX_NUM and bits == 128:
                 depth -= 96
@@ -253,6 +254,10 @@ class Reader:
                 ),
             )
         elif node < node_count:
+            # A node at the full address depth has no valid children. Only a
+            # corrupt tree, such as one with a cycle, has one.
+            if depth >= bits:
+                raise InvalidDatabaseError(_CORRUPT_TREE)
             left = self._read_node(node, 0)
             ip_acc <<= 1
             depth += 1
@@ -310,8 +315,7 @@ class Reader:
         resolved = pointer - self._metadata.node_count + self._metadata.search_tree_size
 
         if resolved >= self._buffer_size:
-            msg = "The MaxMind DB file's search tree is corrupt"
-            raise InvalidDatabaseError(msg)
+            raise InvalidDatabaseError(_CORRUPT_TREE)
 
         (data, _) = self._decoder.decode(resolved)
         return data

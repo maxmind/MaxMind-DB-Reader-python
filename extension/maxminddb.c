@@ -979,6 +979,18 @@ static PyObject *reader_iter_next(PyObject *self) {
                     // These are aliased networks. Skip them.
                     break;
                 }
+                // Only a corrupt tree, such as one with a cycle, has a node at
+                // the full address depth. Without this check, an IPv4 tree
+                // gives a network longer than /32, and a cycle in either tree
+                // writes past the end of ip_packed at depth 128.
+                if (cur->depth >= ri->reader->mmdb->depth) {
+                    reader_release_read_lock(ri->reader);
+                    PyErr_SetString(
+                        state->MaxMindDB_error,
+                        MMDB_strerror(MMDB_CORRUPT_SEARCH_TREE_ERROR));
+                    free(cur);
+                    return NULL;
+                }
                 MMDB_search_node_s node;
                 int status = MMDB_read_node(
                     ri->reader->mmdb, (uint32_t)cur->record, &node);
