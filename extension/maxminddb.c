@@ -712,14 +712,21 @@ static PyObject *Reader__enter__(PyObject *self, PyObject *UNUSED(args)) {
 }
 
 static PyObject *Reader__exit__(PyObject *self, PyObject *UNUSED(args)) {
-    Reader_close(self, NULL);
-    Py_RETURN_NONE;
+    return Reader_close(self, NULL);
 }
 
 static void Reader_dealloc(PyObject *self) {
     Reader_obj *obj = (Reader_obj *)self;
     if (obj->mmdb != NULL) {
-        Reader_close(self, NULL);
+        PyObject *result = Reader_close(self, NULL);
+        if (result == NULL) {
+            // dealloc cannot raise, so report the error and continue. Pass
+            // NULL, because the hook would take a reference to self, whose
+            // count is already 0.
+            PyErr_WriteUnraisable(NULL);
+        } else {
+            Py_DECREF(result);
+        }
     }
 
     reader_lock_destroy(&obj->rwlock);
