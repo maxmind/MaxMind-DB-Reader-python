@@ -12,6 +12,7 @@ History
     the internal iterator type.
   * Fixed a segmentation fault on a database with a map key that is not a
     string. Such a database now raises ``InvalidDatabaseError``.
+  * Fixed large ``uint32`` values, which came back negative on Windows.
   * Fixed memory leaks and a use-after-free. Reinitializing a ``Reader`` or a
     ``Metadata`` now raises ``ValueError``.
 
