@@ -402,7 +402,7 @@ class Reader:
         # io buffers are not guaranteed to have a name attribute
         if hasattr(database, "name"):
             return database.name
-        return f"<{type(database)}>"
+        return f"<{type(database).__name__}>"
 
     def close(self) -> None:
         """Close the MaxMind DB file and returns the resources to the system.
