@@ -35,6 +35,14 @@ Database Reader
     :undoc-members:
     :show-inheritance:
 
+=====
+Types
+=====
+
+.. automodule:: maxminddb.types
+    :members:
+    :undoc-members:
+
 ==================
 Indices and tables
 ==================
