@@ -88,6 +88,8 @@ typedef struct {
     Reader_obj *reader;
     struct record *next;
     uint64_t generation;
+    // Set once next() has raised StopIteration.
+    bool done;
 } ReaderIter_obj;
 
 typedef struct {
@@ -852,6 +854,9 @@ static PyObject *ReaderIter_next(PyObject *self) {
     Py_BEGIN_CRITICAL_SECTION(self);
 #endif
     result = reader_iter_next(self);
+    if (result == NULL && !PyErr_Occurred()) {
+        ((ReaderIter_obj *)self)->done = true;
+    }
 #ifdef Py_GIL_DISABLED
     Py_END_CRITICAL_SECTION();
 #endif
@@ -865,6 +870,14 @@ static PyObject *reader_iter_next(PyObject *self) {
     }
 
     ReaderIter_obj *ri = (ReaderIter_obj *)self;
+
+    // An exhausted iterator stays exhausted, even after the reader closes.
+    // The list of pending records cannot show this: it is already empty when
+    // the last record is returned, and the next call must still report a
+    // closed or reopened reader, as the pure Python iterator does.
+    if (ri->done) {
+        return NULL;
+    }
 
     if (reader_acquire_read_lock(ri->reader) != 0) {
         return NULL;
