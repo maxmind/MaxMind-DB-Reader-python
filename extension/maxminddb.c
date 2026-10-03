@@ -130,6 +130,7 @@ static inline maxminddb_state *get_maxminddb_state_from_self(PyObject *self) {
 static bool can_read(const char *path);
 static int get_record(PyObject *self, PyObject *args, PyObject **record);
 static PyObject *reader_iter_next(PyObject *self);
+static void free_records(struct record *next);
 static bool format_sockaddr(struct sockaddr *addr, char *dst);
 static PyObject *from_entry_data_list(maxminddb_state *state,
                                       MMDB_entry_data_list_s **entry_data_list);
@@ -847,6 +848,12 @@ static PyObject *ReaderIter_next(PyObject *self) {
     Py_BEGIN_CRITICAL_SECTION(self);
 #endif
     result = reader_iter_next(self);
+    // Stop after an error, as a generator does.
+    if (result == NULL && PyErr_Occurred()) {
+        ReaderIter_obj *ri = (ReaderIter_obj *)self;
+        free_records(ri->next);
+        ri->next = NULL;
+    }
 #ifdef Py_GIL_DISABLED
     Py_END_CRITICAL_SECTION();
 #endif
@@ -1041,17 +1048,20 @@ static PyObject *reader_iter_next(PyObject *self) {
     return NULL;
 }
 
-static void ReaderIter_dealloc(PyObject *self) {
-    ReaderIter_obj *ri = (ReaderIter_obj *)self;
-
-    Py_DECREF(ri->reader);
-
-    struct record *next = ri->next;
+static void free_records(struct record *next) {
     while (next != NULL) {
         struct record *cur = next;
         next = cur->next;
         free(cur);
     }
+}
+
+static void ReaderIter_dealloc(PyObject *self) {
+    ReaderIter_obj *ri = (ReaderIter_obj *)self;
+
+    Py_DECREF(ri->reader);
+
+    free_records(ri->next);
     PyTypeObject *type = Py_TYPE(self);
     PyObject_Del(self);
     Py_DECREF(type);
