@@ -798,6 +798,62 @@ class BaseTestReader(unittest.TestCase):
             ):
                 list(reader)
 
+    def test_record_that_points_to_the_root_is_rejected(self) -> None:
+        # Node 1's right record points back to the root. The left records point
+        # at data, so a walk through the root again would yield networks that
+        # the tree does not have, such as 192.0.0.0/3.
+        records = (18, 1, 18, 0)
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "root-record.mmdb"
+            path.write_bytes(_database(records, ip_version=4))
+            with open_database(str(path), self.mode) as reader:
+                seen: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+                with self.assertRaisesRegex(
+                    InvalidDatabaseError,
+                    "search tree is corrupt",
+                ):
+                    for network, _ in reader:
+                        seen.append(network)
+                valid = {
+                    ipaddress.ip_network("0.0.0.0/1"),
+                    ipaddress.ip_network("128.0.0.0/2"),
+                }
+                self.assertLessEqual(set(seen), valid)
+                # Both readers yield node 0's left record before node 1.
+                self.assertIn(ipaddress.ip_network("0.0.0.0/1"), seen)
+
+    def test_iterate_ipv6_networks_shorter_than_96_bits(self) -> None:
+        # One node whose two records point at the same data record, so the
+        # tree holds ::/1 and 8000::/1.
+        records = (17, 17)
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "short-ipv6.mmdb"
+            path.write_bytes(_database(records, ip_version=6))
+            with open_database(str(path), self.mode) as reader:
+                self.assertEqual(
+                    list(reader),
+                    [
+                        (ipaddress.ip_network("::/1"), "net"),
+                        (ipaddress.ip_network("8000::/1"), "net"),
+                    ],
+                )
+
+    def test_iterate_ipv6_network_just_above_ipv4(self) -> None:
+        # A left spine of 96 nodes whose last right record is data holds only
+        # ::1:0:0/96. The first 96 bits are not all zero, so it is IPv6.
+        empty = 96
+        data = empty + 16
+        records = [record for i in range(95) for record in (i + 1, empty)]
+        records += [empty, data]
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "ipv6-above-ipv4.mmdb"
+            path.write_bytes(_database(tuple(records), ip_version=6))
+            with open_database(str(path), self.mode) as reader:
+                self.assertEqual(
+                    [network for network, _ in reader],
+                    [ipaddress.ip_network("::1:0:0/96")],
+                )
+
     def test_cyclic_search_tree_is_rejected(self) -> None:
         data = bytearray(
             pathlib.Path(f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb").read_bytes(),
@@ -816,6 +872,31 @@ class BaseTestReader(unittest.TestCase):
                     list(iterator)
                 # The iterator stops after an error, as a generator does.
                 self.assertEqual(next(iterator, "done"), "done")
+
+        # A record that points back to the root of an IPv4 tree.
+        broken = f"{_TEST_DATA_DIR}/MaxMind-DB-test-broken-search-tree-24.mmdb"
+        with (
+            open_database(broken, self.mode) as reader,
+            self.assertRaisesRegex(InvalidDatabaseError, "search tree is corrupt"),
+        ):
+            list(reader)
+
+        # A record in the IPv4 subtree of an IPv6 tree that points back to the
+        # IPv4 start node, 96.
+        mixed = bytearray(
+            pathlib.Path(
+                f"{_TEST_DATA_DIR}/MaxMind-DB-test-mixed-24.mmdb"
+            ).read_bytes(),
+        )
+        mixed[240 * 6 : 240 * 6 + 3] = (96).to_bytes(3, "big")
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "ipv4-cycle.mmdb"
+            path.write_bytes(mixed)
+            with (
+                open_database(str(path), self.mode) as reader,
+                self.assertRaisesRegex(InvalidDatabaseError, "search tree is corrupt"),
+            ):
+                list(reader)
 
     def test_ip_validation(self) -> None:
         reader = open_database(
