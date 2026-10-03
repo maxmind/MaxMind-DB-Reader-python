@@ -45,6 +45,8 @@ class Reader:
     _metadata: Metadata
     _record_size: int
     _ipv4_start: int
+    _search_tree_size: int
+    _data_start: int
 
     def __init__(
         self,
@@ -118,6 +120,11 @@ class Reader:
             self._decoder = Decoder(
                 self._buffer,
                 self._metadata.search_tree_size + self._DATA_SECTION_SEPARATOR_SIZE,
+            )
+            # _resolve_data_pointer uses these on every lookup.
+            self._search_tree_size = self._metadata.search_tree_size
+            self._data_start = (
+                self._search_tree_size + self._DATA_SECTION_SEPARATOR_SIZE
             )
             self.closed = False
 
@@ -283,9 +290,11 @@ class Reader:
         raise InvalidDatabaseError(msg)
 
     def _resolve_data_pointer(self, pointer: int) -> Record:
-        resolved = pointer - self._metadata.node_count + self._metadata.search_tree_size
+        resolved = pointer - self._metadata.node_count + self._search_tree_size
 
-        if resolved >= self._buffer_size:
+        # A pointer into the separator between the tree and the data section
+        # is as corrupt as one past the end, as libmaxminddb checks.
+        if resolved < self._data_start or resolved >= self._buffer_size:
             msg = "The MaxMind DB file's search tree is corrupt"
             raise InvalidDatabaseError(msg)
 
