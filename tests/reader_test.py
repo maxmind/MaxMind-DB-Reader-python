@@ -619,11 +619,15 @@ class BaseTestReader(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = pathlib.Path(directory) / "cyclic.mmdb"
             path.write_bytes(data)
-            with (
-                open_database(str(path), self.mode) as reader,
-                self.assertRaisesRegex(InvalidDatabaseError, "search tree is corrupt"),
-            ):
-                list(reader)
+            with open_database(str(path), self.mode) as reader:
+                iterator = iter(reader)
+                with self.assertRaisesRegex(
+                    InvalidDatabaseError,
+                    "search tree is corrupt",
+                ):
+                    list(iterator)
+                # The iterator stops after an error, as a generator does.
+                self.assertEqual(next(iterator, "done"), "done")
 
     def test_ip_validation(self) -> None:
         reader = open_database(

@@ -26,6 +26,8 @@ History
     iterator.
   * An exhausted iterator now raises ``StopIteration`` after its ``Reader``
     closes, not ``ValueError``.
+  * The iterator now stops after it raises an error, as the pure Python
+    iterator does.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++
