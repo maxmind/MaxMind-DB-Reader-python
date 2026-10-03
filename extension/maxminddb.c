@@ -861,6 +861,11 @@ static PyObject *reader_iter_next(PyObject *self) {
 
     ReaderIter_obj *ri = (ReaderIter_obj *)self;
 
+    // An exhausted iterator stays exhausted, even after the reader closes.
+    if (ri->next == NULL) {
+        return NULL;
+    }
+
     if (reader_acquire_read_lock(ri->reader) != 0) {
         return NULL;
     }

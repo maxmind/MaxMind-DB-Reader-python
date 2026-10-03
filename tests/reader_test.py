@@ -712,6 +712,15 @@ class BaseTestReader(unittest.TestCase):
                     ):
                         pass
 
+    def test_exhausted_iterator_stops_after_close(self) -> None:
+        with open_database(
+            f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb",
+            self.mode,
+        ) as reader:
+            iterator = iter(reader)
+            list(iterator)
+        self.assertEqual(next(iterator, "done"), "done")
+
     def test_ip_validation(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
