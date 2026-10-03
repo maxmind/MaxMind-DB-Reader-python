@@ -12,6 +12,8 @@ History
     the internal iterator type.
   * Fixed a segmentation fault on a database with a map key that is not a
     string. Such a database now raises ``InvalidDatabaseError``.
+  * Fixed large ``uint32`` values, which came back negative on platforms
+    with a 32-bit C ``long``, such as Windows.
   * Fixed memory leaks and a use-after-free. A second ``__init__`` on a
     ``Reader`` now closes the old database, and an iterator from before it
     raises ``ValueError``. Reinitializing a ``Metadata`` now raises

@@ -523,6 +523,15 @@ class BaseTestReader(unittest.TestCase):
         self.assertEqual(1329227995784915872903807060280344576, record["uint128"])
         reader.close()
 
+    def test_decoder_maximum_values(self) -> None:
+        with open_database(_DECODER_DB, self.mode) as reader:
+            record = cast("dict", reader.get(self.ipf("::255.255.255.255")))
+        # A C long has 32 bits on Windows, where a signed conversion would make
+        # the uint32 negative.
+        self.assertEqual(record["uint32"], 2**32 - 1)
+        self.assertEqual(record["uint64"], 2**64 - 1)
+        self.assertEqual(record["uint128"], 2**128 - 1)
+
     def test_metadata_pointers(self) -> None:
         with open_database(
             "tests/data/test-data/MaxMind-DB-test-metadata-pointers.mmdb",
