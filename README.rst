@@ -39,7 +39,7 @@ provide `free GeoLite databases
 files must be decompressed with ``gunzip``.
 
 After you have obtained a database and imported the module, call
-``open_database`` with a path, or file descriptor (in the case of ``Mode.FD``),
+``open_database`` with a path, or binary file object (with ``Mode.FD`` or ``Mode.AUTO``),
 to the database as the first argument. Optionally, you may pass a mode as the
 second argument. The modes are available from ``maxminddb.Mode``. Valid modes are:
 
@@ -47,13 +47,14 @@ second argument. The modes are available from ``maxminddb.Mode``. Valid modes ar
 * ``Mode.MMAP`` - read from memory map. Pure Python.
 * ``Mode.FILE`` - read database as standard file. Pure Python.
 * ``Mode.MEMORY`` - load database into memory. Pure Python.
-* ``Mode.FD`` - load database into memory from a file descriptor. Pure Python.
+* ``Mode.FD`` - load database into memory from a binary file object. Pure Python.
 * ``Mode.AUTO`` - try ``Mode.MMAP_EXT``, ``Mode.MMAP``, ``Mode.FILE`` in that
-  order. Default.
+  order. A file object is read into memory with the pure Python reader, as
+  with ``Mode.FD``. Pass a path to use the faster C extension. Default.
 
-**NOTE**: When using ``Mode.FD``, it is the *caller's* responsibility to be
-sure that the file descriptor gets closed properly. The caller may close the
-file descriptor immediately after the ``Reader`` object is created.
+**NOTE**: When using a file object, it is the *caller's* responsibility to be
+sure that the file object gets closed properly. The caller may close the
+file object immediately after the ``Reader`` object is created.
 
 The ``open_database`` function returns a ``Reader`` object. To look up an IP
 address, use the ``get`` method on this object. The method will return the

@@ -66,6 +66,13 @@ History
     such as a ``gzip.GzipFile``. ``maxminddb.types.SupportsRead`` describes
     this type.
 
+* ``MODE_AUTO`` now accepts a binary file object. Previously, it raised
+  ``TypeError``. It reads the file object into memory with the pure Python
+  reader, as ``MODE_FD`` does. The C extension needs a path, so lookups are
+  slower than with a path when the extension is installed.
+* The pure Python reader raises ``TypeError`` when the database argument does
+  not suit the mode.
+
 3.2.0 (2026-09-10)
 ++++++++++++++++++
 
