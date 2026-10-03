@@ -67,6 +67,8 @@ typedef struct Reader_obj_struct {
     MMDB_s *mmdb;
     PyObject *closed;
     reader_rwlock_t rwlock;
+    // Incremented on each open, so an iterator can detect a reopen.
+    uint64_t generation;
 } Reader_obj;
 
 typedef struct record record;
@@ -83,6 +85,7 @@ typedef struct {
     PyObject_HEAD /* no semicolon */
     Reader_obj *reader;
     struct record *next;
+    uint64_t generation;
 } ReaderIter_obj;
 
 typedef struct {
@@ -308,6 +311,16 @@ static void reader_release_write_lock(Reader_obj *reader) {
 // Reader implementation
 // =============================================================================
 
+// The caller holds the write lock, or is the only user of the reader.
+static void reader_close_database(Reader_obj *reader) {
+    if (reader->mmdb != NULL) {
+        MMDB_close(reader->mmdb);
+        free(reader->mmdb);
+        reader->mmdb = NULL;
+    }
+    reader->closed = Py_True;
+}
+
 static PyObject *
 Reader_new(PyTypeObject *type, PyObject *UNUSED(args), PyObject *UNUSED(kwds)) {
     PyObject *self = type->tp_alloc(type, 0);
@@ -379,16 +392,20 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
     }
 
     Reader_obj *mmdb_obj = (Reader_obj *)self;
-    if (!mmdb_obj) {
+    if (reader_acquire_write_lock(mmdb_obj) != 0) {
         Py_XDECREF(filepath);
         free(mmdb);
-        PyErr_NoMemory();
         return -1;
     }
+
+    // A second init reopens the reader, as in the pure Python reader. Close
+    // the old database first. A failed open then leaves the reader closed.
+    reader_close_database(mmdb_obj);
 
     int const status = MMDB_open(filename, MMDB_MODE_MMAP, mmdb);
 
     if (status != MMDB_SUCCESS) {
+        reader_release_write_lock(mmdb_obj);
         free(mmdb);
         PyErr_Format(state->MaxMindDB_error,
                      "Error opening database file (%s). Is this a valid "
@@ -398,10 +415,15 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
         return -1;
     }
 
-    Py_XDECREF(filepath);
-
     mmdb_obj->mmdb = mmdb;
     mmdb_obj->closed = Py_False;
+    // Stop the iterators of the old database. Their records point into it.
+    mmdb_obj->generation++;
+    reader_release_write_lock(mmdb_obj);
+
+    // Release the path only after the lock. filepath can be a bytes subclass
+    // from __fspath__, so its finalizer can run code that uses the reader.
+    Py_XDECREF(filepath);
     return 0;
 }
 
@@ -681,13 +703,7 @@ static PyObject *Reader_close(PyObject *self, PyObject *UNUSED(args)) {
         return NULL;
     }
 
-    if (mmdb_obj->mmdb != NULL) {
-        MMDB_close(mmdb_obj->mmdb);
-        free(mmdb_obj->mmdb);
-        mmdb_obj->mmdb = NULL;
-    }
-
-    mmdb_obj->closed = Py_True;
+    reader_close_database(mmdb_obj);
 
     reader_release_write_lock(mmdb_obj);
 
@@ -727,7 +743,10 @@ static void Reader_dealloc(PyObject *self) {
 
     reader_lock_destroy(&obj->rwlock);
 
+    // An instance of a heap type holds a reference to its type.
+    PyTypeObject *type = Py_TYPE(self);
     PyObject_Del(self);
+    Py_DECREF(type);
 }
 
 static PyObject *Reader_iter(PyObject *obj) {
@@ -749,6 +768,7 @@ static PyObject *Reader_iter(PyObject *obj) {
         return NULL;
     }
 
+    uint64_t const generation = reader->generation;
     reader_release_read_lock(reader);
 
     ReaderIter_obj *ri = (ReaderIter_obj *)PyType_GenericAlloc(
@@ -759,6 +779,7 @@ static PyObject *Reader_iter(PyObject *obj) {
 
     ri->reader = reader;
     Py_INCREF(reader);
+    ri->generation = generation;
 
     // Currently, we are always starting from the 0 node with the 0 IP
     ri->next = calloc(1, sizeof(record));
@@ -796,6 +817,14 @@ static PyObject *ReaderIter_next(PyObject *self) {
         reader_release_read_lock(ri->reader);
         PyErr_SetString(PyExc_ValueError,
                         "Attempt to iterate over a closed MaxMind DB.");
+        return NULL;
+    }
+
+    if (ri->generation != ri->reader->generation) {
+        reader_release_read_lock(ri->reader);
+        PyErr_SetString(PyExc_ValueError,
+                        "Attempt to iterate over a reopened MaxMind DB. "
+                        "Create a new iterator.");
         return NULL;
     }
 
@@ -965,7 +994,9 @@ static void ReaderIter_dealloc(PyObject *self) {
         next = cur->next;
         free(cur);
     }
+    PyTypeObject *type = Py_TYPE(self);
     PyObject_Del(self);
+    Py_DECREF(type);
 }
 
 static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds) {
@@ -1003,27 +1034,35 @@ static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds) {
 
     Metadata_obj *obj = (Metadata_obj *)self;
 
-    obj->binary_format_major_version = binary_format_major_version;
-    obj->binary_format_minor_version = binary_format_minor_version;
-    obj->build_epoch = build_epoch;
-    obj->database_type = database_type;
-    obj->description = description;
-    obj->ip_version = ip_version;
-    obj->languages = languages;
-    obj->node_count = node_count;
-    obj->record_size = record_size;
+    // Refuse a second init, as Reader_init does. Replacing a field would leak
+    // the old value or free it while a getter uses it. On free-threaded
+    // builds, the critical section makes the check and the stores atomic.
+    int status = 0;
+#ifdef Py_GIL_DISABLED
+    Py_BEGIN_CRITICAL_SECTION(self);
+#endif
+    if (obj->binary_format_major_version != NULL) {
+        PyErr_SetString(PyExc_ValueError,
+                        "Attempt to reinitialize a MaxMind DB Metadata.");
+        status = -1;
+    } else {
+        obj->binary_format_major_version =
+            Py_NewRef(binary_format_major_version);
+        obj->binary_format_minor_version =
+            Py_NewRef(binary_format_minor_version);
+        obj->build_epoch = Py_NewRef(build_epoch);
+        obj->database_type = Py_NewRef(database_type);
+        obj->description = Py_NewRef(description);
+        obj->ip_version = Py_NewRef(ip_version);
+        obj->languages = Py_NewRef(languages);
+        obj->node_count = Py_NewRef(node_count);
+        obj->record_size = Py_NewRef(record_size);
+    }
+#ifdef Py_GIL_DISABLED
+    Py_END_CRITICAL_SECTION();
+#endif
 
-    Py_INCREF(obj->binary_format_major_version);
-    Py_INCREF(obj->binary_format_minor_version);
-    Py_INCREF(obj->build_epoch);
-    Py_INCREF(obj->database_type);
-    Py_INCREF(obj->description);
-    Py_INCREF(obj->ip_version);
-    Py_INCREF(obj->languages);
-    Py_INCREF(obj->node_count);
-    Py_INCREF(obj->record_size);
-
-    return 0;
+    return status;
 }
 
 static void Metadata_dealloc(PyObject *self) {
@@ -1037,7 +1076,9 @@ static void Metadata_dealloc(PyObject *self) {
     Py_XDECREF(obj->languages);
     Py_XDECREF(obj->node_count);
     Py_XDECREF(obj->record_size);
+    PyTypeObject *type = Py_TYPE(self);
     PyObject_Del(self);
+    Py_DECREF(type);
 }
 
 static PyObject *

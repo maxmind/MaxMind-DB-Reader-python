@@ -6,11 +6,14 @@ import ipaddress
 import multiprocessing
 import os
 import pathlib
+import subprocess
 import sys
+import sysconfig
 import tempfile
+import textwrap
 import threading
 import unittest
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 from unittest import mock
 
 import maxminddb
@@ -987,6 +990,104 @@ class TestExtensionObjects(unittest.TestCase):
         reader = reader_class.__new__(reader_class)
         with self.assertRaisesRegex(ValueError, "closed MaxMind DB"):
             reader.__enter__()
+
+    def test_reinitialize_reader_reopens_it(self) -> None:
+        reader = maxminddb.extension.Reader(
+            f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb",
+        )
+        self.addCleanup(reader.close)
+        iterator = iter(reader)
+        next(iterator)
+        reader.__init__(_DECODER_DB)  # type: ignore[misc]
+        self.assertEqual(reader.metadata().database_type, "MaxMind DB Decoder Test")
+        # The records of the iterator point into the old database.
+        with self.assertRaisesRegex(ValueError, "reopened MaxMind DB"):
+            next(iterator)
+
+        reader.close()
+        reader.__init__(_DECODER_DB)  # type: ignore[misc]
+        self.assertFalse(reader.closed)
+        self.assertIsNotNone(reader.get("::1.1.1.0"))
+
+    def test_path_finalizer_can_close_the_reader(self) -> None:
+        # A bytes subclass from __fspath__ can run code when init releases
+        # it. If init still held the write lock, a close() on another thread
+        # would wait for it forever on free-threaded Python. Run in a
+        # subprocess with a timeout.
+        program = textwrap.dedent(
+            """
+            import sys
+            import threading
+
+            from maxminddb.extension import Reader
+
+            reader = Reader.__new__(Reader)
+
+            class FinalizingBytes(bytes):
+                def __del__(self):
+                    worker = threading.Thread(target=reader.close)
+                    worker.start()
+                    worker.join()
+
+            class Path:
+                def __fspath__(self):
+                    return FinalizingBytes(sys.argv[1].encode())
+
+            reader.__init__(Path())
+            if not reader.closed:
+                sys.exit("the finalizer did not close the reader")
+            print("ok")
+            """,
+        )
+        # Put this process's maxminddb first, and keep the harness's paths.
+        paths = [str(pathlib.Path(maxminddb.__file__).parent.parent)]
+        if os.environ.get("PYTHONPATH"):
+            paths.append(os.environ["PYTHONPATH"])
+        env = {**os.environ, "PYTHONPATH": os.pathsep.join(paths)}
+        path = pathlib.Path(_DECODER_DB).resolve()
+        with tempfile.TemporaryDirectory() as directory:
+            # Run from an empty directory so the child imports the same
+            # maxminddb as this process, not a source tree in the cwd.
+            result = subprocess.run(  # noqa: S603
+                [sys.executable, "-c", program, str(path)],
+                capture_output=True,
+                text=True,
+                check=False,
+                cwd=directory,
+                env=env,
+                timeout=60,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "ok")
+
+    def test_initialize_after_close_on_uninitialized_reader(self) -> None:
+        reader_class = maxminddb.extension.Reader
+        reader = reader_class.__new__(reader_class)
+        reader.close()
+        self.assertTrue(reader.closed)
+        reader.__init__(_DECODER_DB)  # type: ignore[misc]
+        with reader:
+            self.assertIsNotNone(reader.get("::1.1.1.0"))
+
+    def test_reinitialize_metadata_is_refused(self) -> None:
+        metadata = maxminddb.extension.Metadata(**_METADATA_FIELDS)
+        with self.assertRaisesRegex(ValueError, "reinitialize"):
+            metadata.__init__(**{**_METADATA_FIELDS, "record_size": 28})  # type: ignore[misc]
+        self.assertEqual(metadata.record_size, 24)
+
+    @unittest.skipUnless(
+        hasattr(sys, "getrefcount") and not sysconfig.get_config_var("Py_GIL_DISABLED"),
+        "needs CPython reference counts on a build with the GIL",
+    )
+    def test_freed_objects_release_their_type(self) -> None:
+        with maxminddb.extension.Reader(_DECODER_DB) as reader:
+            classes = [type(reader), type(reader.metadata()), type(iter(reader))]
+        before = [sys.getrefcount(c) for c in classes]
+        for _ in range(10):
+            with maxminddb.extension.Reader(_DECODER_DB) as reader:
+                reader.metadata()
+                iter(reader)
+        self.assertEqual([sys.getrefcount(c) for c in classes], before)
 
     def test_iterator_type_is_not_instantiable(self) -> None:
         with maxminddb.extension.Reader(_DECODER_DB) as reader:
