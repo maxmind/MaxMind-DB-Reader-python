@@ -15,6 +15,12 @@ History
   * Fixed large ``uint32`` values, which came back negative on Windows.
   * Fixed memory leaks and a use-after-free. Reinitializing a ``Reader`` or a
     ``Metadata`` now raises ``ValueError``.
+  * Fixed a ``RuntimeWarning`` or ``RuntimeError`` on free-threaded Python on
+    macOS when a ``Reader`` failed to open or was used without ``__init__``.
+  * Fixed a deadlock on free-threaded Python when a ``Reader`` was closed
+    during iteration, from another thread or from a signal handler.
+  * Fixed a crash on free-threaded Python when two threads advanced the same
+    iterator.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++

@@ -108,6 +108,7 @@ env_list = [
     "3.12",
     "3.13",
     "3.14",
+    "3.14t",
     "lint",
 ]
 skip_missing_interpreters = false
@@ -143,6 +144,7 @@ commands = [
 ]
 
 [tool.tox.gh.python]
+"3.14t" = ["3.14t"]
 "3.14" = ["3.14", "lint"]
 "3.13" = ["3.13"]
 "3.12" = ["3.12"]

@@ -129,6 +129,7 @@ static inline maxminddb_state *get_maxminddb_state_from_self(PyObject *self) {
 
 static bool can_read(const char *path);
 static int get_record(PyObject *self, PyObject *args, PyObject **record);
+static PyObject *reader_iter_next(PyObject *self);
 static bool format_sockaddr(struct sockaddr *addr, char *dst);
 static PyObject *from_entry_data_list(maxminddb_state *state,
                                       MMDB_entry_data_list_s **entry_data_list);
@@ -308,17 +309,37 @@ static void reader_release_write_lock(Reader_obj *reader) {
 // Reader implementation
 // =============================================================================
 
+static PyObject *
+Reader_new(PyTypeObject *type, PyObject *UNUSED(args), PyObject *UNUSED(kwds)) {
+    PyObject *self = type->tp_alloc(type, 0);
+    if (self == NULL) {
+        return NULL;
+    }
+
+    // Initialize the lock once, for the whole lifetime of the object.
+    // Reader_dealloc destroys it. A bare __new__ or a failed Reader_init then
+    // still leaves a valid, unlocked lock, so no path uses or destroys an
+    // uninitialized lock.
+    if (reader_lock_init(&((Reader_obj *)self)->rwlock) != 0) {
+        // Skip Reader_dealloc, which would destroy the failed lock. An
+        // instance of a heap type holds a reference to its type.
+        PyObject_Del(self);
+        Py_DECREF(type);
+        return NULL;
+    }
+
+    return self;
+}
+
 static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
     maxminddb_state *state = get_maxminddb_state_from_self(self);
     if (state == NULL) {
         return -1;
     }
 
-    // Refuse a second init. The closed field is NULL only before the first
-    // init, so this covers an open reader and a closed one. A second init
-    // would leak the open database and reinitialize the lock. On a closed
-    // reader it would also leave an existing iterator pointing at freed
-    // memory.
+    // Refuse a second init before the arguments are checked, so the error
+    // does not depend on them. The check under the write lock below decides
+    // a race between two first inits.
     if (((Reader_obj *)self)->closed != NULL) {
         PyErr_SetString(PyExc_ValueError,
                         "Attempt to reinitialize a MaxMind DB reader.");
@@ -360,31 +381,36 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
         return -1;
     }
 
+    Reader_obj *mmdb_obj = (Reader_obj *)self;
+    if (reader_acquire_write_lock(mmdb_obj) != 0) {
+        Py_XDECREF(filepath);
+        return -1;
+    }
+
+    // Refuse a second init. closed is NULL until the first init or close(),
+    // and the write lock stops two threads from both passing this check. A
+    // second init would leak the open database. After close(), it would leave
+    // an existing iterator pointing at freed memory.
+    if (mmdb_obj->closed != NULL) {
+        reader_release_write_lock(mmdb_obj);
+        Py_XDECREF(filepath);
+        PyErr_SetString(PyExc_ValueError,
+                        "Attempt to reinitialize a MaxMind DB reader.");
+        return -1;
+    }
+
     MMDB_s *mmdb = (MMDB_s *)malloc(sizeof(MMDB_s));
     if (mmdb == NULL) {
+        reader_release_write_lock(mmdb_obj);
         Py_XDECREF(filepath);
         PyErr_NoMemory();
-        return -1;
-    }
-
-    Reader_obj *mmdb_obj = (Reader_obj *)self;
-    if (!mmdb_obj) {
-        Py_XDECREF(filepath);
-        free(mmdb);
-        PyErr_NoMemory();
-        return -1;
-    }
-
-    if (reader_lock_init(&mmdb_obj->rwlock) != 0) {
-        free(mmdb);
-        Py_XDECREF(filepath);
         return -1;
     }
 
     int const status = MMDB_open(filename, MMDB_MODE_MMAP, mmdb);
 
     if (status != MMDB_SUCCESS) {
-        reader_lock_destroy(&mmdb_obj->rwlock);
+        reader_release_write_lock(mmdb_obj);
         free(mmdb);
         PyErr_Format(state->MaxMindDB_error,
                      "Error opening database file (%s). Is this a valid "
@@ -398,6 +424,7 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
 
     mmdb_obj->mmdb = mmdb;
     mmdb_obj->closed = Py_False;
+    reader_release_write_lock(mmdb_obj);
     return 0;
 }
 
@@ -788,6 +815,21 @@ static bool is_ipv6(char ip[16]) {
 }
 
 static PyObject *ReaderIter_next(PyObject *self) {
+    PyObject *result;
+#ifdef Py_GIL_DISABLED
+    // The iterator's list of pending records is not thread-safe, so let only
+    // one thread at a time advance an iterator. The read lock is shared, so
+    // it does not do this.
+    Py_BEGIN_CRITICAL_SECTION(self);
+#endif
+    result = reader_iter_next(self);
+#ifdef Py_GIL_DISABLED
+    Py_END_CRITICAL_SECTION();
+#endif
+    return result;
+}
+
+static PyObject *reader_iter_next(PyObject *self) {
     maxminddb_state *state = get_maxminddb_state_from_self((PyObject *)self);
     if (state == NULL) {
         return NULL;
@@ -873,6 +915,9 @@ static PyObject *ReaderIter_next(PyObject *self) {
             case MMDB_RECORD_TYPE_EMPTY:
                 break;
             case MMDB_RECORD_TYPE_DATA: {
+                // Read this before any Python code runs, which could close
+                // the reader.
+                uint16_t const depth = ri->reader->mmdb->depth;
                 MMDB_entry_data_list_s *entry_data_list = NULL;
                 int status =
                     MMDB_get_entry_data_list(&cur->entry, &entry_data_list);
@@ -892,15 +937,19 @@ static PyObject *ReaderIter_next(PyObject *self) {
                 PyObject *record =
                     from_entry_data_list(state, &entry_data_list);
                 MMDB_free_entry_data_list(original_entry_data_list);
+
+                // The rest uses only cur, which this call owns. Release the
+                // lock before ip_network runs Python code, which could close
+                // the reader on this thread.
+                reader_release_read_lock(ri->reader);
                 if (record == NULL) {
-                    reader_release_read_lock(ri->reader);
                     free(cur);
                     return NULL;
                 }
 
                 int ip_start = 0;
                 Py_ssize_t ip_length = 4;
-                if (ri->reader->mmdb->depth == 128) {
+                if (depth == 128) {
                     if (is_ipv6(cur->ip_packed)) {
                         // IPv6 address
                         ip_length = 16;
@@ -914,37 +963,28 @@ static PyObject *ReaderIter_next(PyObject *self) {
                                   &(cur->ip_packed[ip_start]),
                                   ip_length,
                                   cur->depth - ip_start * 8);
+                free(cur);
                 if (network_tuple == NULL) {
-                    reader_release_read_lock(ri->reader);
                     Py_DECREF(record);
-                    free(cur);
                     return NULL;
                 }
                 PyObject *args = PyTuple_Pack(1, network_tuple);
                 Py_DECREF(network_tuple);
                 if (args == NULL) {
-                    reader_release_read_lock(ri->reader);
                     Py_DECREF(record);
-                    free(cur);
                     return NULL;
                 }
                 PyObject *network =
                     PyObject_CallObject(state->ipaddress_ip_network, args);
                 Py_DECREF(args);
                 if (network == NULL) {
-                    reader_release_read_lock(ri->reader);
                     Py_DECREF(record);
-                    free(cur);
                     return NULL;
                 }
 
                 PyObject *rv = PyTuple_Pack(2, network, record);
                 Py_DECREF(network);
                 Py_DECREF(record);
-
-                reader_release_read_lock(ri->reader);
-
-                free(cur);
                 return rv;
             }
             default:
@@ -1311,6 +1351,7 @@ static PyMemberDef Metadata_members[] = {
 static PyType_Slot Reader_Type_slots[] = {
     {Py_tp_doc, "Reader object"},
     {Py_tp_dealloc, Reader_dealloc},
+    {Py_tp_new, Reader_new},
     {Py_tp_init, Reader_init},
     {Py_tp_iter, Reader_iter},
     {Py_tp_methods, Reader_methods},
