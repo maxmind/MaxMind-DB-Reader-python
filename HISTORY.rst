@@ -10,6 +10,8 @@ History
 
   * Fixed segmentation faults from invalid use of ``Metadata``, ``Reader`` and
     the internal iterator type.
+  * Fixed memory leaks and a use-after-free. Reinitializing a ``Reader`` or a
+    ``Metadata`` now raises ``ValueError``.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++

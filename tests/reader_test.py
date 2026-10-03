@@ -7,10 +7,11 @@ import multiprocessing
 import os
 import pathlib
 import sys
+import sysconfig
 import tempfile
 import threading
 import unittest
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 from unittest import mock
 
 import maxminddb
@@ -985,6 +986,54 @@ class TestExtensionObjects(unittest.TestCase):
         reader = reader_class.__new__(reader_class)
         with self.assertRaisesRegex(ValueError, "closed MaxMind DB"):
             reader.__enter__()
+
+    def test_reinitialize_reader_is_refused(self) -> None:
+        path = f"{_TEST_DATA_DIR}/MaxMind-DB-test-decoder.mmdb"
+        with maxminddb.extension.Reader(path) as reader:
+            with self.assertRaisesRegex(ValueError, "reinitialize"):
+                reader.__init__(path)  # type: ignore[misc]
+            self.assertIsNotNone(reader.get("::1.1.1.0"))
+
+        # Re-init on a closed reader would leave this iterator pointing at a
+        # freed database.
+        closed = maxminddb.extension.Reader(path)
+        iterator = iter(closed)
+        next(iterator)
+        closed.close()
+        with self.assertRaisesRegex(ValueError, "reinitialize"):
+            closed.__init__(path)  # type: ignore[misc]
+
+    def test_reinitialize_metadata_is_refused(self) -> None:
+        fields: dict[str, Any] = {
+            "binary_format_major_version": 2,
+            "binary_format_minor_version": 0,
+            "build_epoch": 1,
+            "database_type": "db",
+            "description": {},
+            "ip_version": 4,
+            "languages": [],
+            "node_count": 1,
+            "record_size": 24,
+        }
+        metadata = maxminddb.extension.Metadata(**fields)
+        with self.assertRaisesRegex(ValueError, "reinitialize"):
+            metadata.__init__(**{**fields, "record_size": 28})  # type: ignore[misc]
+        self.assertEqual(metadata.record_size, 24)
+
+    @unittest.skipUnless(
+        hasattr(sys, "getrefcount") and not sysconfig.get_config_var("Py_GIL_DISABLED"),
+        "needs CPython reference counts on a build with the GIL",
+    )
+    def test_freed_objects_release_their_type(self) -> None:
+        path = f"{_TEST_DATA_DIR}/MaxMind-DB-test-decoder.mmdb"
+        with maxminddb.extension.Reader(path) as reader:
+            classes = [type(reader), type(reader.metadata()), type(iter(reader))]
+        before = [sys.getrefcount(c) for c in classes]
+        for _ in range(10):
+            with maxminddb.extension.Reader(path) as reader:
+                reader.metadata()
+                iter(reader)
+        self.assertEqual([sys.getrefcount(c) for c in classes], before)
 
     def test_iterator_type_is_not_instantiable(self) -> None:
         reader = maxminddb.extension.Reader(
