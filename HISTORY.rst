@@ -6,11 +6,16 @@ History
 3.3.0
 ++++++++++++++++++
 
+* Iterating over a database with a corrupt search tree, such as one with a
+  cycle, now raises ``InvalidDatabaseError``. Previously, the C extension
+  could corrupt memory, and the pure Python reader raised ``RecursionError``
+  or returned part of the networks.
 * A second ``__init__`` on a pure Python ``Reader`` now closes the old
   database, and an iterator from before it raises ``ValueError``, as in the
   C extension. Before, the iterator walked the new database with node
   numbers from the old one. A failed ``__init__`` keeps the old database.
   After ``close()``, an iterator raises ``ValueError`` in every mode.
+
 * C extension:
 
   * Fixed segmentation faults from invalid use of ``Metadata``, ``Reader`` and

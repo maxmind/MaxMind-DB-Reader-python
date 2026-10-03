@@ -238,8 +238,8 @@ class Reader:
             return
 
         node_count = self._metadata.node_count
+        bits = 128 if self._metadata.ip_version == 6 else 32
         if node > node_count:
-            bits = 128 if self._metadata.ip_version == 6 else 32
             ip_acc <<= bits - depth
             if ip_acc <= _IPV4_MAX_NUM and bits == 128:
                 depth -= 96
@@ -250,6 +250,11 @@ class Reader:
                 ),
             )
         elif node < node_count:
+            # A node at the full address depth has no valid children. Only a
+            # corrupt tree, such as one with a cycle, has one.
+            if depth >= bits:
+                msg = "The MaxMind DB file's search tree is corrupt"
+                raise InvalidDatabaseError(msg)
             left = self._read_node(node, 0)
             ip_acc <<= 1
             depth += 1
