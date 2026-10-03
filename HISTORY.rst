@@ -21,6 +21,17 @@ History
     during iteration, from another thread or from a signal handler.
   * Fixed a crash on free-threaded Python when two threads advanced the same
     iterator.
+  * Added the ``node_byte_size`` and ``search_tree_size`` properties to
+    ``Metadata``, as the pure Python ``Metadata`` has.
+
+* Metadata:
+
+  * The pure Python reader ignores unknown keys, which a new minor version of
+    the format can add. It raises ``InvalidDatabaseError`` for a missing key, a
+    value of the wrong type or out of range, an invalid ``ip_version`` or
+    format version, or a ``build_epoch`` of 0.
+  * The C extension ignores unknown keys. Previously, ``Reader.metadata()``
+    crashed on them.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++
