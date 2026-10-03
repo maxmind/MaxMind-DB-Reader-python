@@ -326,9 +326,9 @@ class Reader:
         """Load the database and return a name for it in error messages."""
         if mode not in (MODE_AUTO, MODE_FD, MODE_FILE, MODE_MEMORY, MODE_MMAP):
             msg = (
-                f"Unsupported open mode ({mode}). Only MODE_AUTO, MODE_FILE, "
-                "MODE_MEMORY and MODE_FD are supported by the pure Python "
-                "Reader"
+                f"Unsupported open mode ({mode}). Only MODE_AUTO, MODE_MMAP, "
+                "MODE_FILE, MODE_MEMORY and MODE_FD are supported by the pure "
+                "Python Reader"
             )
             raise ValueError(
                 msg,
