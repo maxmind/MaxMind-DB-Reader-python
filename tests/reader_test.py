@@ -1271,6 +1271,61 @@ class TestExtensionObjects(unittest.TestCase):
                 iter(reader)
         self.assertEqual([sys.getrefcount(c) for c in classes], before)
 
+    def test_close_from_ip_network_during_iteration(self) -> None:
+        # The iterator calls ipaddress.ip_network, which can run Python code
+        # that closes the reader. If the iterator still held the read lock,
+        # close() would wait for it forever on free-threaded Python. Run in a
+        # subprocess with a timeout, and patch ip_network before the extension
+        # caches it.
+        program = textwrap.dedent(
+            """
+            import ipaddress
+            import sys
+
+            real_ip_network = ipaddress.ip_network
+
+            def ip_network(*args, **kwargs):
+                reader.close()
+                return real_ip_network(*args, **kwargs)
+
+            ipaddress.ip_network = ip_network
+
+            from maxminddb.extension import Reader
+
+            reader = Reader(sys.argv[1])
+            iterator = iter(reader)
+            # The record was decoded before the close, so this call finishes.
+            next(iterator)
+            try:
+                next(iterator)
+            except ValueError:
+                pass
+            else:
+                sys.exit("next() after close() did not raise ValueError")
+            print("ok")
+            """,
+        )
+        # Put this process's maxminddb first, and keep the harness's paths.
+        paths = [str(pathlib.Path(maxminddb.__file__).parent.parent)]
+        if os.environ.get("PYTHONPATH"):
+            paths.append(os.environ["PYTHONPATH"])
+        env = {**os.environ, "PYTHONPATH": os.pathsep.join(paths)}
+        path = pathlib.Path(f"{_TEST_DATA_DIR}/GeoIP2-City-Test.mmdb").resolve()
+        with tempfile.TemporaryDirectory() as directory:
+            # Run from an empty directory so the child imports the same
+            # maxminddb as this process, not a source tree in the cwd.
+            result = subprocess.run(  # noqa: S603
+                [sys.executable, "-c", program, str(path)],
+                capture_output=True,
+                text=True,
+                check=False,
+                cwd=directory,
+                env=env,
+                timeout=60,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "ok")
+
     def test_iterator_type_is_not_instantiable(self) -> None:
         with maxminddb.extension.Reader(_DECODER_DB) as reader:
             iterator_class = type(iter(reader))

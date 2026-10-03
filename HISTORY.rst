@@ -25,6 +25,8 @@ History
     Reinitializing a ``Metadata`` changes nothing.
   * Fixed a ``RuntimeWarning`` or ``RuntimeError`` on free-threaded Python on
     macOS when a ``Reader`` failed to open or was used without ``__init__``.
+  * Fixed a deadlock on free-threaded Python when a ``Reader`` was closed
+    during iteration, from another thread or from a signal handler.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++

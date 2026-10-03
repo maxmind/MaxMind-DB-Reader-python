@@ -907,6 +907,9 @@ static PyObject *ReaderIter_next(PyObject *self) {
             case MMDB_RECORD_TYPE_EMPTY:
                 break;
             case MMDB_RECORD_TYPE_DATA: {
+                // Read this before any Python code runs, which could close
+                // the reader.
+                uint16_t const depth = ri->reader->mmdb->depth;
                 MMDB_entry_data_list_s *entry_data_list = NULL;
                 int status =
                     MMDB_get_entry_data_list(&cur->entry, &entry_data_list);
@@ -926,15 +929,19 @@ static PyObject *ReaderIter_next(PyObject *self) {
                 PyObject *record =
                     from_entry_data_list(state, &entry_data_list);
                 MMDB_free_entry_data_list(original_entry_data_list);
+
+                // The rest uses only cur, which this call owns. Release the
+                // lock before ip_network runs Python code, which could close
+                // the reader on this thread.
+                reader_release_read_lock(ri->reader);
                 if (record == NULL) {
-                    reader_release_read_lock(ri->reader);
                     free(cur);
                     return NULL;
                 }
 
                 int ip_start = 0;
                 Py_ssize_t ip_length = 4;
-                if (ri->reader->mmdb->depth == 128) {
+                if (depth == 128) {
                     if (is_ipv6(cur->ip_packed)) {
                         // IPv6 address
                         ip_length = 16;
@@ -948,37 +955,28 @@ static PyObject *ReaderIter_next(PyObject *self) {
                                   &(cur->ip_packed[ip_start]),
                                   ip_length,
                                   cur->depth - ip_start * 8);
+                free(cur);
                 if (network_tuple == NULL) {
-                    reader_release_read_lock(ri->reader);
                     Py_DECREF(record);
-                    free(cur);
                     return NULL;
                 }
                 PyObject *args = PyTuple_Pack(1, network_tuple);
                 Py_DECREF(network_tuple);
                 if (args == NULL) {
-                    reader_release_read_lock(ri->reader);
                     Py_DECREF(record);
-                    free(cur);
                     return NULL;
                 }
                 PyObject *network =
                     PyObject_CallObject(state->ipaddress_ip_network, args);
                 Py_DECREF(args);
                 if (network == NULL) {
-                    reader_release_read_lock(ri->reader);
                     Py_DECREF(record);
-                    free(cur);
                     return NULL;
                 }
 
                 PyObject *rv = PyTuple_Pack(2, network, record);
                 Py_DECREF(network);
                 Py_DECREF(record);
-
-                reader_release_read_lock(ri->reader);
-
-                free(cur);
                 return rv;
             }
             default:
