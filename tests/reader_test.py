@@ -1035,6 +1035,34 @@ class TestExtensionObjects(unittest.TestCase):
                 iter(reader)
         self.assertEqual([sys.getrefcount(c) for c in classes], before)
 
+    @unittest.skipIf(
+        getattr(sys, "_is_gil_enabled", lambda: True)(),
+        "needs free-threaded Python",
+    )
+    def test_threads_can_share_an_iterator(self) -> None:
+        path = f"{_TEST_DATA_DIR}/GeoIP2-City-Test.mmdb"
+        with maxminddb.extension.Reader(path) as reader:
+            expected = sum(1 for _ in reader)
+
+            def count(
+                iterator: Iterator[object],
+                barrier: threading.Barrier,
+                counts: list[int],
+            ) -> None:
+                barrier.wait()
+                counts.append(sum(1 for _ in iterator))
+
+            # A race corrupts the heap only some of the time, so repeat.
+            for _ in range(5):
+                counts: list[int] = []
+                args = (iter(reader), threading.Barrier(8), counts)
+                threads = [threading.Thread(target=count, args=args) for _ in range(8)]
+                for thread in threads:
+                    thread.start()
+                for thread in threads:
+                    thread.join()
+                self.assertEqual(sum(counts), expected)
+
     def test_iterator_type_is_not_instantiable(self) -> None:
         reader = maxminddb.extension.Reader(
             f"{_TEST_DATA_DIR}/MaxMind-DB-test-decoder.mmdb",
