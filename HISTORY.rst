@@ -12,6 +12,8 @@ History
     the internal iterator type.
   * Fixed memory leaks and a use-after-free. Reinitializing a ``Reader`` or a
     ``Metadata`` now raises ``ValueError``.
+  * Fixed a deadlock on free-threaded Python when a ``Reader`` was closed
+    during iteration, from another thread or from a signal handler.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++
