@@ -890,6 +890,22 @@ class BaseTestReader(unittest.TestCase):
                     [ipaddress.ip_network("::1:0:0/96")],
                 )
 
+    def test_record_that_points_into_the_separator_is_rejected(self) -> None:
+        # The left record, node_count + 1, points into the 16-byte separator
+        # between the search tree and the data section. libmaxminddb before
+        # 1.14 reports it as bad data.
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "separator.mmdb"
+            path.write_bytes(_database((2, 17), ip_version=4))
+            with (
+                open_database(str(path), self.mode) as reader,
+                self.assertRaisesRegex(
+                    InvalidDatabaseError,
+                    "search tree is corrupt|contains bad data",
+                ),
+            ):
+                reader.get(self.ipf("1.1.1.1"))
+
     def test_cyclic_search_tree_is_rejected(self) -> None:
         data = bytearray(
             pathlib.Path(f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb").read_bytes(),

@@ -11,6 +11,9 @@ History
   ``ValueError`` or skipped networks. The pure Python reader also raised
   ``ValueError`` for a network that starts at ``::1:0:0``, such as
   ``::1:0:0/96``.
+* The pure Python reader now raises ``InvalidDatabaseError`` for a search tree
+  record that points before the data section. Previously, it returned an
+  empty map.
 * Iterating over a database with a corrupt search tree, such as one with a
   cycle, now raises ``InvalidDatabaseError``. Previously, the C extension
   could corrupt memory, and the pure Python reader raised ``RecursionError``
