@@ -666,10 +666,14 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args)) {
 
     PyObject *metadata_dict = from_entry_data_list(state, &entry_data_list);
     MMDB_free_entry_data_list(original_entry_data_list);
-    if (metadata_dict == NULL || !PyDict_Check(metadata_dict)) {
+    if (metadata_dict == NULL) {
+        reader_release_read_lock(mmdb_obj);
+        return NULL;
+    }
+    if (!PyDict_Check(metadata_dict)) {
         reader_release_read_lock(mmdb_obj);
         PyErr_SetString(state->MaxMindDB_error, "Error decoding metadata.");
-        Py_XDECREF(metadata_dict);
+        Py_DECREF(metadata_dict);
         return NULL;
     }
 
