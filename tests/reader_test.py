@@ -106,6 +106,33 @@ _METADATA_UINT_TYPES = {"build_epoch": 9, "node_count": 6}
 _UINT16_TYPE = 5
 
 
+def _database(records: tuple[int, ...], *, ip_version: int) -> bytes:
+    """Return a database with a 24-bit search tree and one data record.
+
+    The tree has two records per node, and a record of node_count + 16 points
+    at the data record, the string "net".
+    """
+    metadata = {
+        "binary_format_major_version": 2,
+        "binary_format_minor_version": 0,
+        "build_epoch": 1,
+        "database_type": "Test",
+        "description": {"en": "Test"},
+        "ip_version": ip_version,
+        "languages": ["en"],
+        "node_count": len(records) // 2,
+        "record_size": 24,
+    }
+    tree = b"".join(record.to_bytes(3, "big") for record in records)
+    return (
+        tree
+        + bytes(16)
+        + _encode_value("net")
+        + _METADATA_START_MARKER
+        + _encode_value(metadata)
+    )
+
+
 def _database_with_metadata(**changes: object) -> bytes:
     """Return the decoder test database with changed metadata.
 
@@ -712,6 +739,146 @@ class BaseTestReader(unittest.TestCase):
                     ):
                         pass
 
+    def test_exhausted_iterator_stops_after_close(self) -> None:
+        with open_database(
+            f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb",
+            self.mode,
+        ) as reader:
+            iterator = iter(reader)
+            list(iterator)
+        self.assertEqual(next(iterator, "done"), "done")
+
+    def test_search_node_at_full_depth_is_rejected(self) -> None:
+        # Nodes 0 to 32 form a left spine, so node 32 is a search node at
+        # depth 32, which an IPv4 tree cannot have.
+        data = 33 + 16
+        records = [record for i in range(32) for record in (i + 1, data)]
+        records += [data, data]
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "too-deep.mmdb"
+            path.write_bytes(_database(tuple(records), ip_version=4))
+            with (
+                open_database(str(path), self.mode) as reader,
+                self.assertRaisesRegex(InvalidDatabaseError, "search tree is corrupt"),
+            ):
+                list(reader)
+
+    def test_record_that_points_to_the_root_is_rejected(self) -> None:
+        # Node 1's right record points back to the root. The left records point
+        # at data, so a walk through the root again would yield networks that
+        # the tree does not have, such as 192.0.0.0/3.
+        records = (18, 1, 18, 0)
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "root-record.mmdb"
+            path.write_bytes(_database(records, ip_version=4))
+            with open_database(str(path), self.mode) as reader:
+                seen: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+                with self.assertRaisesRegex(
+                    InvalidDatabaseError,
+                    "search tree is corrupt",
+                ):
+                    for network, _ in reader:
+                        seen.append(network)
+                valid = {
+                    ipaddress.ip_network("0.0.0.0/1"),
+                    ipaddress.ip_network("128.0.0.0/2"),
+                }
+                self.assertLessEqual(set(seen), valid)
+                # Both readers yield node 0's left record before node 1.
+                self.assertIn(ipaddress.ip_network("0.0.0.0/1"), seen)
+
+    def test_iterate_ipv6_networks_shorter_than_96_bits(self) -> None:
+        # One node whose two records point at the same data record, so the
+        # tree holds ::/1 and 8000::/1.
+        records = (17, 17)
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "short-ipv6.mmdb"
+            path.write_bytes(_database(records, ip_version=6))
+            with open_database(str(path), self.mode) as reader:
+                self.assertEqual(
+                    list(reader),
+                    [
+                        (ipaddress.ip_network("::/1"), "net"),
+                        (ipaddress.ip_network("8000::/1"), "net"),
+                    ],
+                )
+
+    def test_iterate_ipv6_network_just_above_ipv4(self) -> None:
+        # A left spine of 96 nodes whose last right record is data holds only
+        # ::1:0:0/96. The first 96 bits are not all zero, so it is IPv6.
+        empty = 96
+        data = empty + 16
+        records = [record for i in range(95) for record in (i + 1, empty)]
+        records += [empty, data]
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "ipv6-above-ipv4.mmdb"
+            path.write_bytes(_database(tuple(records), ip_version=6))
+            with open_database(str(path), self.mode) as reader:
+                self.assertEqual(
+                    [network for network, _ in reader],
+                    [ipaddress.ip_network("::1:0:0/96")],
+                )
+
+    def test_record_that_points_into_the_separator_is_rejected(self) -> None:
+        # The left record, node_count + 1, points into the 16-byte separator
+        # between the search tree and the data section. libmaxminddb before
+        # 1.14 reports it as bad data.
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "separator.mmdb"
+            path.write_bytes(_database((2, 17), ip_version=4))
+            with (
+                open_database(str(path), self.mode) as reader,
+                self.assertRaisesRegex(
+                    InvalidDatabaseError,
+                    "search tree is corrupt|contains bad data",
+                ),
+            ):
+                reader.get(self.ipf("1.1.1.1"))
+
+    def test_cyclic_search_tree_is_rejected(self) -> None:
+        data = bytearray(
+            pathlib.Path(f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb").read_bytes(),
+        )
+        # Point the left record of node 1 back at node 1.
+        data[6:9] = b"\x00\x00\x01"
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "cyclic.mmdb"
+            path.write_bytes(data)
+            with open_database(str(path), self.mode) as reader:
+                iterator = iter(reader)
+                with self.assertRaisesRegex(
+                    InvalidDatabaseError,
+                    "search tree is corrupt",
+                ):
+                    list(iterator)
+                # The iterator stops after an error, as a generator does.
+                self.assertEqual(next(iterator, "done"), "done")
+
+        # A record that points back to the root of an IPv4 tree.
+        broken = f"{_TEST_DATA_DIR}/MaxMind-DB-test-broken-search-tree-24.mmdb"
+        with (
+            open_database(broken, self.mode) as reader,
+            self.assertRaisesRegex(InvalidDatabaseError, "search tree is corrupt"),
+        ):
+            list(reader)
+
+        # A record in the IPv4 subtree of an IPv6 tree that points back to the
+        # IPv4 start node, 96.
+        mixed = bytearray(
+            pathlib.Path(
+                f"{_TEST_DATA_DIR}/MaxMind-DB-test-mixed-24.mmdb"
+            ).read_bytes(),
+        )
+        mixed[240 * 6 : 240 * 6 + 3] = (96).to_bytes(3, "big")
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "ipv4-cycle.mmdb"
+            path.write_bytes(mixed)
+            with (
+                open_database(str(path), self.mode) as reader,
+                self.assertRaisesRegex(InvalidDatabaseError, "search tree is corrupt"),
+            ):
+                list(reader)
+
     def test_ip_validation(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
@@ -1205,6 +1372,9 @@ class TestExtensionObjects(unittest.TestCase):
                 pass
             else:
                 sys.exit("next() after close() did not raise ValueError")
+            # The error stops the iterator.
+            if next(iterator, None) is not None:
+                sys.exit("the iterator continued after the error")
             print("ok")
             """,
         )

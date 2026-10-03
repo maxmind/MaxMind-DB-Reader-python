@@ -6,6 +6,17 @@ History
 3.3.0
 ++++++++++++++++++
 
+* Fixed iteration over an IPv6 database with a network shorter than /96
+  whose first bits are zero, such as ``::/1``. The readers raised
+  ``ValueError`` or skipped networks.
+* The pure Python reader now raises ``InvalidDatabaseError`` for a search tree
+  record that points before the data section. Previously, it returned an
+  empty map.
+* Iterating over a database with a corrupt search tree, such as one with a
+  cycle, now raises ``InvalidDatabaseError``. Previously, the C extension
+  could corrupt memory, and the pure Python reader raised ``RecursionError``
+  or returned part of the networks.
+
 * C extension:
 
   * Fixed segmentation faults from invalid use of ``Metadata``, ``Reader`` and
@@ -21,6 +32,10 @@ History
     during iteration, from another thread or from a signal handler.
   * Fixed a crash on free-threaded Python when two threads advanced the same
     iterator.
+  * An exhausted iterator now raises ``StopIteration`` after its ``Reader``
+    closes, not ``ValueError``.
+  * The iterator now stops after it raises an error, as the pure Python
+    iterator does.
   * Added the ``node_byte_size`` and ``search_tree_size`` properties to
     ``Metadata``, as the pure Python ``Metadata`` has.
 
