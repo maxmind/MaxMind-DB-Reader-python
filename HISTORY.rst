@@ -10,12 +10,14 @@ History
 
   * Fixed segmentation faults from invalid use of ``Metadata``, ``Reader`` and
     the internal iterator type.
-  * Fixed a ``RuntimeWarning`` or ``RuntimeError`` on free-threaded Python on
-    macOS when a ``Reader`` failed to open or was used without ``__init__``.
+  * Fixed a segmentation fault on a database with a map key that is not a
+    string. Such a database now raises ``InvalidDatabaseError``.
   * Fixed memory leaks and a use-after-free. A second ``__init__`` on a
     ``Reader`` now closes the old database, and an iterator from before it
     raises ``ValueError``. Reinitializing a ``Metadata`` now raises
     ``ValueError``.
+  * Fixed a ``RuntimeWarning`` or ``RuntimeError`` on free-threaded Python on
+    macOS when a ``Reader`` failed to open or was used without ``__init__``.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++

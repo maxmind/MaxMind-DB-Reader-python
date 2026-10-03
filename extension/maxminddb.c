@@ -1146,6 +1146,14 @@ static PyObject *from_map(maxminddb_state *state,
     for (i = 0; i < map_size && *entry_data_list; i++) {
         *entry_data_list = (*entry_data_list)->next;
 
+        // libmaxminddb does not check the key type, and the union holds a
+        // string only for a string key.
+        if ((*entry_data_list)->entry_data.type != MMDB_DATA_TYPE_UTF8_STRING) {
+            PyErr_SetString(state->MaxMindDB_error,
+                            "Invalid map key: the key is not a string.");
+            Py_DECREF(py_obj);
+            return NULL;
+        }
         PyObject *key = PyUnicode_FromStringAndSize(
             (*entry_data_list)->entry_data.utf8_string,
             (*entry_data_list)->entry_data.data_size);

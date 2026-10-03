@@ -947,6 +947,21 @@ class TestExtensionReader(BaseTestReader):
     if has_maxminddb_extension():
         reader_class = maxminddb.extension.Reader
 
+    def test_map_key_that_is_not_a_string_is_rejected(self) -> None:
+        data = bytearray(
+            pathlib.Path(f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb").read_bytes(),
+        )
+        # Change the type of the "ip" key from a string to a uint16.
+        data[data.index(b"\x42ip")] = 0xA2
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "int-key.mmdb"
+            path.write_bytes(data)
+            with (
+                maxminddb.extension.Reader(path) as reader,
+                self.assertRaisesRegex(InvalidDatabaseError, "not a string"),
+            ):
+                reader.get("1.1.1.1")
+
     def test_invalid_utf8_key_does_not_leak(self) -> None:
         def fail_to_decode(count: int) -> None:
             for _ in range(count):
