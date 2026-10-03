@@ -931,7 +931,7 @@ static PyObject *reader_iter_next(PyObject *self) {
                 }
 
                 int ip_start = 0;
-                int ip_length = 4;
+                Py_ssize_t ip_length = 4;
                 if (depth == 128) {
                     if (is_ipv6(cur->ip_packed)) {
                         // IPv6 address
