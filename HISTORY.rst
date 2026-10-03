@@ -10,6 +10,8 @@ History
 
   * Fixed segmentation faults from invalid use of ``Metadata``, ``Reader`` and
     the internal iterator type.
+  * Fixed a segmentation fault on a database with a map key that is not a
+    string. Such a database now raises ``InvalidDatabaseError``.
   * Fixed memory leaks and a use-after-free. Reinitializing a ``Reader`` or a
     ``Metadata`` now raises ``ValueError``.
   * Fixed a deadlock on free-threaded Python when a ``Reader`` was closed
