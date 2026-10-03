@@ -896,8 +896,11 @@ static PyObject *reader_iter_next(PyObject *self) {
         switch (cur->type) {
             case MMDB_RECORD_TYPE_INVALID:
                 reader_release_read_lock(ri->reader);
+                // libmaxminddb before 1.14 returns this type for a record
+                // that points to the root. Later versions fail in
+                // MMDB_read_node instead.
                 PyErr_SetString(state->MaxMindDB_error,
-                                "Invalid record when reading node");
+                                "The MaxMind DB file's search tree is corrupt");
                 free(cur);
                 return NULL;
             case MMDB_RECORD_TYPE_SEARCH_NODE: {
@@ -1002,7 +1005,9 @@ static PyObject *reader_iter_next(PyObject *self) {
                 int ip_start = 0;
                 Py_ssize_t ip_length = 4;
                 if (depth == 128) {
-                    if (is_ipv6(cur->ip_packed)) {
+                    // A network shorter than /96 is IPv6, even if its first
+                    // 96 bits are zero.
+                    if (is_ipv6(cur->ip_packed) || cur->depth < 96) {
                         // IPv6 address
                         ip_length = 16;
                     } else {

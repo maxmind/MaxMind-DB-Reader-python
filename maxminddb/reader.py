@@ -197,26 +197,36 @@ class Reader:
         depth: int,
         ip_acc: int,
     ) -> Iterator[tuple[IPv4Network | IPv6Network, Record]]:
-        if ip_acc != 0 and node == self._ipv4_start:
-            # Skip nodes aliased to IPv4
-            return
-
         node_count = self._metadata.node_count
         bits = 128 if self._metadata.ip_version == 6 else 32
+        # Skip the IPv4 subtree when an IPv6 address other than ::/96 leads
+        # to it, as the C extension does. Inside the IPv4 subtree, or in an
+        # IPv4 tree, a record that points back to it is a cycle.
+        if (
+            node == self._ipv4_start
+            and bits == 128
+            and node < node_count
+            and ip_acc >> max(depth - 96, 0) != 0
+        ):
+            return
+
         if node > node_count:
             ip_acc <<= bits - depth
-            if ip_acc <= _IPV4_MAX_NUM and bits == 128:
-                depth -= 96
-            yield (
-                ipaddress.ip_network((ip_acc, depth)),
-                self._resolve_data_pointer(
-                    node,
-                ),
-            )
+            network: IPv4Network | IPv6Network
+            if bits == 32:
+                network = IPv4Network((ip_acc, depth))
+            elif depth >= 96 and ip_acc < _IPV4_MAX_NUM:
+                # An IPv4 network in an IPv6 tree is at least /96, and its
+                # first 96 bits are zero.
+                network = IPv4Network((ip_acc, depth - 96))
+            else:
+                network = IPv6Network((ip_acc, depth))
+            yield (network, self._resolve_data_pointer(node))
         elif node < node_count:
-            # A node at the full address depth has no valid children. Only a
-            # corrupt tree, such as one with a cycle, has one.
-            if depth >= bits:
+            # A node at the full address depth has no valid children, and no
+            # record can point to the root. Only a corrupt tree, such as one
+            # with a cycle, has either.
+            if depth >= bits or (node == 0 and depth > 0):
                 msg = "The MaxMind DB file's search tree is corrupt"
                 raise InvalidDatabaseError(msg)
             left = self._read_node(node, 0)
