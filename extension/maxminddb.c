@@ -1119,7 +1119,8 @@ from_entry_data_list(maxminddb_state *state,
         case MMDB_DATA_TYPE_UINT16:
             return PyLong_FromLong((*entry_data_list)->entry_data.uint16);
         case MMDB_DATA_TYPE_UINT32:
-            return PyLong_FromLong((*entry_data_list)->entry_data.uint32);
+            return PyLong_FromUnsignedLong(
+                (*entry_data_list)->entry_data.uint32);
         case MMDB_DATA_TYPE_BOOLEAN:
             return PyBool_FromLong((*entry_data_list)->entry_data.boolean);
         case MMDB_DATA_TYPE_UINT64:
