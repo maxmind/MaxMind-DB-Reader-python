@@ -6,6 +6,11 @@ History
 3.3.0
 ++++++++++++++++++
 
+* Iterating over a database with a corrupt search tree, such as one with a
+  cycle, now raises ``InvalidDatabaseError``. Previously, the C extension
+  could corrupt memory, and the pure Python reader raised ``RecursionError``
+  or returned part of the networks.
+
 * C extension:
 
   * Fixed segmentation faults from invalid use of ``Metadata``, ``Reader`` and

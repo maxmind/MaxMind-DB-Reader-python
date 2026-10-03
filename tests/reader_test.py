@@ -610,6 +610,21 @@ class BaseTestReader(unittest.TestCase):
         reader.close()
         self.assertEqual(next(iterator, "done"), "done")
 
+    def test_cyclic_search_tree_is_rejected(self) -> None:
+        data = bytearray(
+            pathlib.Path(f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb").read_bytes(),
+        )
+        # Point the left record of node 1 back at node 1.
+        data[6:9] = b"\x00\x00\x01"
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "cyclic.mmdb"
+            path.write_bytes(data)
+            with (
+                open_database(str(path), self.mode) as reader,
+                self.assertRaisesRegex(InvalidDatabaseError, "search tree is corrupt"),
+            ):
+                list(reader)
+
     def test_ip_validation(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",

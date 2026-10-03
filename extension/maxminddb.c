@@ -866,6 +866,17 @@ static PyObject *reader_iter_next(PyObject *self) {
                     // These are aliased networks. Skip them.
                     break;
                 }
+                // A node at the full address depth would write its children
+                // past the end of ip_packed. Only a corrupt tree, such as one
+                // with a cycle, has one.
+                if (cur->depth >= ri->reader->mmdb->depth) {
+                    reader_release_read_lock(ri->reader);
+                    PyErr_SetString(state->MaxMindDB_error,
+                                    "The MaxMind DB file's search tree is "
+                                    "corrupt");
+                    free(cur);
+                    return NULL;
+                }
                 MMDB_search_node_s node;
                 int status = MMDB_read_node(
                     ri->reader->mmdb, (uint32_t)cur->record, &node);
