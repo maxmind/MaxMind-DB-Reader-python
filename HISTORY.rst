@@ -16,6 +16,8 @@ History
     during iteration, from another thread or from a signal handler.
   * Fixed a crash on free-threaded Python when two threads advanced the same
     iterator.
+  * An exhausted iterator now raises ``StopIteration`` after its ``Reader``
+    closes, not ``ValueError``.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++
