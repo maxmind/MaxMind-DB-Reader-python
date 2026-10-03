@@ -129,6 +129,7 @@ static inline maxminddb_state *get_maxminddb_state_from_self(PyObject *self) {
 
 static bool can_read(const char *path);
 static int get_record(PyObject *self, PyObject *args, PyObject **record);
+static PyObject *reader_iter_next(PyObject *self);
 static bool format_sockaddr(struct sockaddr *addr, char *dst);
 static PyObject *from_entry_data_list(maxminddb_state *state,
                                       MMDB_entry_data_list_s **entry_data_list);
@@ -814,6 +815,21 @@ static bool is_ipv6(char ip[16]) {
 }
 
 static PyObject *ReaderIter_next(PyObject *self) {
+    PyObject *result;
+#ifdef Py_GIL_DISABLED
+    // The iterator's list of pending records is not thread-safe, so let only
+    // one thread at a time advance an iterator. The read lock is shared, so
+    // it does not do this.
+    Py_BEGIN_CRITICAL_SECTION(self);
+#endif
+    result = reader_iter_next(self);
+#ifdef Py_GIL_DISABLED
+    Py_END_CRITICAL_SECTION();
+#endif
+    return result;
+}
+
+static PyObject *reader_iter_next(PyObject *self) {
     maxminddb_state *state = get_maxminddb_state_from_self((PyObject *)self);
     if (state == NULL) {
         return NULL;

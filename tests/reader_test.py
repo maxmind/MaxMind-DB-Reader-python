@@ -1122,6 +1122,48 @@ class TestExtensionObjects(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), "ok")
 
+    @unittest.skipIf(
+        getattr(sys, "_is_gil_enabled", lambda: True)(),
+        "needs free-threaded Python",
+    )
+    def test_threads_can_share_an_iterator(self) -> None:
+        path = f"{_TEST_DATA_DIR}/GeoIP2-City-Test.mmdb"
+        with maxminddb.extension.Reader(path) as reader:
+            expected = sorted(str(network) for network, _ in reader)
+
+            def collect(
+                iterator: Iterator[tuple[object, object]],
+                barrier: threading.Barrier,
+                networks: list[str],
+                done: list[bool],
+                errors: list[BaseException],
+            ) -> None:
+                try:
+                    barrier.wait()
+                    networks.extend(str(network) for network, _ in iterator)
+                    done.append(True)
+                except BaseException as e:  # noqa: BLE001
+                    errors.append(e)
+
+            # A race corrupts the heap only some of the time, so repeat.
+            for _ in range(5):
+                networks: list[str] = []
+                done: list[bool] = []
+                errors: list[BaseException] = []
+                barrier = threading.Barrier(8, timeout=60)
+                args = (iter(reader), barrier, networks, done, errors)
+                threads = [
+                    threading.Thread(target=collect, args=args) for _ in range(8)
+                ]
+                for thread in threads:
+                    thread.start()
+                for thread in threads:
+                    thread.join()
+                self.assertEqual(errors, [])
+                self.assertEqual(len(done), 8)
+                # Each network comes out once, with none lost or repeated.
+                self.assertEqual(sorted(networks), expected)
+
     def test_iterator_type_is_not_instantiable(self) -> None:
         reader = maxminddb.extension.Reader(
             f"{_TEST_DATA_DIR}/MaxMind-DB-test-decoder.mmdb",

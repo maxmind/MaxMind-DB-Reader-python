@@ -19,6 +19,8 @@ History
     macOS when a ``Reader`` failed to open or was used without ``__init__``.
   * Fixed a deadlock on free-threaded Python when a ``Reader`` was closed
     during iteration, from another thread or from a signal handler.
+  * Fixed a crash on free-threaded Python when two threads advanced the same
+    iterator.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++
