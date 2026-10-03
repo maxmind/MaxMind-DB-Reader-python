@@ -3,7 +3,7 @@
 from collections.abc import Iterator
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from os import PathLike
-from typing import IO, Any
+from typing import IO
 
 from typing_extensions import Self
 
@@ -113,5 +113,16 @@ class Metadata:
     The bit size of a record in the search tree.
     """
 
-    def __init__(self, **kwargs: Any) -> None:  # noqa: ANN401
-        """Create new Metadata object. kwargs are key/value pairs from spec."""
+    def __init__(
+        self,
+        binary_format_major_version: int,
+        binary_format_minor_version: int,
+        build_epoch: int,
+        database_type: str,
+        description: dict[str, str],
+        ip_version: int,
+        languages: list[str],
+        node_count: int,
+        record_size: int,
+    ) -> None:
+        """Create new Metadata object from the metadata fields in the spec."""

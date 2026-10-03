@@ -7,10 +7,11 @@ import multiprocessing
 import os
 import pathlib
 import sys
+import sysconfig
 import tempfile
 import threading
 import unittest
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 from unittest import mock
 
 import maxminddb
@@ -505,6 +506,18 @@ class BaseTestReader(unittest.TestCase):
         self.assertEqual(1329227995784915872903807060280344576, record["uint128"])
         reader.close()
 
+    def test_decoder_maximum_values(self) -> None:
+        with open_database(
+            "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
+            self.mode,
+        ) as reader:
+            record = cast("dict", reader.get(self.ipf("::255.255.255.255")))
+        # A C long has 32 bits on Windows, where a signed conversion would make
+        # the uint32 negative.
+        self.assertEqual(record["uint32"], 2**32 - 1)
+        self.assertEqual(record["uint64"], 2**64 - 1)
+        self.assertEqual(record["uint128"], 2**128 - 1)
+
     def test_metadata_pointers(self) -> None:
         with open_database(
             "tests/data/test-data/MaxMind-DB-test-metadata-pointers.mmdb",
@@ -929,6 +942,21 @@ class TestExtensionReader(BaseTestReader):
     if has_maxminddb_extension():
         reader_class = maxminddb.extension.Reader
 
+    def test_map_key_that_is_not_a_string_is_rejected(self) -> None:
+        data = bytearray(
+            pathlib.Path(f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb").read_bytes(),
+        )
+        # Change the type of the "ip" key from a string to a uint16.
+        data[data.index(b"\x42ip")] = 0xA2
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "int-key.mmdb"
+            path.write_bytes(data)
+            with (
+                maxminddb.extension.Reader(path) as reader,
+                self.assertRaisesRegex(InvalidDatabaseError, "not a string"),
+            ):
+                reader.get("1.1.1.1")
+
 
 @unittest.skipIf(
     not has_maxminddb_extension() and not os.environ.get("MM_FORCE_EXT_TESTS"),
@@ -940,6 +968,111 @@ class TestExtensionReaderWithIPObjects(BaseTestReader):
 
     if has_maxminddb_extension():
         reader_class = maxminddb.extension.Reader
+
+
+@unittest.skipIf(
+    not has_maxminddb_extension() and not os.environ.get("MM_FORCE_EXT_TESTS"),
+    "No C extension module found. Skipping tests",
+)
+class TestExtensionObjects(unittest.TestCase):
+    """Objects in states that crashed the extension."""
+
+    def test_uninitialized_metadata(self) -> None:
+        metadata_class = maxminddb.extension.Metadata
+        metadata = metadata_class.__new__(metadata_class)
+        self.assertIsNone(metadata.languages)
+        del metadata
+
+    def test_metadata_missing_argument(self) -> None:
+        with self.assertRaisesRegex(TypeError, "missing required argument"):
+            maxminddb.extension.Metadata(binary_format_major_version=2)  # type: ignore[call-arg]
+
+    def test_metadata_unknown_argument(self) -> None:
+        with self.assertRaisesRegex(TypeError, "keyword argument"):
+            maxminddb.extension.Metadata(  # type: ignore[call-arg]
+                binary_format_major_version=2,
+                binary_format_minor_version=0,
+                build_epoch=1,
+                database_type="db",
+                description={},
+                ip_version=4,
+                languages=[],
+                node_count=1,
+                record_size=24,
+                unknown=1,
+            )
+
+    def test_iterate_uninitialized_reader(self) -> None:
+        reader_class = maxminddb.extension.Reader
+        reader = reader_class.__new__(reader_class)
+        with self.assertRaisesRegex(ValueError, "closed MaxMind DB"):
+            iter(reader)
+
+    def test_enter_uninitialized_reader(self) -> None:
+        reader_class = maxminddb.extension.Reader
+        reader = reader_class.__new__(reader_class)
+        with self.assertRaisesRegex(ValueError, "closed MaxMind DB"):
+            reader.__enter__()
+
+    def test_reinitialize_reader_is_refused(self) -> None:
+        path = f"{_TEST_DATA_DIR}/MaxMind-DB-test-decoder.mmdb"
+        with maxminddb.extension.Reader(path) as reader:
+            with self.assertRaisesRegex(ValueError, "reinitialize"):
+                reader.__init__(path)  # type: ignore[misc]
+            self.assertIsNotNone(reader.get("::1.1.1.0"))
+
+        # Re-init on a closed reader would leave this iterator pointing at a
+        # freed database.
+        closed = maxminddb.extension.Reader(path)
+        iterator = iter(closed)
+        next(iterator)
+        closed.close()
+        with self.assertRaisesRegex(ValueError, "reinitialize"):
+            closed.__init__(path)  # type: ignore[misc]
+
+    def test_reinitialize_metadata_is_refused(self) -> None:
+        fields: dict[str, Any] = {
+            "binary_format_major_version": 2,
+            "binary_format_minor_version": 0,
+            "build_epoch": 1,
+            "database_type": "db",
+            "description": {},
+            "ip_version": 4,
+            "languages": [],
+            "node_count": 1,
+            "record_size": 24,
+        }
+        metadata = maxminddb.extension.Metadata(**fields)
+        with self.assertRaisesRegex(ValueError, "reinitialize"):
+            metadata.__init__(**{**fields, "record_size": 28})  # type: ignore[misc]
+        self.assertEqual(metadata.record_size, 24)
+
+    @unittest.skipUnless(
+        hasattr(sys, "getrefcount") and not sysconfig.get_config_var("Py_GIL_DISABLED"),
+        "needs CPython reference counts on a build with the GIL",
+    )
+    def test_freed_objects_release_their_type(self) -> None:
+        path = f"{_TEST_DATA_DIR}/MaxMind-DB-test-decoder.mmdb"
+        with maxminddb.extension.Reader(path) as reader:
+            classes = [type(reader), type(reader.metadata()), type(iter(reader))]
+        before = [sys.getrefcount(c) for c in classes]
+        for _ in range(10):
+            with maxminddb.extension.Reader(path) as reader:
+                reader.metadata()
+                iter(reader)
+        self.assertEqual([sys.getrefcount(c) for c in classes], before)
+
+    def test_iterator_type_is_not_instantiable(self) -> None:
+        reader = maxminddb.extension.Reader(
+            f"{_TEST_DATA_DIR}/MaxMind-DB-test-decoder.mmdb",
+        )
+        iterator_class = type(iter(reader))
+        # The message differs across Python versions, so check only the type.
+        with self.assertRaises(TypeError):
+            iterator_class()
+        with self.assertRaises(TypeError):
+            iterator_class.__new__(iterator_class)
+        reader.close()
 
 
 class TestAutoReader(BaseTestReader):
