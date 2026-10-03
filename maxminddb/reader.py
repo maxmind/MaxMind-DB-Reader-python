@@ -10,7 +10,7 @@ except ImportError:
 import contextlib
 import ipaddress
 from dataclasses import dataclass
-from ipaddress import IPv4Address, IPv6Address
+from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from typing import IO, TYPE_CHECKING, Any
 
 from maxminddb.const import MODE_AUTO, MODE_FD, MODE_FILE, MODE_MEMORY, MODE_MMAP
@@ -192,26 +192,36 @@ class Reader:
         return self._generate_children(0, 0, 0)
 
     def _generate_children(self, node: int, depth: int, ip_acc: int) -> Iterator:
-        if ip_acc != 0 and node == self._ipv4_start:
-            # Skip nodes aliased to IPv4
-            return
-
         node_count = self._metadata.node_count
         bits = 128 if self._metadata.ip_version == 6 else 32
+        # Skip the IPv4 subtree when an address with a set bit in its first 96
+        # bits leads to it, as the C extension does. Inside the IPv4 subtree,
+        # or in an IPv4 tree, a record that points back to it is a cycle.
+        if (
+            node == self._ipv4_start
+            and bits == 128
+            and node < node_count
+            and ip_acc >> max(depth - 96, 0) != 0
+        ):
+            return
+
         if node > node_count:
             ip_acc <<= bits - depth
-            if ip_acc <= _IPV4_MAX_NUM and bits == 128:
-                depth -= 96
-            yield (
-                ipaddress.ip_network((ip_acc, depth)),
-                self._resolve_data_pointer(
-                    node,
-                ),
-            )
+            network: IPv4Network | IPv6Network
+            if bits == 32:
+                network = IPv4Network((ip_acc, depth))
+            elif depth >= 96 and ip_acc < _IPV4_MAX_NUM:
+                # An IPv4 network in an IPv6 tree is at least /96, and its
+                # first 96 bits are zero.
+                network = IPv4Network((ip_acc, depth - 96))
+            else:
+                network = IPv6Network((ip_acc, depth))
+            yield (network, self._resolve_data_pointer(node))
         elif node < node_count:
-            # A node at the full address depth has no valid children. Only a
-            # corrupt tree, such as one with a cycle, has one.
-            if depth >= bits:
+            # A node at the full address depth has no valid children, and no
+            # record can point to the root. Only a corrupt tree, such as one
+            # with a cycle, has either.
+            if depth >= bits or (node == 0 and depth > 0):
                 msg = "The MaxMind DB file's search tree is corrupt"
                 raise InvalidDatabaseError(msg)
             left = self._read_node(node, 0)
