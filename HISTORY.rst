@@ -48,6 +48,24 @@ History
   * The C extension ignores unknown keys. Previously, ``Reader.metadata()``
     crashed on them.
 
+* Added ``maxminddb.Mode``, which the README already described.
+* ``maxminddb.types.Record`` and ``Primitive`` are no longer generic type
+  aliases. Remove any subscript, such as ``Record[str]``. Pull request by Adam
+  Hitchcock. GitHub #464.
+
+* Type hints:
+
+  * ``Primitive`` includes ``bytearray``, which the C extension returns for
+    the ``bytes`` type.
+  * ``Reader.__iter__`` declares its item type.
+  * Added the ``StrOrBytesPath`` and ``DatabaseSource`` aliases to
+    ``maxminddb.types``.
+  * The ``maxminddb.extension.Reader`` stub accepts only a path, as the
+    extension does.
+  * ``MODE_FD`` accepts any object whose ``read()`` method returns ``bytes``,
+    such as a ``gzip.GzipFile``. ``maxminddb.types.SupportsRead`` describes
+    this type.
+
 3.2.0 (2026-09-10)
 ++++++++++++++++++
 

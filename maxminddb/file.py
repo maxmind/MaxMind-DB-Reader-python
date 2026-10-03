@@ -51,7 +51,7 @@ class FileBuffer:
         """Close file."""
         self._handle.close()
 
-    if hasattr(os, "pread"):  # type: ignore[attr-defined]
+    if hasattr(os, "pread"):
 
         def _read(self, buffersize: int, offset: int) -> bytes:
             """Read that uses pread."""
