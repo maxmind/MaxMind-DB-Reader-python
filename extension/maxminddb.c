@@ -732,15 +732,14 @@ static PyObject *Reader__enter__(PyObject *self, PyObject *UNUSED(args)) {
 }
 
 static PyObject *Reader__exit__(PyObject *self, PyObject *UNUSED(args)) {
-    Reader_close(self, NULL);
-    Py_RETURN_NONE;
+    return Reader_close(self, NULL);
 }
 
 static void Reader_dealloc(PyObject *self) {
     Reader_obj *obj = (Reader_obj *)self;
-    if (obj->mmdb != NULL) {
-        Reader_close(self, NULL);
-    }
+    // No lock is needed. At a count of 0 no other thread can use the reader,
+    // because each iterator holds a reference to it.
+    reader_close_database(obj);
 
     reader_lock_destroy(&obj->rwlock);
 
