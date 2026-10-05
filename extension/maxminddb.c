@@ -308,6 +308,28 @@ static void reader_release_write_lock(Reader_obj *reader) {
 // Reader implementation
 // =============================================================================
 
+static PyObject *
+Reader_new(PyTypeObject *type, PyObject *UNUSED(args), PyObject *UNUSED(kwds)) {
+    PyObject *self = type->tp_alloc(type, 0);
+    if (self == NULL) {
+        return NULL;
+    }
+
+    // Initialize the lock once, for the whole lifetime of the object.
+    // Reader_dealloc destroys it. A bare __new__ or a failed Reader_init then
+    // still leaves a valid, unlocked lock, so no path uses or destroys an
+    // uninitialized lock.
+    if (reader_lock_init(&((Reader_obj *)self)->rwlock) != 0) {
+        // Skip Reader_dealloc, which would destroy the failed lock. An
+        // instance of a heap type holds a reference to its type.
+        PyObject_Del(self);
+        Py_DECREF(type);
+        return NULL;
+    }
+
+    return self;
+}
+
 static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
     maxminddb_state *state = get_maxminddb_state_from_self(self);
     if (state == NULL) {
@@ -364,16 +386,9 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
         return -1;
     }
 
-    if (reader_lock_init(&mmdb_obj->rwlock) != 0) {
-        free(mmdb);
-        Py_XDECREF(filepath);
-        return -1;
-    }
-
     int const status = MMDB_open(filename, MMDB_MODE_MMAP, mmdb);
 
     if (status != MMDB_SUCCESS) {
-        reader_lock_destroy(&mmdb_obj->rwlock);
         free(mmdb);
         PyErr_Format(state->MaxMindDB_error,
                      "Error opening database file (%s). Is this a valid "
@@ -1263,6 +1278,7 @@ static PyMemberDef Metadata_members[] = {
 static PyType_Slot Reader_Type_slots[] = {
     {Py_tp_doc, "Reader object"},
     {Py_tp_dealloc, Reader_dealloc},
+    {Py_tp_new, Reader_new},
     {Py_tp_init, Reader_init},
     {Py_tp_iter, Reader_iter},
     {Py_tp_methods, Reader_methods},

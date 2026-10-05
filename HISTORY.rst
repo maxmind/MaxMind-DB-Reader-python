@@ -10,6 +10,8 @@ History
 
   * Fixed segmentation faults from invalid use of ``Metadata``, ``Reader`` and
     the internal iterator type.
+  * Fixed a ``RuntimeWarning`` or ``RuntimeError`` on free-threaded Python on
+    macOS when a ``Reader`` failed to open or was used without ``__init__``.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++
