@@ -785,6 +785,55 @@ class BaseTestReader(unittest.TestCase):
         reader.close()
         self.assertEqual(reader.closed, True)
 
+    def _reinitialize(self, reader: Any, path: str, mode: int) -> None:  # noqa: ANN401
+        if mode == MODE_FD:
+            with open(path, "rb") as database:
+                reader.__init__(database, mode)
+        else:
+            reader.__init__(path, mode)
+
+    def test_close_uninitialized_reader(self) -> None:
+        reader = self.reader_class.__new__(self.reader_class)
+        reader.close()
+        self.assertTrue(reader.closed)
+
+    def test_reinitialize_reopens_the_reader(self) -> None:
+        reader = open_database(
+            f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb",
+            self.mode,
+        )
+        self.addCleanup(reader.close)
+        iterator = iter(reader)
+        next(iterator)
+        self._reinitialize(reader, _DECODER_DB, self.mode)
+        self.assertEqual(reader.metadata().database_type, "MaxMind DB Decoder Test")
+        # The iterator walked the old database, so it must stop.
+        with self.assertRaisesRegex(ValueError, "reopened MaxMind DB"):
+            next(iterator)
+
+        reader.close()
+        self._reinitialize(reader, _DECODER_DB, self.mode)
+        self.assertFalse(reader.closed)
+        self.assertIsNotNone(reader.get("::1.1.1.0"))
+
+    def test_failed_reinitialize(self) -> None:
+        reader = open_database(_DECODER_DB, self.mode)
+        self.addCleanup(reader.close)
+
+        # Argument and file errors leave the old database open.
+        with self.assertRaisesRegex(ValueError, "Unsupported open mode"):
+            self._reinitialize(reader, _DECODER_DB, 100)
+        if self.mode != MODE_FD:
+            with self.assertRaises(FileNotFoundError):
+                self._reinitialize(reader, "missing.mmdb", self.mode)
+        self.assertFalse(reader.closed)
+        self.assertIsNotNone(reader.get("::1.1.1.0"))
+
+        # A file that is not a database closes the reader.
+        with self.assertRaises(InvalidDatabaseError):
+            self._reinitialize(reader, "README.rst", self.mode)
+        self.assertTrue(reader.closed)
+
     def test_closed_metadata(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
@@ -1038,24 +1087,6 @@ class TestExtensionObjects(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "closed MaxMind DB"):
             reader.__enter__()
 
-    def test_reinitialize_reader_reopens_it(self) -> None:
-        reader = maxminddb.extension.Reader(
-            f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb",
-        )
-        self.addCleanup(reader.close)
-        iterator = iter(reader)
-        next(iterator)
-        reader.__init__(_DECODER_DB)  # type: ignore[misc]
-        self.assertEqual(reader.metadata().database_type, "MaxMind DB Decoder Test")
-        # The records of the iterator point into the old database.
-        with self.assertRaisesRegex(ValueError, "reopened MaxMind DB"):
-            next(iterator)
-
-        reader.close()
-        reader.__init__(_DECODER_DB)  # type: ignore[misc]
-        self.assertFalse(reader.closed)
-        self.assertIsNotNone(reader.get("::1.1.1.0"))
-
     def test_path_finalizer_can_close_the_reader(self) -> None:
         # A bytes subclass from __fspath__ can run code when init releases
         # it. If init still held the write lock, a close() on another thread
@@ -1190,6 +1221,43 @@ class TestFDReader(BaseTestReader):
 
 
 class TestReaderInitialization(unittest.TestCase):
+    def test_reinitialize_from_the_same_source(self) -> None:
+        ipv4 = pathlib.Path(f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb")
+        ipv6 = pathlib.Path(f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv6-24.mmdb")
+
+        class OneBuffer:
+            """Return the same bytearray from each read()."""
+
+            def __init__(self) -> None:
+                self.buffer = bytearray(ipv4.read_bytes())
+
+            def read(self) -> bytearray:
+                return self.buffer
+
+        # BytesIO.read() returns the same bytes object after seek(0).
+        bytes_io = io.BytesIO(ipv4.read_bytes())
+        one_buffer = OneBuffer()
+
+        def reopen_bytes_io() -> None:
+            bytes_io.seek(0)
+
+        def reopen_one_buffer() -> None:
+            one_buffer.buffer[:] = ipv6.read_bytes()
+
+        for source, change in (
+            (bytes_io, reopen_bytes_io),
+            (one_buffer, reopen_one_buffer),
+        ):
+            with self.subTest(source=type(source).__name__):
+                reader = maxminddb.reader.Reader(source, MODE_FD)  # type: ignore[arg-type]
+                self.addCleanup(reader.close)
+                iterator = iter(reader)
+                next(iterator)
+                change()
+                reader.__init__(source, MODE_FD)  # type: ignore[misc]
+                with self.assertRaisesRegex(ValueError, "reopened MaxMind DB"):
+                    next(iterator)
+
     def test_empty_search_tree_is_accepted(self) -> None:
         data = pathlib.Path(
             f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb"

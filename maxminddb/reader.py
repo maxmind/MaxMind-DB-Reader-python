@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from maxminddb.types import Record
 
 _IPV4_MAX_NUM = 2**32
+_REOPENED = "Attempt to iterate over a reopened MaxMind DB. Create a new iterator."
 
 
 class Reader:
@@ -45,6 +46,8 @@ class Reader:
     _metadata: Metadata
     _record_size: int
     _ipv4_start: int
+    # Incremented on each open, so an iterator can detect a reopen.
+    _generation: int
 
     def __init__(
         self,
@@ -65,7 +68,13 @@ class Reader:
                               a path. This mode implies MODE_MEMORY.
 
         """
+        old_buffer = getattr(self, "_buffer", None)
         filename = self._load_buffer(database, mode)
+        # A second __init__ reopens the reader, as in the C extension.
+        _close_buffer(old_buffer)
+        # A source can return the same buffer object again, such as BytesIO,
+        # so count the opens instead of comparing buffers.
+        self._generation = getattr(self, "_generation", 0) + 1
 
         # Include validation errors in this cleanup scope. TRY301 is suppressed
         # because the handler only closes the buffer and re-raises the error.
@@ -191,9 +200,19 @@ class Reader:
         return None, prefix_len
 
     def __iter__(self) -> Iterator:
-        return self._generate_children(0, 0, 0)
+        return self._generate_children(0, 0, 0, self._generation)
 
-    def _generate_children(self, node: int, depth: int, ip_acc: int) -> Iterator:
+    def _generate_children(
+        self,
+        node: int,
+        depth: int,
+        ip_acc: int,
+        generation: int,
+    ) -> Iterator:
+        # The node numbers come from the database of this generation. After a
+        # second __init__, stop, as the C extension does.
+        if self._generation != generation:
+            raise ValueError(_REOPENED)
         if ip_acc != 0 and node == self._ipv4_start:
             # Skip nodes aliased to IPv4
             return
@@ -214,9 +233,11 @@ class Reader:
             left = self._read_node(node, 0)
             ip_acc <<= 1
             depth += 1
-            yield from self._generate_children(left, depth, ip_acc)
+            yield from self._generate_children(left, depth, ip_acc, generation)
+            if self._generation != generation:
+                raise ValueError(_REOPENED)
             right = self._read_node(node, 1)
-            yield from self._generate_children(right, depth, ip_acc | 1)
+            yield from self._generate_children(right, depth, ip_acc | 1, generation)
 
     def _find_address_in_tree(self, packed: bytearray) -> tuple[int, int]:
         bit_count = len(packed) * 8
@@ -320,8 +341,8 @@ class Reader:
 
         Calling this method while reads are in progress may cause exceptions.
         """
-        with contextlib.suppress(AttributeError):
-            self._buffer.close()  # type: ignore[union-attr]
+        # A reader made with __new__ alone has no buffer.
+        _close_buffer(getattr(self, "_buffer", None))
 
         self.closed = True
 
@@ -385,3 +406,9 @@ class Metadata:
     def search_tree_size(self) -> int:
         """The size of the search tree."""
         return self.node_count * self.node_byte_size
+
+
+def _close_buffer(buffer: object) -> None:
+    # bytes, bytearray and None have no close().
+    with contextlib.suppress(AttributeError):
+        buffer.close()  # type: ignore[attr-defined]
