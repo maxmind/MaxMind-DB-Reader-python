@@ -1090,12 +1090,21 @@ static PyObject *from_map(maxminddb_state *state,
     for (i = 0; i < map_size && *entry_data_list; i++) {
         *entry_data_list = (*entry_data_list)->next;
 
+        // libmaxminddb does not check map key types when it builds the list.
+        if ((*entry_data_list)->entry_data.type != MMDB_DATA_TYPE_UTF8_STRING) {
+            PyErr_SetString(state->MaxMindDB_error,
+                            MMDB_strerror(MMDB_INVALID_DATA_ERROR));
+            Py_DECREF(py_obj);
+            return NULL;
+        }
+
         PyObject *key = PyUnicode_FromStringAndSize(
             (*entry_data_list)->entry_data.utf8_string,
             (*entry_data_list)->entry_data.data_size);
         if (!key) {
             // PyUnicode_FromStringAndSize will set an appropriate exception
             // in this case.
+            Py_DECREF(py_obj);
             return NULL;
         }
 
@@ -1107,9 +1116,13 @@ static PyObject *from_map(maxminddb_state *state,
             Py_DECREF(py_obj);
             return NULL;
         }
-        PyDict_SetItem(py_obj, key, value);
+        int status = PyDict_SetItem(py_obj, key, value);
         Py_DECREF(value);
         Py_DECREF(key);
+        if (status != 0) {
+            Py_DECREF(py_obj);
+            return NULL;
+        }
     }
 
     return py_obj;
