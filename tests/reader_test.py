@@ -1013,11 +1013,10 @@ class TestExtensionReaderWithIPObjects(BaseTestReader):
 class TestExtensionObjects(unittest.TestCase):
     """Objects in states that crashed the extension."""
 
-    def test_uninitialized_metadata(self) -> None:
+    def test_new_metadata_requires_arguments(self) -> None:
         metadata_class = maxminddb.extension.Metadata
-        metadata = metadata_class.__new__(metadata_class)
-        self.assertIsNone(metadata.languages)
-        del metadata
+        with self.assertRaisesRegex(TypeError, "missing required argument"):
+            metadata_class.__new__(metadata_class)
 
     def test_metadata_missing_argument(self) -> None:
         with self.assertRaisesRegex(TypeError, "missing required argument"):
@@ -1117,10 +1116,9 @@ class TestExtensionObjects(unittest.TestCase):
         with reader:
             self.assertIsNotNone(reader.get("::1.1.1.0"))
 
-    def test_reinitialize_metadata_is_refused(self) -> None:
+    def test_reinitialize_metadata_changes_nothing(self) -> None:
         metadata = maxminddb.extension.Metadata(**_METADATA_FIELDS)
-        with self.assertRaisesRegex(ValueError, "reinitialize"):
-            metadata.__init__(**{**_METADATA_FIELDS, "record_size": 28})  # type: ignore[misc]
+        metadata.__init__(**{**_METADATA_FIELDS, "record_size": 28})  # type: ignore[misc]
         self.assertEqual(metadata.record_size, 24)
 
     @unittest.skipUnless(

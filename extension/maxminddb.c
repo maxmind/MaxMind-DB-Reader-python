@@ -999,8 +999,10 @@ static void ReaderIter_dealloc(PyObject *self) {
     Py_DECREF(type);
 }
 
-static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds) {
-
+// Metadata is immutable, so tp_new sets every field and there is no tp_init.
+// No object can then have a NULL field or be initialized twice.
+static PyObject *
+Metadata_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     PyObject *binary_format_major_version, *binary_format_minor_version,
         *build_epoch, *database_type, *description, *ip_version, *languages,
         *node_count, *record_size;
@@ -1029,53 +1031,36 @@ static int Metadata_init(PyObject *self, PyObject *args, PyObject *kwds) {
                                      &languages,
                                      &node_count,
                                      &record_size)) {
-        return -1;
+        return NULL;
     }
 
-    Metadata_obj *obj = (Metadata_obj *)self;
-
-    // Refuse a second init, as Reader_init does. Replacing a field would leak
-    // the old value or free it while a getter uses it. On free-threaded
-    // builds, the critical section makes the check and the stores atomic.
-    int status = 0;
-#ifdef Py_GIL_DISABLED
-    Py_BEGIN_CRITICAL_SECTION(self);
-#endif
-    if (obj->binary_format_major_version != NULL) {
-        PyErr_SetString(PyExc_ValueError,
-                        "Attempt to reinitialize a MaxMind DB Metadata.");
-        status = -1;
-    } else {
-        obj->binary_format_major_version =
-            Py_NewRef(binary_format_major_version);
-        obj->binary_format_minor_version =
-            Py_NewRef(binary_format_minor_version);
-        obj->build_epoch = Py_NewRef(build_epoch);
-        obj->database_type = Py_NewRef(database_type);
-        obj->description = Py_NewRef(description);
-        obj->ip_version = Py_NewRef(ip_version);
-        obj->languages = Py_NewRef(languages);
-        obj->node_count = Py_NewRef(node_count);
-        obj->record_size = Py_NewRef(record_size);
+    Metadata_obj *obj = (Metadata_obj *)type->tp_alloc(type, 0);
+    if (obj == NULL) {
+        return NULL;
     }
-#ifdef Py_GIL_DISABLED
-    Py_END_CRITICAL_SECTION();
-#endif
-
-    return status;
+    obj->binary_format_major_version = Py_NewRef(binary_format_major_version);
+    obj->binary_format_minor_version = Py_NewRef(binary_format_minor_version);
+    obj->build_epoch = Py_NewRef(build_epoch);
+    obj->database_type = Py_NewRef(database_type);
+    obj->description = Py_NewRef(description);
+    obj->ip_version = Py_NewRef(ip_version);
+    obj->languages = Py_NewRef(languages);
+    obj->node_count = Py_NewRef(node_count);
+    obj->record_size = Py_NewRef(record_size);
+    return (PyObject *)obj;
 }
 
 static void Metadata_dealloc(PyObject *self) {
     Metadata_obj *obj = (Metadata_obj *)self;
-    Py_XDECREF(obj->binary_format_major_version);
-    Py_XDECREF(obj->binary_format_minor_version);
-    Py_XDECREF(obj->build_epoch);
-    Py_XDECREF(obj->database_type);
-    Py_XDECREF(obj->description);
-    Py_XDECREF(obj->ip_version);
-    Py_XDECREF(obj->languages);
-    Py_XDECREF(obj->node_count);
-    Py_XDECREF(obj->record_size);
+    Py_DECREF(obj->binary_format_major_version);
+    Py_DECREF(obj->binary_format_minor_version);
+    Py_DECREF(obj->build_epoch);
+    Py_DECREF(obj->database_type);
+    Py_DECREF(obj->description);
+    Py_DECREF(obj->ip_version);
+    Py_DECREF(obj->languages);
+    Py_DECREF(obj->node_count);
+    Py_DECREF(obj->record_size);
     PyTypeObject *type = Py_TYPE(self);
     PyObject_Del(self);
     Py_DECREF(type);
@@ -1351,7 +1336,7 @@ static PyType_Spec Reader_Type_spec = {
 static PyType_Slot Metadata_Type_slots[] = {
     {Py_tp_doc, "Metadata object"},
     {Py_tp_dealloc, Metadata_dealloc},
-    {Py_tp_init, Metadata_init},
+    {Py_tp_new, Metadata_new},
     {Py_tp_methods, Metadata_methods},
     {Py_tp_members, Metadata_members},
     {0, NULL},

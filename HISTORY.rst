@@ -16,8 +16,7 @@ History
     with a 32-bit C ``long``, such as Windows.
   * Fixed memory leaks and a use-after-free. A second ``__init__`` on a
     ``Reader`` now closes the old database, and an iterator from before it
-    raises ``ValueError``. Reinitializing a ``Metadata`` now raises
-    ``ValueError``.
+    raises ``ValueError``. Reinitializing a ``Metadata`` changes nothing.
   * Fixed a ``RuntimeWarning`` or ``RuntimeError`` on free-threaded Python on
     macOS when a ``Reader`` failed to open or was used without ``__init__``.
 
