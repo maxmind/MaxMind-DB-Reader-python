@@ -393,21 +393,11 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
         return -1;
     }
 
-    Reader_obj *mmdb_obj = (Reader_obj *)self;
-    if (reader_acquire_write_lock(mmdb_obj) != 0) {
-        Py_XDECREF(filepath);
-        free(mmdb);
-        return -1;
-    }
-
-    // A second init reopens the reader, as in the pure Python reader. Close
-    // the old database first. A failed open then leaves the reader closed.
-    reader_close_database(mmdb_obj);
-
+    // Open the new database before taking the lock, so a failed open leaves
+    // the reader as it was, as in the pure Python reader.
     int const status = MMDB_open(filename, MMDB_MODE_MMAP, mmdb);
 
     if (status != MMDB_SUCCESS) {
-        reader_release_write_lock(mmdb_obj);
         free(mmdb);
         PyErr_Format(state->MaxMindDB_error,
                      "Error opening database file (%s). Is this a valid "
@@ -417,6 +407,16 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
         return -1;
     }
 
+    Reader_obj *mmdb_obj = (Reader_obj *)self;
+    if (reader_acquire_write_lock(mmdb_obj) != 0) {
+        MMDB_close(mmdb);
+        free(mmdb);
+        Py_XDECREF(filepath);
+        return -1;
+    }
+
+    // A second init reopens the reader. Close the old database.
+    reader_close_database(mmdb_obj);
     mmdb_obj->mmdb = mmdb;
     mmdb_obj->closed = Py_False;
     // Stop the iterators of the old database. Their records point into it.

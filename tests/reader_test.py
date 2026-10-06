@@ -822,19 +822,17 @@ class BaseTestReader(unittest.TestCase):
         reader = open_database(_DECODER_DB, self.mode)
         self.addCleanup(reader.close)
 
-        # Argument and file errors leave the old database open.
+        # A failed reinit leaves the old database open.
         with self.assertRaisesRegex(ValueError, "Unsupported open mode"):
             self._reinitialize(reader, _DECODER_DB, 100)
         if self.mode != MODE_FD:
             with self.assertRaises(FileNotFoundError):
                 self._reinitialize(reader, "missing.mmdb", self.mode)
-        self.assertFalse(reader.closed)
-        self.assertIsNotNone(reader.get("::1.1.1.0"))
-
-        # A file that is not a database closes the reader.
         with self.assertRaises(InvalidDatabaseError):
             self._reinitialize(reader, "README.rst", self.mode)
-        self.assertTrue(reader.closed)
+        self.assertFalse(reader.closed)
+        self.assertEqual(reader.metadata().database_type, "MaxMind DB Decoder Test")
+        self.assertIsNotNone(reader.get("::1.1.1.0"))
 
     def test_closed_metadata(self) -> None:
         reader = open_database(
@@ -1333,21 +1331,19 @@ class TestReaderInitialization(unittest.TestCase):
                         with (
                             _bounded(),
                             mock.patch.object(
-                                reader_class,
-                                "close",
-                                autospec=True,
-                                side_effect=reader_class.close,
-                            ) as close,
+                                maxminddb.reader,
+                                "_close_buffer",
+                                wraps=maxminddb.reader._close_buffer,  # noqa: SLF001
+                            ) as close_buffer,
                             self.assertRaisesRegex(error, message),
                         ):
                             reader_class(path, mode)
-                        close.assert_called_once()
-                        reader = close.call_args.args[0]
-                        self.assertTrue(reader.closed)
+                        close_buffer.assert_called_once()
+                        buffer = close_buffer.call_args.args[0]
                         if mode == MODE_FILE:
-                            self.assertTrue(reader._buffer._handle.closed)  # noqa: SLF001
+                            self.assertTrue(buffer._handle.closed)  # noqa: SLF001
                         else:
-                            self.assertTrue(reader._buffer.closed)  # noqa: SLF001
+                            self.assertTrue(buffer.closed)
 
 
 class TestSearchTreeNodes(unittest.TestCase):

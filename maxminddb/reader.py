@@ -69,18 +69,14 @@ class Reader:
                               a path. This mode implies MODE_MEMORY.
 
         """
-        old_buffer = getattr(self, "_buffer", None)
-        filename = self._load_buffer(database, mode)
-        # A second __init__ reopens the reader, as in the C extension. A source
-        # can return the same buffer object again, such as BytesIO, so count
-        # the opens instead of comparing buffers. Count first, so an old
-        # iterator stops even if closing the old buffer fails.
-        self._generation = getattr(self, "_generation", 0) + 1
-        _close_buffer(old_buffer, keep=self._buffer)
+        # A failed __init__ keeps the old database, if any, as in the C
+        # extension.
+        old_state = self.__dict__.copy()
 
-        # Include validation errors in this cleanup scope. TRY301 is suppressed
-        # because the handler only closes the buffer and re-raises the error.
+        # TRY301 is suppressed because the handler only restores the old state
+        # and re-raises the error.
         try:
+            filename = self._load_buffer(database, mode)
             metadata_start = self._buffer.rfind(
                 self._METADATA_START_MARKER,
                 max(0, self._buffer_size - 128 * 1024),
@@ -147,9 +143,16 @@ class Reader:
                 ipv4_start = node
             self._ipv4_start = ipv4_start
         except BaseException:
-            # Release the buffer on any initialization failure.
-            self.close()
+            _close_buffer(self.__dict__.get("_buffer"), keep=old_state.get("_buffer"))
+            self.__dict__ = old_state
             raise
+
+        # A second __init__ reopens the reader, as in the C extension. A source
+        # can return the same buffer object again, such as BytesIO, so count
+        # the opens instead of comparing buffers. Count first, so an old
+        # iterator stops even if closing the old buffer fails.
+        self._generation = old_state.get("_generation", 0) + 1
+        _close_buffer(old_state.get("_buffer"), keep=self._buffer)
 
     def metadata(self) -> Metadata:
         """Return the metadata associated with the MaxMind DB file."""

@@ -9,7 +9,7 @@ History
 * A second ``__init__`` on a pure Python ``Reader`` now closes the old
   database, and an iterator from before it raises ``ValueError``, as in the
   C extension. Before, the iterator walked the new database with node
-  numbers from the old one.
+  numbers from the old one. A failed ``__init__`` keeps the old database.
 * C extension:
 
   * Fixed segmentation faults from invalid use of ``Metadata``, ``Reader`` and
@@ -20,7 +20,8 @@ History
     with a 32-bit C ``long``, such as Windows.
   * Fixed memory leaks and a use-after-free. A second ``__init__`` on a
     ``Reader`` now closes the old database, and an iterator from before it
-    raises ``ValueError``. Reinitializing a ``Metadata`` changes nothing.
+    raises ``ValueError``. A failed ``__init__`` keeps the old database.
+    Reinitializing a ``Metadata`` changes nothing.
   * Fixed a ``RuntimeWarning`` or ``RuntimeError`` on free-threaded Python on
     macOS when a ``Reader`` failed to open or was used without ``__init__``.
 
