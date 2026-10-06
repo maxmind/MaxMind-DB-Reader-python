@@ -4,6 +4,7 @@ import contextlib
 import gc
 import io
 import ipaddress
+import mmap
 import multiprocessing
 import os
 import pathlib
@@ -1222,6 +1223,20 @@ class TestFDReader(BaseTestReader):
 
 
 class TestReaderInitialization(unittest.TestCase):
+    def test_reinitialize_from_a_source_that_returns_the_same_mmap(self) -> None:
+        with open(_DECODER_DB, "rb") as database:
+            buffer = mmap.mmap(database.fileno(), 0, access=mmap.ACCESS_READ)
+        self.addCleanup(buffer.close)
+
+        class Source:
+            def read(self) -> mmap.mmap:
+                return buffer
+
+        reader = maxminddb.reader.Reader(Source(), MODE_FD)  # type: ignore[arg-type]
+        # A reinit must not close the buffer that it then uses.
+        reader.__init__(Source(), MODE_FD)  # type: ignore[misc]
+        self.assertIsNotNone(reader.get("::1.1.1.0"))
+
     def test_reinitialize_from_the_same_source(self) -> None:
         ipv4 = pathlib.Path(f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb")
         ipv6 = pathlib.Path(f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv6-24.mmdb")

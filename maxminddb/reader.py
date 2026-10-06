@@ -71,11 +71,12 @@ class Reader:
         """
         old_buffer = getattr(self, "_buffer", None)
         filename = self._load_buffer(database, mode)
-        # A second __init__ reopens the reader, as in the C extension.
-        _close_buffer(old_buffer)
-        # A source can return the same buffer object again, such as BytesIO,
-        # so count the opens instead of comparing buffers.
+        # A second __init__ reopens the reader, as in the C extension. A source
+        # can return the same buffer object again, such as BytesIO, so count
+        # the opens instead of comparing buffers. Count first, so an old
+        # iterator stops even if closing the old buffer fails.
         self._generation = getattr(self, "_generation", 0) + 1
+        _close_buffer(old_buffer, keep=self._buffer)
 
         # Include validation errors in this cleanup scope. TRY301 is suppressed
         # because the handler only closes the buffer and re-raises the error.
@@ -409,7 +410,10 @@ class Metadata:
         return self.node_count * self.node_byte_size
 
 
-def _close_buffer(buffer: object) -> None:
+def _close_buffer(buffer: object, keep: object = None) -> None:
+    # A source can return the same buffer again. Keep the one in use open.
+    if buffer is keep:
+        return
     # bytes, bytearray and None have no close().
     with contextlib.suppress(AttributeError):
         buffer.close()  # type: ignore[attr-defined]
