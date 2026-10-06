@@ -1306,6 +1306,49 @@ class TestExtensionObjects(unittest.TestCase):
         )
         self._run_program(program)
 
+    def test_close_from_another_thread_during_ip_network(self) -> None:
+        # Thread B calls close() and waits for the write lock while thread A
+        # is in ip_network. ip_network then starts a GC, which on free-threaded
+        # Python waits for every thread, B included. If A still held the read
+        # lock, B would never get the lock, and both would wait forever.
+        program = textwrap.dedent(
+            """
+            import gc
+            import ipaddress
+            import sys
+            import threading
+            import time
+
+            real_ip_network = ipaddress.ip_network
+            closing = threading.Event()
+
+            def ip_network(*args, **kwargs):
+                if not closing.is_set():
+                    closing.set()
+                    # Give the other thread time to wait for the write lock.
+                    time.sleep(0.2)
+                    gc.collect()
+                return real_ip_network(*args, **kwargs)
+
+            ipaddress.ip_network = ip_network
+
+            from maxminddb.extension import Reader
+
+            reader = Reader(sys.argv[1])
+
+            def close():
+                closing.wait()
+                reader.close()
+
+            closer = threading.Thread(target=close)
+            closer.start()
+            next(iter(reader))
+            closer.join()
+            print("ok")
+            """,
+        )
+        self._run_program(program)
+
     @unittest.skipIf(
         getattr(sys, "_is_gil_enabled", lambda: True)(),
         "needs free-threaded Python",
