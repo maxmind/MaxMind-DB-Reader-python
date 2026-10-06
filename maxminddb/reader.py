@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 
 _IPV4_MAX_NUM = 2**32
 _REOPENED = "Attempt to iterate over a reopened MaxMind DB. Create a new iterator."
+_CLOSED = "Attempt to iterate over a closed MaxMind DB."
 
 
 class Reader:
@@ -205,19 +206,24 @@ class Reader:
         return None, prefix_len
 
     def __iter__(self) -> Iterator:
-        return self._generate_children(0, 0, 0, self._generation)
+        return self._iterate(self._generation)
 
-    def _generate_children(
-        self,
-        node: int,
-        depth: int,
-        ip_acc: int,
-        generation: int,
-    ) -> Iterator:
-        # The node numbers come from the database of this generation. After a
-        # second __init__, stop, as the C extension does.
-        if self._generation != generation:
-            raise ValueError(_REOPENED)
+    def _iterate(self, generation: int) -> Iterator:
+        children = self._generate_children(0, 0, 0)
+        while True:
+            # Check before the walk resumes and reads more nodes, as the C
+            # extension does. After a second __init__ or close(), the node
+            # numbers of the walk no longer match the buffer.
+            if self._generation != generation:
+                raise ValueError(_REOPENED)
+            if self.closed:
+                raise ValueError(_CLOSED)
+            record = next(children, None)
+            if record is None:
+                return
+            yield record
+
+    def _generate_children(self, node: int, depth: int, ip_acc: int) -> Iterator:
         if ip_acc != 0 and node == self._ipv4_start:
             # Skip nodes aliased to IPv4
             return
@@ -238,11 +244,9 @@ class Reader:
             left = self._read_node(node, 0)
             ip_acc <<= 1
             depth += 1
-            yield from self._generate_children(left, depth, ip_acc, generation)
-            if self._generation != generation:
-                raise ValueError(_REOPENED)
+            yield from self._generate_children(left, depth, ip_acc)
             right = self._read_node(node, 1)
-            yield from self._generate_children(right, depth, ip_acc | 1, generation)
+            yield from self._generate_children(right, depth, ip_acc | 1)
 
     def _find_address_in_tree(self, packed: bytearray) -> tuple[int, int]:
         bit_count = len(packed) * 8

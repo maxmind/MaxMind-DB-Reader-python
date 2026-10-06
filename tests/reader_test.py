@@ -818,6 +818,30 @@ class BaseTestReader(unittest.TestCase):
         self.assertFalse(reader.closed)
         self.assertIsNotNone(reader.get("::1.1.1.0"))
 
+    def test_reinitialize_at_the_last_record(self) -> None:
+        # The last record of this database is the right child of the root, so
+        # no node of the walk remains after it.
+        reader = open_database(
+            f"{_TEST_DATA_DIR}/MaxMind-DB-test-decoder-value-limit.mmdb",
+            self.mode,
+        )
+        self.addCleanup(reader.close)
+        count = sum(1 for _ in reader)
+        iterator = iter(reader)
+        for _ in range(count):
+            next(iterator)
+        self._reinitialize(reader, _DECODER_DB, self.mode)
+        with self.assertRaisesRegex(ValueError, "reopened MaxMind DB"):
+            next(iterator)
+
+    def test_iterate_after_close(self) -> None:
+        reader = open_database(_DECODER_DB, self.mode)
+        iterator = iter(reader)
+        next(iterator)
+        reader.close()
+        with self.assertRaisesRegex(ValueError, "closed MaxMind DB"):
+            next(iterator)
+
     def test_failed_reinitialize(self) -> None:
         reader = open_database(_DECODER_DB, self.mode)
         self.addCleanup(reader.close)

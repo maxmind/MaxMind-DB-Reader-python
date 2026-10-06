@@ -10,6 +10,7 @@ History
   database, and an iterator from before it raises ``ValueError``, as in the
   C extension. Before, the iterator walked the new database with node
   numbers from the old one. A failed ``__init__`` keeps the old database.
+  After ``close()``, an iterator raises ``ValueError`` in every mode.
 * C extension:
 
   * Fixed segmentation faults from invalid use of ``Metadata``, ``Reader`` and
