@@ -145,6 +145,11 @@ static PyObject *from_array(maxminddb_state *state,
 static PyObject *from_uint128(const MMDB_entry_data_list_s *entry_data_list);
 static int ip_converter(PyObject *obj, struct sockaddr_storage *ip_address);
 
+// The error for an entry data list that ends too early.
+#define CORRUPT_DATA_MESSAGE                                                   \
+    "Error while looking up data. Your database may be corrupt or you have "   \
+    "found a bug in libmaxminddb."
+
 #ifdef __GNUC__
 #define UNUSED(x) UNUSED_##x __attribute__((__unused__))
 #else
@@ -1077,9 +1082,7 @@ static PyObject *
 from_entry_data_list(maxminddb_state *state,
                      MMDB_entry_data_list_s **entry_data_list) {
     if (entry_data_list == NULL || *entry_data_list == NULL) {
-        PyErr_SetString(state->MaxMindDB_error,
-                        "Error while looking up data. Your database may be "
-                        "corrupt or you have found a bug in libmaxminddb.");
+        PyErr_SetString(state->MaxMindDB_error, CORRUPT_DATA_MESSAGE);
         return NULL;
     }
 
@@ -1142,9 +1145,7 @@ static PyObject *from_map(maxminddb_state *state,
         // A list that ends before the key is corrupt, as in
         // from_entry_data_list.
         if (*entry_data_list == NULL) {
-            PyErr_SetString(state->MaxMindDB_error,
-                            "Error while looking up data. Your database may be "
-                            "corrupt or you have found a bug in libmaxminddb.");
+            PyErr_SetString(state->MaxMindDB_error, CORRUPT_DATA_MESSAGE);
             Py_DECREF(py_obj);
             return NULL;
         }
