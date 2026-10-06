@@ -1305,26 +1305,7 @@ class TestExtensionObjects(unittest.TestCase):
             print("ok")
             """,
         )
-        # Put this process's maxminddb first, and keep the harness's paths.
-        paths = [str(pathlib.Path(maxminddb.__file__).parent.parent)]
-        if os.environ.get("PYTHONPATH"):
-            paths.append(os.environ["PYTHONPATH"])
-        env = {**os.environ, "PYTHONPATH": os.pathsep.join(paths)}
-        path = pathlib.Path(f"{_TEST_DATA_DIR}/GeoIP2-City-Test.mmdb").resolve()
-        with tempfile.TemporaryDirectory() as directory:
-            # Run from an empty directory so the child imports the same
-            # maxminddb as this process, not a source tree in the cwd.
-            result = subprocess.run(  # noqa: S603
-                [sys.executable, "-c", program, str(path)],
-                capture_output=True,
-                text=True,
-                check=False,
-                cwd=directory,
-                env=env,
-                timeout=60,
-            )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.strip(), "ok")
+        self._run_program(program)
 
     @unittest.skipIf(
         getattr(sys, "_is_gil_enabled", lambda: True)(),
