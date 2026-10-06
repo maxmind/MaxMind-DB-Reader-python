@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from importlib.metadata import version
-from typing import IO, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast
 
 from .const import (
     MODE_AUTO,
@@ -12,12 +12,13 @@ from .const import (
     MODE_MEMORY,
     MODE_MMAP,
     MODE_MMAP_EXT,
+    Mode,
 )
-from .decoder import InvalidDatabaseError
+from .errors import InvalidDatabaseError
 from .reader import Reader
 
 if TYPE_CHECKING:
-    import os
+    from .types import DatabaseSource
 
 try:
     from . import extension as _extension
@@ -33,13 +34,14 @@ __all__ = [
     "MODE_MMAP",
     "MODE_MMAP_EXT",
     "InvalidDatabaseError",
+    "Mode",
     "Reader",
     "open_database",
 ]
 
 
 def open_database(
-    database: str | bytes | int | os.PathLike[str] | os.PathLike[bytes] | IO[bytes],
+    database: DatabaseSource,
     mode: int = MODE_AUTO,
 ) -> Reader:
     """Open a MaxMind DB database.
@@ -84,8 +86,9 @@ def open_database(
     # The C type exposes the same API as the Python Reader, so for type
     # checking purposes, pretend it is one. (Ideally this would be a subclass
     # of, or share a common parent class with, the Python Reader
-    # implementation.)
-    return cast("Reader", _extension.Reader(database, mode))
+    # implementation.) The extension accepts only a path. It raises TypeError
+    # for a file descriptor or a file object.
+    return cast("Reader", _extension.Reader(database, mode))  # type: ignore[arg-type]
 
 
 __version__ = version("maxminddb")

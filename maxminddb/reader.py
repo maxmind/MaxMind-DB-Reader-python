@@ -11,7 +11,7 @@ import contextlib
 import ipaddress
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
-from typing import IO, TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any
 
 from maxminddb.const import MODE_AUTO, MODE_FD, MODE_FILE, MODE_MEMORY, MODE_MMAP
 from maxminddb.decoder import Decoder
@@ -20,11 +20,10 @@ from maxminddb.file import FileBuffer
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-    from os import PathLike
 
     from typing_extensions import Self
 
-    from maxminddb.types import Record, RecordDict
+    from maxminddb.types import DatabaseSource, Record, RecordDict
 
 _IPV4_MAX_NUM = 2**32
 _REOPENED = "Attempt to iterate over a reopened MaxMind DB. Create a new iterator."
@@ -55,7 +54,7 @@ class Reader:
 
     def __init__(
         self,
-        database: str | bytes | int | PathLike[str] | PathLike[bytes] | IO[bytes],
+        database: DatabaseSource,
         mode: int = MODE_AUTO,
     ) -> None:
         """Reader for the MaxMind DB file format.
@@ -92,7 +91,7 @@ class Reader:
 
     def _load(
         self,
-        database: str | bytes | int | PathLike[str] | PathLike[bytes] | IO[bytes],
+        database: DatabaseSource,
         mode: int,
     ) -> None:
         # TRY301 is suppressed because the handler only closes the buffer and
@@ -216,10 +215,12 @@ class Reader:
             return self._resolve_data_pointer(pointer), prefix_len
         return None, prefix_len
 
-    def __iter__(self) -> Iterator:
+    def __iter__(self) -> Iterator[tuple[IPv4Network | IPv6Network, Record]]:
         return self._iterate(self._generation)
 
-    def _iterate(self, generation: int) -> Iterator:
+    def _iterate(
+        self, generation: int
+    ) -> Iterator[tuple[IPv4Network | IPv6Network, Record]]:
         children = self._generate_children(0, 0, 0)
         while True:
             # Check before the walk resumes and reads more nodes, as the C
@@ -234,7 +235,12 @@ class Reader:
                 return
             yield record
 
-    def _generate_children(self, node: int, depth: int, ip_acc: int) -> Iterator:
+    def _generate_children(
+        self,
+        node: int,
+        depth: int,
+        ip_acc: int,
+    ) -> Iterator[tuple[IPv4Network | IPv6Network, Record]]:
         node_count = self._metadata.node_count
         bits = 128 if self._metadata.ip_version == 6 else 32
         # Skip the IPv4 subtree when an address with a set bit in its first 96
@@ -334,7 +340,7 @@ class Reader:
 
     def _load_buffer(
         self,
-        database: str | bytes | int | PathLike[str] | PathLike[bytes] | IO[bytes],
+        database: DatabaseSource,
         mode: int = MODE_AUTO,
     ) -> str:
         filename: Any
@@ -383,7 +389,7 @@ class Reader:
 
         self.closed = True
 
-    def __exit__(self, *_) -> None:  # noqa: ANN002
+    def __exit__(self, *_: object) -> None:
         self.close()
 
     def __enter__(self) -> Self:
