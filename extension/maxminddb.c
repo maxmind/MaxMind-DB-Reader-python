@@ -88,7 +88,7 @@ typedef struct {
     Reader_obj *reader;
     struct record *next;
     uint64_t generation;
-    // Set once next() has raised StopIteration.
+    // Set once next() has raised StopIteration or an error.
     bool done;
 } ReaderIter_obj;
 
@@ -141,6 +141,7 @@ static PyObject *metadata_value(PyObject *map, const char *key);
 static void set_error_from_cause(PyObject *type, const char *message);
 static PyObject *Metadata_node_byte_size(PyObject *self, void *closure);
 static PyObject *reader_iter_next(PyObject *self);
+static void free_records(struct record *next);
 static bool format_sockaddr(struct sockaddr *addr, char *dst);
 static PyObject *from_entry_data_list(maxminddb_state *state,
                                       MMDB_entry_data_list_s **entry_data_list);
@@ -917,8 +918,12 @@ static PyObject *ReaderIter_next(PyObject *self) {
     Py_BEGIN_CRITICAL_SECTION(self);
 #endif
     result = reader_iter_next(self);
-    if (result == NULL && !PyErr_Occurred()) {
-        ((ReaderIter_obj *)self)->done = true;
+    // Stop after StopIteration or an error, as a generator does.
+    if (result == NULL) {
+        ReaderIter_obj *ri = (ReaderIter_obj *)self;
+        free_records(ri->next);
+        ri->next = NULL;
+        ri->done = true;
     }
 #ifdef Py_GIL_DISABLED
     Py_END_CRITICAL_SECTION();
@@ -934,10 +939,11 @@ static PyObject *reader_iter_next(PyObject *self) {
 
     ReaderIter_obj *ri = (ReaderIter_obj *)self;
 
-    // An exhausted iterator stays exhausted, even after the reader closes.
-    // The list of pending records cannot show this: it is already empty when
-    // the last record is returned, and the next call must still report a
-    // closed or reopened reader, as the pure Python iterator does.
+    // An iterator that is exhausted or that raised an error stays done, even
+    // after the reader closes. The list of pending records cannot show this:
+    // it is already empty when the last record is returned, and the next call
+    // must still report a closed or reopened reader, as the pure Python
+    // iterator does.
     if (ri->done) {
         return NULL;
     }
@@ -1126,17 +1132,20 @@ static PyObject *reader_iter_next(PyObject *self) {
     return NULL;
 }
 
-static void ReaderIter_dealloc(PyObject *self) {
-    ReaderIter_obj *ri = (ReaderIter_obj *)self;
-
-    Py_DECREF(ri->reader);
-
-    struct record *next = ri->next;
+static void free_records(struct record *next) {
     while (next != NULL) {
         struct record *cur = next;
         next = cur->next;
         free(cur);
     }
+}
+
+static void ReaderIter_dealloc(PyObject *self) {
+    ReaderIter_obj *ri = (ReaderIter_obj *)self;
+
+    Py_DECREF(ri->reader);
+
+    free_records(ri->next);
     PyTypeObject *type = Py_TYPE(self);
     PyObject_Del(self);
     Py_DECREF(type);
