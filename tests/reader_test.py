@@ -1214,6 +1214,35 @@ class TestExtensionObjects(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), "ok")
 
+    @unittest.skipUnless(
+        pathlib.Path("/proc/self/maps").exists(),
+        "needs /proc/self/maps and /proc/self/fd",
+    )
+    def test_reinitialize_releases_the_old_database(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            # A copy that no other test has open, so only this reader counts.
+            path = pathlib.Path(directory) / "decoder.mmdb"
+            path.write_bytes(pathlib.Path(_DECODER_DB).read_bytes())
+            real_path = path.resolve()
+
+            def mappings() -> int:
+                maps = pathlib.Path("/proc/self/maps").read_text()
+                return maps.count(str(real_path))
+
+            def descriptors() -> int:
+                return sum(
+                    fd.resolve() == real_path
+                    for fd in pathlib.Path("/proc/self/fd").iterdir()
+                )
+
+            reader = maxminddb.extension.Reader(path)
+            for _ in range(10):
+                reader.__init__(path)  # type: ignore[misc]
+            self.assertEqual(mappings(), 1)
+            self.assertEqual(descriptors(), 0)
+            reader.close()
+            self.assertEqual(mappings(), 0)
+
     def test_initialize_after_close_on_uninitialized_reader(self) -> None:
         reader_class = maxminddb.extension.Reader
         reader = reader_class.__new__(reader_class)
@@ -1297,6 +1326,18 @@ class TestFDReader(BaseTestReader):
 
 
 class TestReaderInitialization(unittest.TestCase):
+    def test_reinitialize_closes_the_old_buffer(self) -> None:
+        for mode in (MODE_MMAP, MODE_FILE):
+            with self.subTest(mode=mode):
+                reader = maxminddb.reader.Reader(_DECODER_DB, mode)
+                self.addCleanup(reader.close)
+                old: Any = reader._buffer  # noqa: SLF001
+                reader.__init__(_DECODER_DB, mode)  # type: ignore[misc]
+                if mode == MODE_FILE:
+                    self.assertTrue(old._handle.closed)  # noqa: SLF001
+                else:
+                    self.assertTrue(old.closed)
+
     def test_subclass_with_a_closing_finalizer_stays_open(self) -> None:
         class ClosingReader(maxminddb.reader.Reader):
             def __del__(self) -> None:
