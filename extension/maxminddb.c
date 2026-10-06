@@ -340,6 +340,8 @@ Reader_new(PyTypeObject *type, PyObject *UNUSED(args), PyObject *UNUSED(kwds)) {
         return NULL;
     }
 
+    // No database is open until Reader_init succeeds.
+    ((Reader_obj *)self)->closed = Py_True;
     return self;
 }
 

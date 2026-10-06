@@ -41,7 +41,8 @@ class Reader:
 
     _buffer: bytes | FileBuffer | "mmap.mmap"  # noqa: UP037
     _buffer_size: int
-    closed: bool
+    # No database is open until __init__ succeeds.
+    closed: bool = True
     _decoder: Decoder
     _metadata: Metadata
     _record_size: int

@@ -794,6 +794,7 @@ class BaseTestReader(unittest.TestCase):
 
     def test_close_uninitialized_reader(self) -> None:
         reader = self.reader_class.__new__(self.reader_class)
+        self.assertTrue(reader.closed)
         reader.close()
         self.assertTrue(reader.closed)
 
