@@ -1297,6 +1297,30 @@ class TestFDReader(BaseTestReader):
 
 
 class TestReaderInitialization(unittest.TestCase):
+    def test_subclass_with_a_closing_finalizer_stays_open(self) -> None:
+        class ClosingReader(maxminddb.reader.Reader):
+            def __del__(self) -> None:
+                self.close()
+
+        reader = ClosingReader(_DECODER_DB, MODE_MMAP)
+        self.addCleanup(reader.close)
+        # Freeing an object that init used must not close this reader.
+        gc.collect()
+        self.assertFalse(reader.closed)
+        self.assertIsNotNone(reader.get("::1.1.1.0"))
+
+    def test_subclass_attributes_survive_init(self) -> None:
+        class TaggedReader(maxminddb.reader.Reader):
+            def __init__(self, database: str, mode: int) -> None:
+                self.tag = "kept"
+                super().__init__(database, mode)
+
+        reader = TaggedReader(_DECODER_DB, MODE_MMAP)
+        self.addCleanup(reader.close)
+        self.assertEqual(reader.tag, "kept")
+        reader.__init__(f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb", MODE_MMAP)  # type: ignore[misc]
+        self.assertEqual(reader.tag, "kept")
+
     def test_reinitialize_switches_to_the_new_database_at_the_end(self) -> None:
         reader = maxminddb.reader.Reader(
             f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb",

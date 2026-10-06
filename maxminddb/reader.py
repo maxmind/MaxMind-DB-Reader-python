@@ -74,16 +74,18 @@ class Reader:
         progress on other threads fail or return wrong results.
 
         """
-        # Load into a new object, then switch to it in one step, so that other
-        # threads never see a mix of the old and the new database. A failed
-        # load leaves this reader as it was, as in the C extension.
-        new = Reader.__new__(type(self))
+        # Load into a new object, then copy its state in one step, so that
+        # other threads never see a mix of the old and the new database. A
+        # failed load leaves this reader as it was, as in the C extension. The
+        # new object is a base Reader, so freeing it runs no __del__ of a
+        # subclass, and the update keeps the attributes that a subclass set.
+        new = Reader.__new__(Reader)
         new._load(database, mode)  # noqa: SLF001
         # A source can return the same buffer object again, such as BytesIO,
         # so count the opens instead of comparing buffers.
         new._generation = self._generation + 1  # noqa: SLF001
         old_buffer = self.__dict__.get("_buffer")
-        self.__dict__ = new.__dict__
+        self.__dict__.update(new.__dict__)
         _close_buffer(old_buffer, keep=self._buffer)
 
     def _load(
