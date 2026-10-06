@@ -38,6 +38,7 @@ from maxminddb.const import (
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+    from typing import IO
 
     from maxminddb.reader import Reader
 
@@ -115,14 +116,20 @@ def _bounded(seconds: int = 60, address_space: int = 2 << 30) -> Iterator[None]:
 
 def get_reader_from_file_descriptor(filepath: str, mode: int) -> Reader:
     """Patches open_database() for class TestFDReader()."""
+    # There are a few cases where mode is statically defined in
+    # BaseTestReader(). In those cases, this opens the string path.
+    with _database_source(filepath, mode) as database:
+        return maxminddb.open_database(database, mode)
+
+
+@contextlib.contextmanager
+def _database_source(path: str, mode: int) -> Iterator[str | IO[bytes]]:
+    """Yield the database argument for path: a binary file for MODE_FD."""
     if mode == MODE_FD:
-        with open(filepath, "rb") as mmdb_fh:
-            return maxminddb.open_database(mmdb_fh, mode)
+        with open(path, "rb") as database:
+            yield database
     else:
-        # There are a few cases where mode is statically defined in
-        # BaseTestReader(). In those cases just call an unpatched
-        # open_database() with a string path.
-        return maxminddb.open_database(filepath, mode)
+        yield path
 
 
 class BaseTestReader(unittest.TestCase):
@@ -787,11 +794,8 @@ class BaseTestReader(unittest.TestCase):
         self.assertEqual(reader.closed, True)
 
     def _reinitialize(self, reader: Any, path: str, mode: int) -> None:  # noqa: ANN401
-        if mode == MODE_FD:
-            with open(path, "rb") as database:
-                reader.__init__(database, mode)
-        else:
-            reader.__init__(path, mode)
+        with _database_source(path, mode) as database:
+            reader.__init__(database, mode)
 
     def test_iterate_uninitialized_reader(self) -> None:
         reader = self.reader_class.__new__(self.reader_class)
