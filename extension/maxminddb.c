@@ -1134,6 +1134,16 @@ static PyObject *from_map(maxminddb_state *state,
     for (i = 0; i < map_size && *entry_data_list; i++) {
         *entry_data_list = (*entry_data_list)->next;
 
+        // A list that ends before the key is corrupt, as in
+        // from_entry_data_list.
+        if (*entry_data_list == NULL) {
+            PyErr_SetString(state->MaxMindDB_error,
+                            "Error while looking up data. Your database may be "
+                            "corrupt or you have found a bug in libmaxminddb.");
+            Py_DECREF(py_obj);
+            return NULL;
+        }
+
         // libmaxminddb does not check the key type, and the union holds a
         // string only for a string key.
         if ((*entry_data_list)->entry_data.type != MMDB_DATA_TYPE_UTF8_STRING) {
