@@ -793,6 +793,12 @@ class BaseTestReader(unittest.TestCase):
         else:
             reader.__init__(path, mode)
 
+    def test_iterate_uninitialized_reader(self) -> None:
+        reader = self.reader_class.__new__(self.reader_class)
+        # The C reader raises in iter(), the pure Python reader in next().
+        with self.assertRaisesRegex(ValueError, "closed MaxMind DB"):
+            next(iter(reader))
+
     def test_close_uninitialized_reader(self) -> None:
         reader = self.reader_class.__new__(self.reader_class)
         self.assertTrue(reader.closed)

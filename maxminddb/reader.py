@@ -49,7 +49,7 @@ class Reader:
     _record_size: int
     _ipv4_start: int
     # Incremented on each open, so an iterator can detect a reopen.
-    _generation: int
+    _generation: int = 0
 
     def __init__(
         self,
