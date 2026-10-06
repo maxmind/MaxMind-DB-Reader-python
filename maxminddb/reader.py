@@ -69,13 +69,30 @@ class Reader:
                   * MODE_FD - the param passed via database is a file descriptor, not
                               a path. This mode implies MODE_MEMORY.
 
-        """
-        # A failed __init__ keeps the old database, if any, as in the C
-        # extension.
-        old_state = self.__dict__.copy()
+        A second call reopens the reader with the new database. A failed call
+        keeps the old one. Like close(), a second call can make reads in
+        progress on other threads fail or return wrong results.
 
-        # TRY301 is suppressed because the handler only restores the old state
-        # and re-raises the error.
+        """
+        # Load into a new object, then switch to it in one step, so that other
+        # threads never see a mix of the old and the new database. A failed
+        # load leaves this reader as it was, as in the C extension.
+        new = Reader.__new__(type(self))
+        new._load(database, mode)  # noqa: SLF001
+        # A source can return the same buffer object again, such as BytesIO,
+        # so count the opens instead of comparing buffers.
+        new._generation = self._generation + 1  # noqa: SLF001
+        old_buffer = self.__dict__.get("_buffer")
+        self.__dict__ = new.__dict__
+        _close_buffer(old_buffer, keep=self._buffer)
+
+    def _load(
+        self,
+        database: str | bytes | int | PathLike[str] | PathLike[bytes] | IO[bytes],
+        mode: int,
+    ) -> None:
+        # TRY301 is suppressed because the handler only closes the buffer and
+        # re-raises the error.
         try:
             filename = self._load_buffer(database, mode)
             metadata_start = self._buffer.rfind(
@@ -144,16 +161,8 @@ class Reader:
                 ipv4_start = node
             self._ipv4_start = ipv4_start
         except BaseException:
-            _close_buffer(self.__dict__.get("_buffer"), keep=old_state.get("_buffer"))
-            self.__dict__ = old_state
+            _close_buffer(self.__dict__.get("_buffer"))
             raise
-
-        # A second __init__ reopens the reader, as in the C extension. A source
-        # can return the same buffer object again, such as BytesIO, so count
-        # the opens instead of comparing buffers. Count first, so an old
-        # iterator stops even if closing the old buffer fails.
-        self._generation = old_state.get("_generation", 0) + 1
-        _close_buffer(old_state.get("_buffer"), keep=self._buffer)
 
     def metadata(self) -> Metadata:
         """Return the metadata associated with the MaxMind DB file."""

@@ -1293,6 +1293,31 @@ class TestFDReader(BaseTestReader):
 
 
 class TestReaderInitialization(unittest.TestCase):
+    def test_reinitialize_switches_to_the_new_database_at_the_end(self) -> None:
+        reader = maxminddb.reader.Reader(
+            f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb",
+            MODE_MEMORY,
+        )
+        self.addCleanup(reader.close)
+        load_buffer = maxminddb.reader.Reader._load_buffer  # noqa: SLF001
+        records_during_load: list[object] = []
+
+        def load_and_read(new: Reader, database: str, mode: int) -> object:
+            filename = load_buffer(new, database, mode)
+            # Another thread could read here. It must see the old database.
+            records_during_load.append(reader.get("1.1.1.1"))
+            return filename
+
+        with mock.patch.object(
+            maxminddb.reader.Reader,
+            "_load_buffer",
+            autospec=True,
+            side_effect=load_and_read,
+        ):
+            reader.__init__(_DECODER_DB, MODE_MEMORY)  # type: ignore[misc]
+        self.assertEqual(records_during_load, [{"ip": "1.1.1.1"}])
+        self.assertEqual(reader.metadata().database_type, "MaxMind DB Decoder Test")
+
     def test_reinitialize_from_a_source_that_returns_the_same_mmap(self) -> None:
         with open(_DECODER_DB, "rb") as database:
             buffer = mmap.mmap(database.fileno(), 0, access=mmap.ACCESS_READ)
