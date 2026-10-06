@@ -793,10 +793,6 @@ class BaseTestReader(unittest.TestCase):
         reader.close()
         self.assertEqual(reader.closed, True)
 
-    def _reinitialize(self, reader: Any, path: str, mode: int) -> None:  # noqa: ANN401
-        with _database_source(path, mode) as database:
-            reader.__init__(database, mode)
-
     def test_iterate_uninitialized_reader(self) -> None:
         reader = self.reader_class.__new__(self.reader_class)
         # The C reader raises in iter(), the pure Python reader in next().
@@ -867,6 +863,10 @@ class BaseTestReader(unittest.TestCase):
         self.assertFalse(reader.closed)
         self.assertEqual(reader.metadata().database_type, "MaxMind DB Decoder Test")
         self.assertIsNotNone(reader.get("::1.1.1.0"))
+
+    def _reinitialize(self, reader: Any, path: str, mode: int) -> None:  # noqa: ANN401
+        with _database_source(path, mode) as database:
+            reader.__init__(database, mode)
 
     def test_closed_metadata(self) -> None:
         reader = open_database(
