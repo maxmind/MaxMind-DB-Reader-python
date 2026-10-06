@@ -1,16 +1,22 @@
 from __future__ import annotations
 
 import contextlib
+import gc
 import io
 import ipaddress
+import mmap
 import multiprocessing
 import os
 import pathlib
+import subprocess
 import sys
+import sysconfig
 import tempfile
+import textwrap
 import threading
+import tracemalloc
 import unittest
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 from unittest import mock
 
 import maxminddb
@@ -32,12 +38,26 @@ from maxminddb.const import (
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+    from typing import IO
 
     from maxminddb.reader import Reader
 
 
 # Directory holding the shared MaxMind DB test fixtures.
 _TEST_DATA_DIR = "tests/data/test-data"
+_DECODER_DB = f"{_TEST_DATA_DIR}/MaxMind-DB-test-decoder.mmdb"
+# Valid arguments for the C extension Metadata.
+_METADATA_FIELDS: dict[str, Any] = {
+    "binary_format_major_version": 2,
+    "binary_format_minor_version": 0,
+    "build_epoch": 1,
+    "database_type": "db",
+    "description": {},
+    "ip_version": 4,
+    "languages": [],
+    "node_count": 1,
+    "record_size": 24,
+}
 _PAYLOAD_TOO_LARGE = (
     "^The MaxMind DB file's data section exceeds the maximum payload size$"
 )
@@ -96,14 +116,20 @@ def _bounded(seconds: int = 60, address_space: int = 2 << 30) -> Iterator[None]:
 
 def get_reader_from_file_descriptor(filepath: str, mode: int) -> Reader:
     """Patches open_database() for class TestFDReader()."""
+    # There are a few cases where mode is statically defined in
+    # BaseTestReader(). In those cases, this opens the string path.
+    with _database_source(filepath, mode) as database:
+        return maxminddb.open_database(database, mode)
+
+
+@contextlib.contextmanager
+def _database_source(path: str, mode: int) -> Iterator[str | IO[bytes]]:
+    """Yield the database argument for path: a binary file for MODE_FD."""
     if mode == MODE_FD:
-        with open(filepath, "rb") as mmdb_fh:
-            return maxminddb.open_database(mmdb_fh, mode)
+        with open(path, "rb") as database:
+            yield database
     else:
-        # There are a few cases where mode is statically defined in
-        # BaseTestReader(). In those cases just call an unpatched
-        # open_database() with a string path.
-        return maxminddb.open_database(filepath, mode)
+        yield path
 
 
 class BaseTestReader(unittest.TestCase):
@@ -505,6 +531,15 @@ class BaseTestReader(unittest.TestCase):
         self.assertEqual(1329227995784915872903807060280344576, record["uint128"])
         reader.close()
 
+    def test_decoder_maximum_values(self) -> None:
+        with open_database(_DECODER_DB, self.mode) as reader:
+            record = cast("dict", reader.get(self.ipf("::255.255.255.255")))
+        # A C long has 32 bits on Windows, where a signed conversion would make
+        # the uint32 negative.
+        self.assertEqual(record["uint32"], 2**32 - 1)
+        self.assertEqual(record["uint64"], 2**64 - 1)
+        self.assertEqual(record["uint128"], 2**128 - 1)
+
     def test_metadata_pointers(self) -> None:
         with open_database(
             "tests/data/test-data/MaxMind-DB-test-metadata-pointers.mmdb",
@@ -758,6 +793,81 @@ class BaseTestReader(unittest.TestCase):
         reader.close()
         self.assertEqual(reader.closed, True)
 
+    def test_iterate_uninitialized_reader(self) -> None:
+        reader = self.reader_class.__new__(self.reader_class)
+        # The C reader raises in iter(), the pure Python reader in next().
+        with self.assertRaisesRegex(ValueError, "closed MaxMind DB"):
+            next(iter(reader))
+
+    def test_close_uninitialized_reader(self) -> None:
+        reader = self.reader_class.__new__(self.reader_class)
+        self.assertTrue(reader.closed)
+        reader.close()
+        self.assertTrue(reader.closed)
+
+    def test_reinitialize_reopens_the_reader(self) -> None:
+        reader = open_database(
+            f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb",
+            self.mode,
+        )
+        self.addCleanup(reader.close)
+        iterator = iter(reader)
+        next(iterator)
+        self._reinitialize(reader, _DECODER_DB, self.mode)
+        self.assertEqual(reader.metadata().database_type, "MaxMind DB Decoder Test")
+        # The iterator walked the old database, so it must stop.
+        with self.assertRaisesRegex(ValueError, "reopened MaxMind DB"):
+            next(iterator)
+
+        reader.close()
+        self._reinitialize(reader, _DECODER_DB, self.mode)
+        self.assertFalse(reader.closed)
+        self.assertIsNotNone(reader.get("::1.1.1.0"))
+
+    def test_reinitialize_at_the_last_record(self) -> None:
+        # The last record of this database is the right child of the root, so
+        # no node of the walk remains after it.
+        reader = open_database(
+            f"{_TEST_DATA_DIR}/MaxMind-DB-test-decoder-value-limit.mmdb",
+            self.mode,
+        )
+        self.addCleanup(reader.close)
+        count = sum(1 for _ in reader)
+        iterator = iter(reader)
+        for _ in range(count):
+            next(iterator)
+        self._reinitialize(reader, _DECODER_DB, self.mode)
+        with self.assertRaisesRegex(ValueError, "reopened MaxMind DB"):
+            next(iterator)
+
+    def test_iterate_after_close(self) -> None:
+        reader = open_database(_DECODER_DB, self.mode)
+        iterator = iter(reader)
+        next(iterator)
+        reader.close()
+        with self.assertRaisesRegex(ValueError, "closed MaxMind DB"):
+            next(iterator)
+
+    def test_failed_reinitialize(self) -> None:
+        reader = open_database(_DECODER_DB, self.mode)
+        self.addCleanup(reader.close)
+
+        # A failed reinit leaves the old database open.
+        with self.assertRaisesRegex(ValueError, "Unsupported open mode"):
+            self._reinitialize(reader, _DECODER_DB, 100)
+        if self.mode != MODE_FD:
+            with self.assertRaises(FileNotFoundError):
+                self._reinitialize(reader, "missing.mmdb", self.mode)
+        with self.assertRaises(InvalidDatabaseError):
+            self._reinitialize(reader, "README.rst", self.mode)
+        self.assertFalse(reader.closed)
+        self.assertEqual(reader.metadata().database_type, "MaxMind DB Decoder Test")
+        self.assertIsNotNone(reader.get("::1.1.1.0"))
+
+    def _reinitialize(self, reader: Any, path: str, mode: int) -> None:  # noqa: ANN401
+        with _database_source(path, mode) as database:
+            reader.__init__(database, mode)
+
     def test_closed_metadata(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
@@ -929,6 +1039,43 @@ class TestExtensionReader(BaseTestReader):
     if has_maxminddb_extension():
         reader_class = maxminddb.extension.Reader
 
+    def test_map_key_that_is_not_a_string_is_rejected(self) -> None:
+        data = bytearray(
+            pathlib.Path(f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb").read_bytes(),
+        )
+        # Change the type of the "ip" key from a string to a uint16.
+        data[data.index(b"\x42ip")] = 0xA2
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "int-key.mmdb"
+            path.write_bytes(data)
+            with (
+                maxminddb.extension.Reader(path) as reader,
+                self.assertRaisesRegex(InvalidDatabaseError, "not a string"),
+            ):
+                reader.get("1.1.1.1")
+
+    def test_invalid_utf8_key_does_not_leak(self) -> None:
+        def fail_to_decode(count: int) -> None:
+            for _ in range(count):
+                with contextlib.suppress(UnicodeDecodeError):
+                    reader.get("163.254.149.39")
+
+        with maxminddb.extension.Reader(
+            "tests/data/bad-data/maxminddb-python/bad-unicode-in-map-key.mmdb",
+        ) as reader:
+            fail_to_decode(100)
+            gc.collect()
+            tracemalloc.start()
+            try:
+                before, _ = tracemalloc.get_traced_memory()
+                fail_to_decode(2000)
+                gc.collect()
+                after, _ = tracemalloc.get_traced_memory()
+            finally:
+                tracemalloc.stop()
+        # A leaked dict on each failure keeps about 128 KB.
+        self.assertLess(after - before, 16_000)
+
 
 @unittest.skipIf(
     not has_maxminddb_extension() and not os.environ.get("MM_FORCE_EXT_TESTS"),
@@ -940,6 +1087,198 @@ class TestExtensionReaderWithIPObjects(BaseTestReader):
 
     if has_maxminddb_extension():
         reader_class = maxminddb.extension.Reader
+
+
+@unittest.skipIf(
+    not has_maxminddb_extension() and not os.environ.get("MM_FORCE_EXT_TESTS"),
+    "No C extension module found. Skipping tests",
+)
+class TestExtensionObjects(unittest.TestCase):
+    """Objects in states that crashed the extension."""
+
+    def test_new_metadata_requires_arguments(self) -> None:
+        metadata_class = maxminddb.extension.Metadata
+        with self.assertRaisesRegex(TypeError, "missing required argument"):
+            metadata_class.__new__(metadata_class)
+
+    def test_metadata_missing_argument(self) -> None:
+        with self.assertRaisesRegex(TypeError, "missing required argument"):
+            maxminddb.extension.Metadata(binary_format_major_version=2)  # type: ignore[call-arg]
+
+    def test_metadata_too_many_arguments(self) -> None:
+        with self.assertRaisesRegex(TypeError, "at most 9"):
+            maxminddb.extension.Metadata(**_METADATA_FIELDS, unknown=1)  # type: ignore[call-arg]
+
+    def test_iterate_uninitialized_reader(self) -> None:
+        reader_class = maxminddb.extension.Reader
+        reader = reader_class.__new__(reader_class)
+        with self.assertRaisesRegex(ValueError, "closed MaxMind DB"):
+            iter(reader)
+
+    def test_enter_uninitialized_reader(self) -> None:
+        reader_class = maxminddb.extension.Reader
+        reader = reader_class.__new__(reader_class)
+        with self.assertRaisesRegex(ValueError, "closed MaxMind DB"):
+            reader.__enter__()
+
+    def test_path_finalizer_can_close_the_reader(self) -> None:
+        # A bytes subclass from __fspath__ can run code when init releases
+        # it. If init still held the write lock, a close() on another thread
+        # would wait for it forever on free-threaded Python. Run in a
+        # subprocess with a timeout.
+        program = textwrap.dedent(
+            """
+            import sys
+            import threading
+
+            from maxminddb.extension import Reader
+
+            reader = Reader.__new__(Reader)
+
+            class FinalizingBytes(bytes):
+                def __del__(self):
+                    worker = threading.Thread(target=reader.close)
+                    worker.start()
+                    worker.join()
+
+            class Path:
+                def __fspath__(self):
+                    return FinalizingBytes(sys.argv[1].encode())
+
+            reader.__init__(Path())
+            if not reader.closed:
+                sys.exit("the finalizer did not close the reader")
+            print("ok")
+            """,
+        )
+        self._run_program(program)
+
+    def test_finalizer_during_a_read_cannot_reopen_the_reader(self) -> None:
+        # With the GIL, a GC can run a finalizer during a decode, on Python
+        # 3.10 and 3.11. If the finalizer reopened the reader there, the
+        # decode would read the unmapped database and crash.
+        program = textwrap.dedent(
+            """
+            import gc
+            import sys
+
+            from maxminddb.extension import Reader
+
+            reader = Reader(sys.argv[1])
+
+            class Reopen:
+                def __init__(self):
+                    self.cycle = self
+
+                def __del__(self):
+                    try:
+                        reader.__init__(sys.argv[1])
+                    except RuntimeError:
+                        pass
+
+            gc.set_threshold(1)
+            for _ in range(2000):
+                Reopen()
+                if reader.get("::1.1.1.0") is None:
+                    sys.exit("get() lost the record")
+                Reopen()
+                try:
+                    next(iter(reader))
+                except ValueError:
+                    # A finalizer between iter() and next() reopened it.
+                    pass
+            print("ok")
+            """,
+        )
+        self._run_program(program)
+
+    def _run_program(self, program: str) -> None:
+        # Put this process's maxminddb first, and keep the harness's paths.
+        paths = [str(pathlib.Path(maxminddb.__file__).parent.parent)]
+        if os.environ.get("PYTHONPATH"):
+            paths.append(os.environ["PYTHONPATH"])
+        env = {**os.environ, "PYTHONPATH": os.pathsep.join(paths)}
+        path = pathlib.Path(_DECODER_DB).resolve()
+        with tempfile.TemporaryDirectory() as directory:
+            # Run from an empty directory so the child imports the same
+            # maxminddb as this process, not a source tree in the cwd.
+            result = subprocess.run(  # noqa: S603
+                [sys.executable, "-c", program, str(path)],
+                capture_output=True,
+                text=True,
+                check=False,
+                cwd=directory,
+                env=env,
+                timeout=60,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "ok")
+
+    @unittest.skipUnless(
+        pathlib.Path("/proc/self/maps").exists(),
+        "needs /proc/self/maps and /proc/self/fd",
+    )
+    def test_reinitialize_releases_the_old_database(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            # A copy that no other test has open, so only this reader counts.
+            path = pathlib.Path(directory) / "decoder.mmdb"
+            path.write_bytes(pathlib.Path(_DECODER_DB).read_bytes())
+            real_path = path.resolve()
+
+            def mappings() -> int:
+                maps = pathlib.Path("/proc/self/maps").read_text()
+                return maps.count(str(real_path))
+
+            def descriptors() -> int:
+                return sum(
+                    fd.resolve() == real_path
+                    for fd in pathlib.Path("/proc/self/fd").iterdir()
+                )
+
+            reader = maxminddb.extension.Reader(path)
+            for _ in range(10):
+                reader.__init__(path)  # type: ignore[misc]
+            self.assertEqual(mappings(), 1)
+            self.assertEqual(descriptors(), 0)
+            reader.close()
+            self.assertEqual(mappings(), 0)
+
+    def test_initialize_after_close_on_uninitialized_reader(self) -> None:
+        reader_class = maxminddb.extension.Reader
+        reader = reader_class.__new__(reader_class)
+        reader.close()
+        self.assertTrue(reader.closed)
+        reader.__init__(_DECODER_DB)  # type: ignore[misc]
+        with reader:
+            self.assertIsNotNone(reader.get("::1.1.1.0"))
+
+    def test_reinitialize_metadata_changes_nothing(self) -> None:
+        metadata = maxminddb.extension.Metadata(**_METADATA_FIELDS)
+        metadata.__init__(**{**_METADATA_FIELDS, "record_size": 28})  # type: ignore[misc]
+        self.assertEqual(metadata.record_size, 24)
+
+    @unittest.skipUnless(
+        hasattr(sys, "getrefcount") and not sysconfig.get_config_var("Py_GIL_DISABLED"),
+        "needs CPython reference counts on a build with the GIL",
+    )
+    def test_freed_objects_release_their_type(self) -> None:
+        with maxminddb.extension.Reader(_DECODER_DB) as reader:
+            classes = [type(reader), type(reader.metadata()), type(iter(reader))]
+        before = [sys.getrefcount(c) for c in classes]
+        for _ in range(10):
+            with maxminddb.extension.Reader(_DECODER_DB) as reader:
+                reader.metadata()
+                iter(reader)
+        self.assertEqual([sys.getrefcount(c) for c in classes], before)
+
+    def test_iterator_type_is_not_instantiable(self) -> None:
+        with maxminddb.extension.Reader(_DECODER_DB) as reader:
+            iterator_class = type(iter(reader))
+        # The message differs across Python versions, so check only the type.
+        with self.assertRaises(TypeError):
+            iterator_class()
+        with self.assertRaises(TypeError):
+            iterator_class.__new__(iterator_class)
 
 
 class TestAutoReader(BaseTestReader):
@@ -987,6 +1326,118 @@ class TestFDReader(BaseTestReader):
 
 
 class TestReaderInitialization(unittest.TestCase):
+    def test_reinitialize_closes_the_old_buffer(self) -> None:
+        for mode in (MODE_MMAP, MODE_FILE):
+            with self.subTest(mode=mode):
+                reader = maxminddb.reader.Reader(_DECODER_DB, mode)
+                self.addCleanup(reader.close)
+                old: Any = reader._buffer  # noqa: SLF001
+                reader.__init__(_DECODER_DB, mode)  # type: ignore[misc]
+                if mode == MODE_FILE:
+                    self.assertTrue(old._handle.closed)  # noqa: SLF001
+                else:
+                    self.assertTrue(old.closed)
+
+    def test_subclass_with_a_closing_finalizer_stays_open(self) -> None:
+        class ClosingReader(maxminddb.reader.Reader):
+            def __del__(self) -> None:
+                self.close()
+
+        reader = ClosingReader(_DECODER_DB, MODE_MMAP)
+        self.addCleanup(reader.close)
+        # Freeing an object that init used must not close this reader.
+        gc.collect()
+        self.assertFalse(reader.closed)
+        self.assertIsNotNone(reader.get("::1.1.1.0"))
+
+    def test_subclass_attributes_survive_init(self) -> None:
+        class TaggedReader(maxminddb.reader.Reader):
+            def __init__(self, database: str, mode: int) -> None:
+                self.tag = "kept"
+                super().__init__(database, mode)
+
+        reader = TaggedReader(_DECODER_DB, MODE_MMAP)
+        self.addCleanup(reader.close)
+        self.assertEqual(reader.tag, "kept")
+        reader.__init__(f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb", MODE_MMAP)  # type: ignore[misc]
+        self.assertEqual(reader.tag, "kept")
+
+    def test_reinitialize_switches_to_the_new_database_at_the_end(self) -> None:
+        reader = maxminddb.reader.Reader(
+            f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb",
+            MODE_MEMORY,
+        )
+        self.addCleanup(reader.close)
+        load_buffer = maxminddb.reader.Reader._load_buffer  # noqa: SLF001
+        records_during_load: list[object] = []
+
+        def load_and_read(new: Reader, database: str, mode: int) -> object:
+            filename = load_buffer(new, database, mode)
+            # Another thread could read here. It must see the old database.
+            records_during_load.append(reader.get("1.1.1.1"))
+            return filename
+
+        with mock.patch.object(
+            maxminddb.reader.Reader,
+            "_load_buffer",
+            autospec=True,
+            side_effect=load_and_read,
+        ):
+            reader.__init__(_DECODER_DB, MODE_MEMORY)  # type: ignore[misc]
+        self.assertEqual(records_during_load, [{"ip": "1.1.1.1"}])
+        self.assertEqual(reader.metadata().database_type, "MaxMind DB Decoder Test")
+
+    def test_reinitialize_from_a_source_that_returns_the_same_mmap(self) -> None:
+        with open(_DECODER_DB, "rb") as database:
+            buffer = mmap.mmap(database.fileno(), 0, access=mmap.ACCESS_READ)
+        self.addCleanup(buffer.close)
+
+        class Source:
+            def read(self) -> mmap.mmap:
+                return buffer
+
+        reader = maxminddb.reader.Reader(Source(), MODE_FD)  # type: ignore[arg-type]
+        # A reinit must not close the buffer that it then uses.
+        reader.__init__(Source(), MODE_FD)  # type: ignore[misc]
+        self.assertIsNotNone(reader.get("::1.1.1.0"))
+
+    def test_reinitialize_from_the_same_source(self) -> None:
+        ipv4 = pathlib.Path(f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb")
+        ipv6 = pathlib.Path(f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv6-24.mmdb")
+
+        class OneBuffer:
+            """Return the same bytearray from each read()."""
+
+            def __init__(self) -> None:
+                self.buffer = bytearray(ipv4.read_bytes())
+
+            def read(self) -> bytearray:
+                return self.buffer
+
+        # BytesIO.read() returns the same bytes object after seek(0).
+        bytes_io = io.BytesIO(ipv4.read_bytes())
+        one_buffer = OneBuffer()
+
+        def reopen_bytes_io() -> None:
+            bytes_io.seek(0)
+
+        def reopen_one_buffer() -> None:
+            one_buffer.buffer[:] = ipv6.read_bytes()
+
+        for source, change in (
+            (bytes_io, reopen_bytes_io),
+            (one_buffer, reopen_one_buffer),
+        ):
+            with self.subTest(source=type(source).__name__):
+                reader = maxminddb.reader.Reader(source, MODE_FD)  # type: ignore[arg-type]
+                self.addCleanup(reader.close)
+                iterator = iter(reader)
+                next(iterator)
+                change()
+                reader.__init__(source, MODE_FD)  # type: ignore[misc]
+                with self.assertRaisesRegex(ValueError, "reopened MaxMind DB"):
+                    next(iterator)
+
     def test_empty_search_tree_is_accepted(self) -> None:
         data = pathlib.Path(
             f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb"
@@ -1046,21 +1497,19 @@ class TestReaderInitialization(unittest.TestCase):
                         with (
                             _bounded(),
                             mock.patch.object(
-                                reader_class,
-                                "close",
-                                autospec=True,
-                                side_effect=reader_class.close,
-                            ) as close,
+                                maxminddb.reader,
+                                "_close_buffer",
+                                wraps=maxminddb.reader._close_buffer,  # noqa: SLF001
+                            ) as close_buffer,
                             self.assertRaisesRegex(error, message),
                         ):
                             reader_class(path, mode)
-                        close.assert_called_once()
-                        reader = close.call_args.args[0]
-                        self.assertTrue(reader.closed)
+                        close_buffer.assert_called_once()
+                        buffer = close_buffer.call_args.args[0]
                         if mode == MODE_FILE:
-                            self.assertTrue(reader._buffer._handle.closed)  # noqa: SLF001
+                            self.assertTrue(buffer._handle.closed)  # noqa: SLF001
                         else:
-                            self.assertTrue(reader._buffer.closed)  # noqa: SLF001
+                            self.assertTrue(buffer.closed)
 
 
 class TestSearchTreeNodes(unittest.TestCase):

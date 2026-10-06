@@ -27,6 +27,8 @@ if TYPE_CHECKING:
     from maxminddb.types import Record
 
 _IPV4_MAX_NUM = 2**32
+_REOPENED = "Attempt to iterate over a reopened MaxMind DB. Create a new iterator."
+_CLOSED = "Attempt to iterate over a closed MaxMind DB."
 
 
 class Reader:
@@ -40,11 +42,14 @@ class Reader:
 
     _buffer: bytes | FileBuffer | "mmap.mmap"  # noqa: UP037
     _buffer_size: int
-    closed: bool
+    # No database is open until __init__ succeeds.
+    closed: bool = True
     _decoder: Decoder
     _metadata: Metadata
     _record_size: int
     _ipv4_start: int
+    # Incremented on each open, so an iterator can detect a reopen.
+    _generation: int = 0
 
     def __init__(
         self,
@@ -64,12 +69,34 @@ class Reader:
                   * MODE_FD - the param passed via database is a file descriptor, not
                               a path. This mode implies MODE_MEMORY.
 
-        """
-        filename = self._load_buffer(database, mode)
+        A second call reopens the reader with the new database. A failed call
+        keeps the old one. Like close(), a second call can make reads in
+        progress on other threads fail or return wrong results.
 
-        # Include validation errors in this cleanup scope. TRY301 is suppressed
-        # because the handler only closes the buffer and re-raises the error.
+        """
+        # Load into a new object, then copy its state in one step, so that
+        # other threads never see a mix of the old and the new database. A
+        # failed load leaves this reader as it was, as in the C extension. The
+        # new object is a base Reader, so freeing it runs no __del__ of a
+        # subclass, and the update keeps the attributes that a subclass set.
+        new = Reader.__new__(Reader)
+        new._load(database, mode)  # noqa: SLF001
+        # A source can return the same buffer object again, such as BytesIO,
+        # so count the opens instead of comparing buffers.
+        new._generation = self._generation + 1  # noqa: SLF001
+        old_buffer = self.__dict__.get("_buffer")
+        self.__dict__.update(new.__dict__)
+        _close_buffer(old_buffer, keep=self._buffer)
+
+    def _load(
+        self,
+        database: str | bytes | int | PathLike[str] | PathLike[bytes] | IO[bytes],
+        mode: int,
+    ) -> None:
+        # TRY301 is suppressed because the handler only closes the buffer and
+        # re-raises the error.
         try:
+            filename = self._load_buffer(database, mode)
             metadata_start = self._buffer.rfind(
                 self._METADATA_START_MARKER,
                 max(0, self._buffer_size - 128 * 1024),
@@ -136,8 +163,7 @@ class Reader:
                 ipv4_start = node
             self._ipv4_start = ipv4_start
         except BaseException:
-            # Release the buffer on any initialization failure.
-            self.close()
+            _close_buffer(self.__dict__.get("_buffer"))
             raise
 
     def metadata(self) -> Metadata:
@@ -191,7 +217,22 @@ class Reader:
         return None, prefix_len
 
     def __iter__(self) -> Iterator:
-        return self._generate_children(0, 0, 0)
+        return self._iterate(self._generation)
+
+    def _iterate(self, generation: int) -> Iterator:
+        children = self._generate_children(0, 0, 0)
+        while True:
+            # Check before the walk resumes and reads more nodes, as the C
+            # extension does. After a second __init__ or close(), the node
+            # numbers of the walk no longer match the buffer.
+            if self._generation != generation:
+                raise ValueError(_REOPENED)
+            if self.closed:
+                raise ValueError(_CLOSED)
+            record = next(children, None)
+            if record is None:
+                return
+            yield record
 
     def _generate_children(self, node: int, depth: int, ip_acc: int) -> Iterator:
         if ip_acc != 0 and node == self._ipv4_start:
@@ -320,8 +361,8 @@ class Reader:
 
         Calling this method while reads are in progress may cause exceptions.
         """
-        with contextlib.suppress(AttributeError):
-            self._buffer.close()  # type: ignore[union-attr]
+        # A reader made with __new__ alone has no buffer.
+        _close_buffer(getattr(self, "_buffer", None))
 
         self.closed = True
 
@@ -385,3 +426,12 @@ class Metadata:
     def search_tree_size(self) -> int:
         """The size of the search tree."""
         return self.node_count * self.node_byte_size
+
+
+def _close_buffer(buffer: object, keep: object = None) -> None:
+    # A source can return the same buffer again. Keep the one in use open.
+    if buffer is keep:
+        return
+    # bytes, bytearray and None have no close().
+    with contextlib.suppress(AttributeError):
+        buffer.close()  # type: ignore[attr-defined]
