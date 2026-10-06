@@ -130,6 +130,7 @@ static inline maxminddb_state *get_maxminddb_state_from_self(PyObject *self) {
     return get_maxminddb_state(module);
 }
 
+static void reader_close_database(Reader_obj *reader);
 static bool can_read(const char *path);
 static int get_record(PyObject *self, PyObject *args, PyObject **record);
 static bool format_sockaddr(struct sockaddr *addr, char *dst);
@@ -311,16 +312,6 @@ static void reader_release_write_lock(Reader_obj *reader) {
 // Reader implementation
 // =============================================================================
 
-// The caller holds the write lock, or is the only user of the reader.
-static void reader_close_database(Reader_obj *reader) {
-    if (reader->mmdb != NULL) {
-        MMDB_close(reader->mmdb);
-        free(reader->mmdb);
-        reader->mmdb = NULL;
-    }
-    reader->closed = Py_True;
-}
-
 static PyObject *
 Reader_new(PyTypeObject *type, PyObject *UNUSED(args), PyObject *UNUSED(kwds)) {
     PyObject *self = type->tp_alloc(type, 0);
@@ -427,6 +418,16 @@ static int Reader_init(PyObject *self, PyObject *args, PyObject *kwds) {
     // from __fspath__, so its finalizer can run code that uses the reader.
     Py_XDECREF(filepath);
     return 0;
+}
+
+// The caller holds the write lock, or is the only user of the reader.
+static void reader_close_database(Reader_obj *reader) {
+    if (reader->mmdb != NULL) {
+        MMDB_close(reader->mmdb);
+        free(reader->mmdb);
+        reader->mmdb = NULL;
+    }
+    reader->closed = Py_True;
 }
 
 static PyObject *Reader_get(PyObject *self, PyObject *args) {
