@@ -1192,18 +1192,17 @@ class TestExtensionObjects(unittest.TestCase):
         )
         self._run_program(program)
 
-    def _run_program(self, program: str) -> None:
+    def _run_program(self, program: str, path: str = _DECODER_DB) -> None:
         # Put this process's maxminddb first, and keep the harness's paths.
         paths = [str(pathlib.Path(maxminddb.__file__).parent.parent)]
         if os.environ.get("PYTHONPATH"):
             paths.append(os.environ["PYTHONPATH"])
         env = {**os.environ, "PYTHONPATH": os.pathsep.join(paths)}
-        path = pathlib.Path(_DECODER_DB).resolve()
         with tempfile.TemporaryDirectory() as directory:
             # Run from an empty directory so the child imports the same
             # maxminddb as this process, not a source tree in the cwd.
             result = subprocess.run(  # noqa: S603
-                [sys.executable, "-c", program, str(path)],
+                [sys.executable, "-c", program, str(pathlib.Path(path).resolve())],
                 capture_output=True,
                 text=True,
                 check=False,
@@ -1312,42 +1311,57 @@ class TestExtensionObjects(unittest.TestCase):
         "needs free-threaded Python",
     )
     def test_threads_can_share_an_iterator(self) -> None:
-        path = f"{_TEST_DATA_DIR}/GeoIP2-City-Test.mmdb"
-        with maxminddb.extension.Reader(path) as reader:
+        # Run in a subprocess, so heap corruption or a hang fails only this
+        # test.
+        program = textwrap.dedent(
+            """
+            import sys
+            import threading
+
+            from maxminddb.extension import Reader
+
+            reader = Reader(sys.argv[1])
             expected = sorted(str(network) for network, _ in reader)
 
-            def collect(
-                iterator: Iterator[tuple[object, object]],
-                barrier: threading.Barrier,
-                networks: list[str],
-                done: list[bool],
-                errors: list[BaseException],
-            ) -> None:
+            def collect(iterator, barrier, networks, errors):
                 try:
                     barrier.wait()
-                    networks.extend(str(network) for network, _ in iterator)
-                    done.append(True)
-                except BaseException as e:  # noqa: BLE001
+                    # Each thread appends to its own list. With one shared
+                    # list, list.extend would hold the list's critical
+                    # section, and only one thread would call next() at a
+                    # time.
+                    for network, _ in iterator:
+                        networks.append(str(network))
+                except BaseException as e:
                     errors.append(e)
 
             # A race corrupts the heap only some of the time, so repeat.
             for _ in range(5):
-                networks: list[str] = []
-                done: list[bool] = []
-                errors: list[BaseException] = []
+                iterator = iter(reader)
                 barrier = threading.Barrier(8, timeout=60)
-                args = (iter(reader), barrier, networks, done, errors)
+                results = [[] for _ in range(8)]
+                errors = []
                 threads = [
-                    threading.Thread(target=collect, args=args) for _ in range(8)
+                    threading.Thread(
+                        target=collect,
+                        args=(iterator, barrier, networks, errors),
+                    )
+                    for networks in results
                 ]
                 for thread in threads:
                     thread.start()
                 for thread in threads:
                     thread.join()
-                self.assertEqual(errors, [])
-                self.assertEqual(len(done), 8)
+                if errors:
+                    sys.exit(f"a thread failed: {errors!r}")
                 # Each network comes out once, with none lost or repeated.
-                self.assertEqual(sorted(networks), expected)
+                networks = sorted(n for result in results for n in result)
+                if networks != expected:
+                    sys.exit("networks were lost or repeated")
+            print("ok")
+            """,
+        )
+        self._run_program(program, f"{_TEST_DATA_DIR}/GeoIP2-City-Test.mmdb")
 
     def test_iterator_type_is_not_instantiable(self) -> None:
         with maxminddb.extension.Reader(_DECODER_DB) as reader:
