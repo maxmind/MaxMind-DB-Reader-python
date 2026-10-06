@@ -203,6 +203,13 @@ static void reader_lock_destroy(reader_rwlock_t *lock) {
 #endif
 }
 
+// No Python code may run while a thread holds the read lock. On free-threaded
+// Python, close() and __init__ wait for the write lock while they stay
+// attached to the interpreter. If Python code under the read lock started a
+// GC, the stop-the-world pause would wait for the writer, and the writer would
+// wait for the read lock, so both would hang. Waiting detached instead lets a
+// thread take the lock during a stop-the-world pause, which can hang a forked
+// child.
 static int reader_acquire_read_lock(Reader_obj *reader) {
 #ifdef MAXMINDDB_USE_WINDOWS_LOCKS
     AcquireSRWLockShared(&(reader->rwlock));
