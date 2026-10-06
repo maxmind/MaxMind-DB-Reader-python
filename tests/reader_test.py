@@ -1141,6 +1141,48 @@ class TestExtensionObjects(unittest.TestCase):
             print("ok")
             """,
         )
+        self._run_program(program)
+
+    def test_finalizer_during_a_read_cannot_reopen_the_reader(self) -> None:
+        # With the GIL, a GC can run a finalizer during a decode, on Python
+        # 3.10 and 3.11. If the finalizer reopened the reader there, the
+        # decode would read the unmapped database and crash.
+        program = textwrap.dedent(
+            """
+            import gc
+            import sys
+
+            from maxminddb.extension import Reader
+
+            reader = Reader(sys.argv[1])
+
+            class Reopen:
+                def __init__(self):
+                    self.cycle = self
+
+                def __del__(self):
+                    try:
+                        reader.__init__(sys.argv[1])
+                    except RuntimeError:
+                        pass
+
+            gc.set_threshold(1)
+            for _ in range(2000):
+                Reopen()
+                if reader.get("::1.1.1.0") is None:
+                    sys.exit("get() lost the record")
+                Reopen()
+                try:
+                    next(iter(reader))
+                except ValueError:
+                    # A finalizer between iter() and next() reopened it.
+                    pass
+            print("ok")
+            """,
+        )
+        self._run_program(program)
+
+    def _run_program(self, program: str) -> None:
         # Put this process's maxminddb first, and keep the harness's paths.
         paths = [str(pathlib.Path(maxminddb.__file__).parent.parent)]
         if os.environ.get("PYTHONPATH"):

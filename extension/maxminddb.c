@@ -50,10 +50,12 @@ typedef SRWLOCK reader_rwlock_t;
 #elif defined(MAXMINDDB_USE_PTHREAD_LOCKS)
 typedef pthread_rwlock_t reader_rwlock_t;
 #else
-// Dummy lock type for GIL-only mode
+// GIL-only mode. The GIL serializes all access, but Python code, such as a
+// finalizer that a GC runs, can still run during a read and close the reader.
+// Count the reads so that close() and a reinit can refuse to unmap the
+// database under one.
 typedef struct {
-    // Dummy member to satisfy MSVC, which doesn't allow empty structs.
-    char dummy;
+    int readers;
 } reader_rwlock_t;
 #endif
 
@@ -169,8 +171,7 @@ static int reader_lock_init(reader_rwlock_t *lock) {
     return 0;
 
 #else
-    // GIL-only mode - no-op
-    (void)lock;
+    lock->readers = 0;
     return 0;
 #endif
 }
@@ -226,8 +227,7 @@ static int reader_acquire_read_lock(Reader_obj *reader) {
     return 0;
 
 #else
-    // GIL-only mode - no-op
-    (void)reader;
+    reader->rwlock.readers++;
     return 0;
 #endif
 }
@@ -247,8 +247,7 @@ static void reader_release_read_lock(Reader_obj *reader) {
     }
 
 #else
-    // GIL-only mode - no-op
-    (void)reader;
+    reader->rwlock.readers--;
 #endif
 }
 
@@ -282,8 +281,13 @@ static int reader_acquire_write_lock(Reader_obj *reader) {
     return 0;
 
 #else
-    // GIL-only mode - no-op
-    (void)reader;
+    // A write section runs no Python code, so only a read can be in progress.
+    if (reader->rwlock.readers > 0) {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "Cannot close or reopen a MaxMind DB while a read is "
+                        "in progress.");
+        return -1;
+    }
     return 0;
 #endif
 }
