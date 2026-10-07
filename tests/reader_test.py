@@ -68,6 +68,10 @@ _TOO_MANY_VALUES = (
     "^The MaxMind DB file's data section exceeds the maximum number of values$"
 )
 _TOO_DEEP = "^The MaxMind DB file's data section exceeds the maximum depth$"
+_METADATA_PAYLOAD_TOO_LARGE = (
+    r"^Error reading metadata in database file \(.+\)\. "
+    "The MaxMind DB file's data section exceeds the maximum payload size$"
+)
 _EXTENSION_LIMIT_MESSAGE = "exceeds the configured resource limits"
 
 
@@ -201,7 +205,7 @@ class BaseTestReader(unittest.TestCase):
     use_ip_objects = False
     payload_error = _PAYLOAD_TOO_LARGE
     value_count_error = _TOO_MANY_VALUES
-    metadata_error = _PAYLOAD_TOO_LARGE
+    metadata_error = _METADATA_PAYLOAD_TOO_LARGE
     fan_out_error = f"{_TOO_MANY_VALUES}|{_TOO_DEEP}"
 
     # fork doesn't work on Windows and spawn would involve pickling the reader,
@@ -1784,6 +1788,19 @@ class TestReaderInitialization(unittest.TestCase):
                 ):
                     pass
 
+    def test_metadata_decode_error_names_the_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "bad-metadata.mmdb"
+            path.write_bytes(_database_with_metadata([([1], "value")]))
+            with self.assertRaises(InvalidDatabaseError) as cm:
+                maxminddb.reader.Reader(str(path), MODE_MEMORY)
+        self.assertEqual(
+            str(cm.exception),
+            f"Error reading metadata in database file ({path}). "
+            "The MaxMind DB file's data section contains bad data "
+            "(unknown data type or corrupt data)",
+        )
+
     def test_failed_initialization_closes_buffer(self) -> None:
         reader_class = maxminddb.reader.Reader
         cases = (
@@ -1803,7 +1820,7 @@ class TestReaderInitialization(unittest.TestCase):
                     f"{_TEST_DATA_DIR}/MaxMind-DB-test-metadata-payload-limit.mmdb"
                 ).read_bytes(),
                 InvalidDatabaseError,
-                _PAYLOAD_TOO_LARGE,
+                _METADATA_PAYLOAD_TOO_LARGE,
             ),
         )
         with tempfile.TemporaryDirectory() as directory:

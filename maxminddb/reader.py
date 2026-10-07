@@ -117,10 +117,11 @@ class Reader:
             # libmaxminddb uses the first. This reader accepts the difference.
             try:
                 (metadata, _) = metadata_decoder.decode(metadata_start)
-            except UnicodeDecodeError as e:
-                # A string that is not UTF-8. The C extension raises
-                # InvalidDatabaseError too. Lookups keep UnicodeDecodeError.
-                msg = f"Error reading metadata in database file ({filename})."
+            except (InvalidDatabaseError, UnicodeDecodeError) as e:
+                # Add the file name. For a string that is not UTF-8, the C
+                # extension raises InvalidDatabaseError from metadata(), not
+                # at open. Lookups keep UnicodeDecodeError.
+                msg = f"Error reading metadata in database file ({filename}). {e}"
                 raise InvalidDatabaseError(msg) from e
 
             if not isinstance(metadata, dict):
