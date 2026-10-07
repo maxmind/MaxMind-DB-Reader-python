@@ -255,8 +255,9 @@ class Decoder:
             )
         except RecursionError as ex:
             raise InvalidDatabaseError(_TOO_DEEP) from ex
-        except (IndexError, struct.error) as ex:
-            # Convert failed buffer indexing and fixed-width unpacking.
+        except (IndexError, struct.error, TypeError) as ex:
+            # Convert failed buffer indexing, fixed-width unpacking, and a map
+            # key that cannot be hashed, such as a list.
             raise InvalidDatabaseError(_BAD_DATA) from ex
 
     # Keep type dispatch inline to avoid another call for every decoded value.

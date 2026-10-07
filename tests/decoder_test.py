@@ -316,6 +316,12 @@ class TestDecoder(unittest.TestCase):
         with self.assertRaisesRegex(InvalidDatabaseError, _TOO_MANY_VALUES):
             Decoder(self._scalar_pointer_array(65_536), pointer_base=0).decode(1)
 
+    def test_map_key_that_cannot_be_hashed_is_rejected(self) -> None:
+        # A map with one entry, whose key is the array [1].
+        decoder = Decoder(bytes.fromhex("e10104a1014178"))
+        with self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"):
+            decoder.decode(0)
+
     def test_pointer_to_pointer_is_rejected(self) -> None:
         # The root array shares a pointer chain that would bypass value counting.
         buf = b"\xa0" + self._pointer(0) + b"\x02\x04" + self._pointer(1) * 2

@@ -117,9 +117,9 @@ class Reader:
             # libmaxminddb uses the first. This reader accepts the difference.
             try:
                 (metadata, _) = metadata_decoder.decode(metadata_start)
-            except (TypeError, UnicodeDecodeError) as e:
-                # For example, a map key that is a list, or a string that is
-                # not UTF-8. The C extension raises InvalidDatabaseError too.
+            except UnicodeDecodeError as e:
+                # A string that is not UTF-8. The C extension raises
+                # InvalidDatabaseError too. Lookups keep UnicodeDecodeError.
                 msg = f"Error reading metadata in database file ({filename})."
                 raise InvalidDatabaseError(msg) from e
 
