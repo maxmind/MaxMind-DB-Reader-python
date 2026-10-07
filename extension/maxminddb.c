@@ -135,6 +135,7 @@ static inline maxminddb_state *get_maxminddb_state_from_self(PyObject *self) {
 static void reader_close_database(Reader_obj *reader);
 static bool can_read(const char *path);
 static int get_record(PyObject *self, PyObject *args, PyObject **record);
+static PyObject *reader_iter_next(PyObject *self);
 static bool format_sockaddr(struct sockaddr *addr, char *dst);
 static PyObject *from_entry_data_list(maxminddb_state *state,
                                       MMDB_entry_data_list_s **entry_data_list);
@@ -202,6 +203,13 @@ static void reader_lock_destroy(reader_rwlock_t *lock) {
 #endif
 }
 
+// No Python code may run while a thread holds the read lock. On free-threaded
+// Python, close() and __init__ wait for the write lock while they stay
+// attached to the interpreter. If Python code under the read lock started a
+// GC, the stop-the-world pause would wait for the writer, and the writer would
+// wait for the read lock, so both would hang. Waiting detached instead lets a
+// thread take the lock during a stop-the-world pause, which can hang a forked
+// child.
 static int reader_acquire_read_lock(Reader_obj *reader) {
 #ifdef MAXMINDDB_USE_WINDOWS_LOCKS
     AcquireSRWLockShared(&(reader->rwlock));
@@ -814,6 +822,21 @@ static bool is_ipv6(char ip[16]) {
 }
 
 static PyObject *ReaderIter_next(PyObject *self) {
+    PyObject *result;
+#ifdef Py_GIL_DISABLED
+    // The iterator's list of pending records is not thread-safe, so let only
+    // one thread at a time advance an iterator. The read lock is shared, so
+    // it does not do this.
+    Py_BEGIN_CRITICAL_SECTION(self);
+#endif
+    result = reader_iter_next(self);
+#ifdef Py_GIL_DISABLED
+    Py_END_CRITICAL_SECTION();
+#endif
+    return result;
+}
+
+static PyObject *reader_iter_next(PyObject *self) {
     maxminddb_state *state = get_maxminddb_state_from_self((PyObject *)self);
     if (state == NULL) {
         return NULL;
@@ -907,6 +930,9 @@ static PyObject *ReaderIter_next(PyObject *self) {
             case MMDB_RECORD_TYPE_EMPTY:
                 break;
             case MMDB_RECORD_TYPE_DATA: {
+                // Read this before any Python code runs, which could close
+                // the reader.
+                uint16_t const depth = ri->reader->mmdb->depth;
                 MMDB_entry_data_list_s *entry_data_list = NULL;
                 int status =
                     MMDB_get_entry_data_list(&cur->entry, &entry_data_list);
@@ -926,15 +952,19 @@ static PyObject *ReaderIter_next(PyObject *self) {
                 PyObject *record =
                     from_entry_data_list(state, &entry_data_list);
                 MMDB_free_entry_data_list(original_entry_data_list);
+
+                // The rest uses only cur, which this call owns. Release the
+                // lock before ip_network runs Python code, which could close
+                // the reader on this thread.
+                reader_release_read_lock(ri->reader);
                 if (record == NULL) {
-                    reader_release_read_lock(ri->reader);
                     free(cur);
                     return NULL;
                 }
 
                 int ip_start = 0;
                 Py_ssize_t ip_length = 4;
-                if (ri->reader->mmdb->depth == 128) {
+                if (depth == 128) {
                     if (is_ipv6(cur->ip_packed)) {
                         // IPv6 address
                         ip_length = 16;
@@ -948,37 +978,28 @@ static PyObject *ReaderIter_next(PyObject *self) {
                                   &(cur->ip_packed[ip_start]),
                                   ip_length,
                                   cur->depth - ip_start * 8);
+                free(cur);
                 if (network_tuple == NULL) {
-                    reader_release_read_lock(ri->reader);
                     Py_DECREF(record);
-                    free(cur);
                     return NULL;
                 }
                 PyObject *args = PyTuple_Pack(1, network_tuple);
                 Py_DECREF(network_tuple);
                 if (args == NULL) {
-                    reader_release_read_lock(ri->reader);
                     Py_DECREF(record);
-                    free(cur);
                     return NULL;
                 }
                 PyObject *network =
                     PyObject_CallObject(state->ipaddress_ip_network, args);
                 Py_DECREF(args);
                 if (network == NULL) {
-                    reader_release_read_lock(ri->reader);
                     Py_DECREF(record);
-                    free(cur);
                     return NULL;
                 }
 
                 PyObject *rv = PyTuple_Pack(2, network, record);
                 Py_DECREF(network);
                 Py_DECREF(record);
-
-                reader_release_read_lock(ri->reader);
-
-                free(cur);
                 return rv;
             }
             default:
