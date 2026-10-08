@@ -188,7 +188,11 @@ class Decoder:
         for _ in range(size):
             (key, offset) = decode(offset, budget, False)  # noqa: FBT003
             (value, offset) = decode(offset, budget, False)  # noqa: FBT003
-            container[key] = value  # type: ignore[index]
+            try:
+                container[key] = value  # type: ignore[index]
+            except TypeError as ex:
+                # The key cannot be hashed, such as a list.
+                raise InvalidDatabaseError(_BAD_DATA) from ex
         budget.depth -= 1
         return container, offset
 
@@ -255,9 +259,8 @@ class Decoder:
             )
         except RecursionError as ex:
             raise InvalidDatabaseError(_TOO_DEEP) from ex
-        except (IndexError, struct.error, TypeError) as ex:
-            # Convert failed buffer indexing, fixed-width unpacking, and a map
-            # key that cannot be hashed, such as a list.
+        except (IndexError, struct.error) as ex:
+            # Convert failed buffer indexing and fixed-width unpacking.
             raise InvalidDatabaseError(_BAD_DATA) from ex
 
     # Keep type dispatch inline to avoid another call for every decoded value.
