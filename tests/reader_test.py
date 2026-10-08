@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import gc
 import io
 import ipaddress
@@ -8,6 +9,7 @@ import mmap
 import multiprocessing
 import os
 import pathlib
+import struct
 import subprocess
 import sys
 import sysconfig
@@ -35,9 +37,10 @@ from maxminddb.const import (
     MODE_MMAP,
     MODE_MMAP_EXT,
 )
+from maxminddb.decoder import Decoder
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Sequence
     from typing import IO
 
     from maxminddb.reader import Reader
@@ -65,6 +68,10 @@ _TOO_MANY_VALUES = (
     "^The MaxMind DB file's data section exceeds the maximum number of values$"
 )
 _TOO_DEEP = "^The MaxMind DB file's data section exceeds the maximum depth$"
+_METADATA_PAYLOAD_TOO_LARGE = (
+    r"^Error reading metadata in database file \(.+\)\. "
+    "The MaxMind DB file's data section exceeds the maximum payload size$"
+)
 _EXTENSION_LIMIT_MESSAGE = "exceeds the configured resource limits"
 
 
@@ -114,6 +121,66 @@ def _bounded(seconds: int = 60, address_space: int = 2 << 30) -> Iterator[None]:
             resource.setrlimit(resource.RLIMIT_AS, (soft, hard))
 
 
+_METADATA_START_MARKER = maxminddb.reader.Reader._METADATA_START_MARKER  # noqa: SLF001
+# libmaxminddb requires these unsigned integer types for metadata values.
+_METADATA_UINT_TYPES = {"build_epoch": 9, "node_count": 6}
+_UINT16_TYPE = 5
+
+
+def _database_with_metadata(
+    extra: Sequence[tuple[object, object]] = (),
+    /,
+    **changes: object,
+) -> bytes:
+    """Return the decoder test database with changed metadata.
+
+    A value of None removes the key. extra adds entries, which can have keys
+    that are not strings.
+    """
+    data = pathlib.Path(_DECODER_DB).read_bytes()
+    start = data.rfind(_METADATA_START_MARKER) + len(_METADATA_START_MARKER)
+    (metadata, _) = Decoder(data, start).decode(start)
+    merged = {**cast("dict[str, object]", metadata), **changes}
+    entries = [*((k, v) for k, v in merged.items() if v is not None), *extra]
+    items = b"".join(_encode_value(k) + _encode_value(v, str(k)) for k, v in entries)
+    return data[:start] + _encode_control(7, len(entries)) + items
+
+
+def _encode_value(value: object, key: str = "") -> bytes:
+    if isinstance(value, str):
+        encoded = value.encode()
+        return _encode_control(2, len(encoded)) + encoded
+    if isinstance(value, bool):
+        return _encode_control(14, int(value))
+    if isinstance(value, float):
+        return _encode_control(3, 8) + struct.pack(">d", value)
+    if isinstance(value, int):
+        encoded = value.to_bytes((value.bit_length() + 7) // 8, "big")
+        type_num = _METADATA_UINT_TYPES.get(key, _UINT16_TYPE)
+        return _encode_control(type_num, len(encoded)) + encoded
+    if isinstance(value, list):
+        items = b"".join(_encode_value(v) for v in value)
+        return _encode_control(11, len(value)) + items
+    if isinstance(value, dict):
+        items = b"".join(
+            _encode_value(k) + _encode_value(v, k) for k, v in value.items()
+        )
+        return _encode_control(7, len(value)) + items
+    msg = f"cannot encode {value!r}"
+    raise TypeError(msg)
+
+
+def _encode_control(type_num: int, size: int) -> bytes:
+    # Sizes from 29 to 284 use one extra size byte. These tests need no more.
+    extended = b""
+    if type_num > 7:
+        extended = bytes([type_num - 7])
+        type_num = 0
+    if size < 29:
+        return bytes([type_num << 5 | size]) + extended
+    return bytes([type_num << 5 | 29]) + extended + bytes([size - 29])
+
+
 def get_reader_from_file_descriptor(filepath: str, mode: int) -> Reader:
     """Patches open_database() for class TestFDReader()."""
     # There are a few cases where mode is statically defined in
@@ -138,7 +205,7 @@ class BaseTestReader(unittest.TestCase):
     use_ip_objects = False
     payload_error = _PAYLOAD_TOO_LARGE
     value_count_error = _TOO_MANY_VALUES
-    metadata_error = _PAYLOAD_TOO_LARGE
+    metadata_error = _METADATA_PAYLOAD_TOO_LARGE
     fan_out_error = f"{_TOO_MANY_VALUES}|{_TOO_DEEP}"
 
     # fork doesn't work on Windows and spawn would involve pickling the reader,
@@ -634,6 +701,88 @@ class BaseTestReader(unittest.TestCase):
         ):
             reader.get(self.ipf("1.1.1.1"))
 
+    def test_unknown_metadata_key_is_ignored(self) -> None:
+        # A new minor version of the format can add metadata keys.
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "unknown-key.mmdb"
+            path.write_bytes(_database_with_metadata(unknown_key="value"))
+            with open_database(str(path), self.mode) as reader:
+                metadata = reader.metadata()
+                self.assertEqual(metadata.database_type, "MaxMind DB Decoder Test")
+                self.assertFalse(hasattr(metadata, "unknown_key"))
+
+    def test_metadata_strings_keep_embedded_nuls(self) -> None:
+        changes: dict[str, object] = {
+            "database_type": "one\0two",
+            "description": {"en\0x": "first", "en\0y": "second\0value"},
+            "languages": ["en\0x"],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "nul.mmdb"
+            path.write_bytes(_database_with_metadata(**changes))
+            with open_database(str(path), self.mode) as reader:
+                metadata = reader.metadata()
+        self.assertEqual(metadata.database_type, changes["database_type"])
+        self.assertEqual(metadata.description, changes["description"])
+        self.assertEqual(metadata.languages, changes["languages"])
+
+    def test_invalid_metadata_is_rejected(self) -> None:
+        cases: dict[str, dict[str, object]] = {
+            "missing languages": {"languages": None},
+            "missing description": {"description": None},
+            "string node_count": {"node_count": "1"},
+            "double node_count": {"node_count": 1.5},
+            "boolean record_size": {"record_size": True},
+            "boolean build_epoch": {"build_epoch": True},
+            "string languages": {"languages": "en"},
+            "integer in languages": {"languages": [1]},
+            "integer in description": {"description": {"en": 1}},
+            "integer key in description": {"description": {1: "en"}},
+            "integer database_type": {"database_type": 5},
+            "ip_version 5": {"ip_version": 5},
+            "binary_format_major_version 3": {"binary_format_major_version": 3},
+            "build_epoch 0": {"build_epoch": 0},
+            "binary_format_minor_version too large": {
+                "binary_format_minor_version": 2**16,
+            },
+            "build_epoch too large": {"build_epoch": 2**64},
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "invalid-metadata.mmdb"
+            for name, changes in cases.items():
+                with self.subTest(name):
+                    path.write_bytes(_database_with_metadata(**changes))
+                    with (
+                        self.assertRaises(InvalidDatabaseError),
+                        open_database(str(path), self.mode),
+                    ):
+                        pass
+
+    def test_metadata_that_does_not_decode_is_rejected(self) -> None:
+        cases = {
+            "list key": _database_with_metadata([([1], "value")]),
+            "integer key": _database_with_metadata([(7, "value")]),
+            "string that is not UTF-8": _database_with_metadata(
+                database_type="NOT-UTF-8",
+            ).replace(b"NOT-UTF-8", b"\xff" * 9),
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "bad-metadata.mmdb"
+            for name, data in cases.items():
+                with self.subTest(name):
+                    path.write_bytes(data)
+                    # The C reader raises some of these only in metadata().
+                    with (
+                        self.assertRaises(InvalidDatabaseError) as cm,
+                        open_database(str(path), self.mode) as reader,
+                    ):
+                        reader.metadata()
+                    if name == "string that is not UTF-8":
+                        self.assertIsInstance(
+                            cm.exception.__cause__,
+                            UnicodeDecodeError,
+                        )
+
     def test_ip_validation(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
@@ -959,6 +1108,11 @@ class BaseTestReader(unittest.TestCase):
         self.assertGreater(metadata.node_count, 36)
 
         self.assertEqual(metadata.record_size, record_size)
+        self.assertEqual(metadata.node_byte_size, record_size // 4)
+        self.assertEqual(
+            metadata.search_tree_size,
+            metadata.node_count * record_size // 4,
+        )
 
     def _check_ip_v4(self, reader: Reader, file_name: str) -> None:
         for i in range(6):
@@ -1241,6 +1395,32 @@ class TestExtensionObjects(unittest.TestCase):
             self.assertEqual(descriptors(), 0)
             reader.close()
             self.assertEqual(mappings(), 0)
+
+    def test_metadata_init_can_close_the_reader(self) -> None:
+        # metadata() must build Metadata after it releases the read lock,
+        # because Metadata can run Python code. Under the lock, a close() from
+        # that code would wait for the lock forever on free-threaded Python.
+        program = textwrap.dedent(
+            """
+            import sys
+
+            import maxminddb.extension
+
+            reader = maxminddb.extension.Reader(sys.argv[1])
+
+            def close_reader(self, *args, **kwargs):
+                reader.close()
+
+            maxminddb.extension.Metadata.__init__ = close_reader
+            metadata = reader.metadata()
+            if not isinstance(metadata, maxminddb.extension.Metadata):
+                sys.exit("metadata() did not return a Metadata")
+            if not reader.closed:
+                sys.exit("Metadata.__init__ did not close the reader")
+            print("ok")
+            """,
+        )
+        self._run_program(program)
 
     def test_initialize_after_close_on_uninitialized_reader(self) -> None:
         reader_class = maxminddb.extension.Reader
@@ -1573,6 +1753,12 @@ class TestReaderInitialization(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "reopened MaxMind DB"):
                     next(iterator)
 
+    def test_metadata_types_match_metadata_fields(self) -> None:
+        self.assertEqual(
+            list(maxminddb.reader._METADATA_TYPES),  # noqa: SLF001
+            [field.name for field in dataclasses.fields(maxminddb.reader.Metadata)],
+        )
+
     def test_empty_search_tree_is_accepted(self) -> None:
         data = pathlib.Path(
             f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb"
@@ -1595,7 +1781,7 @@ class TestReaderInitialization(unittest.TestCase):
             (
                 b"node_count\xc1\xa3",
                 b"node_count\x04\x01\xff\xff\xff\xff",
-                "Invalid node count: -1",
+                "The node_count value -1 is out of range",
             ),
         )
         for original, replacement, message in cases:
@@ -1608,19 +1794,39 @@ class TestReaderInitialization(unittest.TestCase):
                 ):
                     pass
 
+    def test_metadata_decode_error_names_the_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "bad-metadata.mmdb"
+            path.write_bytes(_database_with_metadata([([1], "value")]))
+            with self.assertRaises(InvalidDatabaseError) as cm:
+                maxminddb.reader.Reader(str(path), MODE_MEMORY)
+        self.assertEqual(
+            str(cm.exception),
+            f"Error reading metadata in database file ({path}). "
+            "The MaxMind DB file's data section contains bad data "
+            "(unknown data type or corrupt data)",
+        )
+
     def test_failed_initialization_closes_buffer(self) -> None:
         reader_class = maxminddb.reader.Reader
-        marker = b"\xab\xcd\xefMaxMind.com"
         cases = (
             (b"not a database", InvalidDatabaseError, "Is this a valid MaxMind DB"),
-            (marker + b"\x40", InvalidDatabaseError, "Error reading metadata"),
-            (marker + b"\xe0", TypeError, "required keyword-only arguments"),
+            (
+                _METADATA_START_MARKER + b"\x40",
+                InvalidDatabaseError,
+                "Error reading metadata",
+            ),
+            (
+                _METADATA_START_MARKER + b"\xe0",
+                InvalidDatabaseError,
+                "missing or has the wrong type",
+            ),
             (
                 pathlib.Path(
                     f"{_TEST_DATA_DIR}/MaxMind-DB-test-metadata-payload-limit.mmdb"
                 ).read_bytes(),
                 InvalidDatabaseError,
-                _PAYLOAD_TOO_LARGE,
+                _METADATA_PAYLOAD_TOO_LARGE,
             ),
         )
         with tempfile.TemporaryDirectory() as directory:

@@ -188,7 +188,11 @@ class Decoder:
         for _ in range(size):
             (key, offset) = decode(offset, budget, False)  # noqa: FBT003
             (value, offset) = decode(offset, budget, False)  # noqa: FBT003
-            container[key] = value  # type: ignore[index]
+            try:
+                container[key] = value  # type: ignore[index]
+            except TypeError as ex:
+                # The key cannot be hashed, such as a list.
+                raise InvalidDatabaseError(_BAD_DATA) from ex
         budget.depth -= 1
         return container, offset
 

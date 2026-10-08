@@ -11,6 +11,9 @@ History
   C extension. Before, the iterator walked the new database with node
   numbers from the old one. A failed ``__init__`` keeps the old database.
   After ``close()``, an iterator raises ``ValueError`` in every mode.
+* For a record map with a key that cannot be hashed, such as a list, the
+  pure Python reader raises ``InvalidDatabaseError`` instead of ``TypeError``,
+  as the C extension does.
 * C extension:
 
   * Fixed segmentation faults from invalid use of ``Metadata``, ``Reader`` and
@@ -29,6 +32,26 @@ History
     during iteration, from another thread or from a signal handler.
   * Fixed a crash on free-threaded Python when two threads advanced the same
     iterator.
+  * Added the ``node_byte_size`` and ``search_tree_size`` properties to
+    ``Metadata``, as the pure Python ``Metadata`` has.
+
+* Metadata:
+
+  * The pure Python reader ignores unknown keys, which a new minor version of
+    the format can add, if their values decode. Previously, an unknown key
+    raised ``TypeError``. It raises ``InvalidDatabaseError`` for a missing key,
+    a key that is not a string, a value that is not of the expected Python
+    type or is out of range, an invalid ``ip_version`` or format version, a
+    ``build_epoch`` of 0, or a string that is not UTF-8 anywhere in the
+    metadata. Previously, the reader opened most of these files, and some
+    raised ``TypeError`` or ``UnicodeDecodeError``.
+  * The C extension ignores unknown keys unless a value cannot be decoded,
+    such as a map with a key that is not a string. Previously,
+    ``Reader.metadata()`` crashed with a segmentation fault on any unknown
+    key.
+  * For a metadata string that is not UTF-8, the ``InvalidDatabaseError``
+    from the C ``Reader.metadata()`` has the ``UnicodeDecodeError`` as its
+    cause.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++
