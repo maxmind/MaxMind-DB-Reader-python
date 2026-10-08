@@ -38,14 +38,17 @@ History
 * Metadata:
 
   * The pure Python reader ignores unknown keys, which a new minor version of
-    the format can add. It raises ``InvalidDatabaseError`` for a missing key, a
-    value that is not of the expected Python type or is out of range, an
-    invalid ``ip_version`` or format version, a ``build_epoch`` of 0, or a
-    string that is not UTF-8. Previously, the reader opened most of these
-    files, and some raised ``TypeError`` or ``UnicodeDecodeError``.
+    the format can add, if their values decode. Previously, an unknown key
+    raised ``TypeError``. It raises ``InvalidDatabaseError`` for a missing key,
+    a key that is not a string, a value that is not of the expected Python
+    type or is out of range, an invalid ``ip_version`` or format version, a
+    ``build_epoch`` of 0, or a string that is not UTF-8 anywhere in the
+    metadata. Previously, the reader opened most of these files, and some
+    raised ``TypeError`` or ``UnicodeDecodeError``.
   * The C extension ignores unknown keys unless a value cannot be decoded,
     such as a map with a key that is not a string. Previously,
-    ``Reader.metadata()`` crashed on any unknown key.
+    ``Reader.metadata()`` crashed with a segmentation fault on any unknown
+    key.
   * For a metadata string that is not UTF-8, the ``InvalidDatabaseError``
     from the C ``Reader.metadata()`` has the ``UnicodeDecodeError`` as its
     cause.
