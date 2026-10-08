@@ -49,6 +49,8 @@ class Reader:
     _metadata: Metadata
     _record_size: int
     _ipv4_start: int
+    _node_count: int
+    _address_bits: int
     _pointer_base: int
     _data_start: int
     # Incremented on each open, so an iterator can detect a reopen.
@@ -166,6 +168,13 @@ class Reader:
                     node = self._read_node(node, 0)
                 ipv4_start = node
             self._ipv4_start = ipv4_start
+
+            # _generate_children uses these on every node.
+            self._node_count = self._metadata.node_count
+            if self._metadata.ip_version == 6:
+                self._address_bits = 128
+            else:
+                self._address_bits = 32
         except BaseException:
             _close_buffer(self.__dict__.get("_buffer"))
             raise
@@ -239,8 +248,8 @@ class Reader:
             yield record
 
     def _generate_children(self, node: int, depth: int, ip_acc: int) -> Iterator:
-        node_count = self._metadata.node_count
-        bits = 128 if self._metadata.ip_version == 6 else 32
+        node_count = self._node_count
+        bits = self._address_bits
         if node > node_count:
             ip_acc <<= bits - depth
             network: IPv4Network | IPv6Network
