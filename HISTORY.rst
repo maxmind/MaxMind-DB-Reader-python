@@ -46,6 +46,9 @@ History
   * The C extension ignores unknown keys unless a value cannot be decoded,
     such as a map with a key that is not a string. Previously,
     ``Reader.metadata()`` crashed on any unknown key.
+  * For a metadata string that is not UTF-8, the ``InvalidDatabaseError``
+    from the C ``Reader.metadata()`` has the ``UnicodeDecodeError`` as its
+    cause.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++

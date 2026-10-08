@@ -773,10 +773,15 @@ class BaseTestReader(unittest.TestCase):
                     path.write_bytes(data)
                     # The C reader raises some of these only in metadata().
                     with (
-                        self.assertRaises(InvalidDatabaseError),
+                        self.assertRaises(InvalidDatabaseError) as cm,
                         open_database(str(path), self.mode) as reader,
                     ):
                         reader.metadata()
+                    if name == "string that is not UTF-8":
+                        self.assertIsInstance(
+                            cm.exception.__cause__,
+                            UnicodeDecodeError,
+                        )
 
     def test_ip_validation(self) -> None:
         reader = open_database(

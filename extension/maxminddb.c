@@ -136,6 +136,7 @@ static void reader_close_database(Reader_obj *reader);
 static bool can_read(const char *path);
 static int get_record(PyObject *self, PyObject *args, PyObject **record);
 static PyObject *metadata_value(PyObject *map, const char *key);
+static void set_error_from_cause(PyObject *type, const char *message);
 static PyObject *reader_iter_next(PyObject *self);
 static bool format_sockaddr(struct sockaddr *addr, char *dst);
 static PyObject *from_entry_data_list(maxminddb_state *state,
@@ -755,7 +756,8 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args)) {
 
     // libmaxminddb does not check that the metadata strings are UTF-8.
     if (metadata == NULL && PyErr_ExceptionMatches(PyExc_UnicodeDecodeError)) {
-        PyErr_SetString(state->MaxMindDB_error, "Error decoding metadata.");
+        set_error_from_cause(state->MaxMindDB_error,
+                             "Error decoding metadata.");
     }
     return metadata;
 }
@@ -770,6 +772,33 @@ static PyObject *metadata_value(PyObject *map, const char *key) {
     PyObject *value = PyDict_GetItemWithError(map, name);
     Py_DECREF(name);
     return value;
+}
+
+// Replace the current exception with a new one, and keep the current one as
+// its cause, as "raise ... from" does.
+static void set_error_from_cause(PyObject *type, const char *message) {
+#if PY_VERSION_HEX >= 0x030C0000
+    PyObject *cause = PyErr_GetRaisedException();
+    PyErr_SetString(type, message);
+    PyObject *error = PyErr_GetRaisedException();
+    PyException_SetCause(error, cause);
+    PyErr_SetRaisedException(error);
+#else
+    PyObject *cause_type, *cause, *cause_traceback;
+    PyErr_Fetch(&cause_type, &cause, &cause_traceback);
+    PyErr_NormalizeException(&cause_type, &cause, &cause_traceback);
+    if (cause_traceback != NULL) {
+        PyException_SetTraceback(cause, cause_traceback);
+        Py_DECREF(cause_traceback);
+    }
+    Py_DECREF(cause_type);
+    PyErr_SetString(type, message);
+    PyObject *error_type, *error, *error_traceback;
+    PyErr_Fetch(&error_type, &error, &error_traceback);
+    PyErr_NormalizeException(&error_type, &error, &error_traceback);
+    PyException_SetCause(error, cause);
+    PyErr_Restore(error_type, error, error_traceback);
+#endif
 }
 
 static PyObject *Reader_close(PyObject *self, PyObject *UNUSED(args)) {
