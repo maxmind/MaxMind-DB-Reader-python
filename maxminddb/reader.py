@@ -408,6 +408,10 @@ def _metadata_fields(metadata: RecordDict, filename: object) -> dict[str, Any]:
     A new minor version of the format can add keys. This ignores them.
     """
     prefix = f"Error reading metadata in database file ({filename})."
+    # The C extension also rejects a key that is not a string.
+    if not all(type(k) is str for k in metadata):
+        msg = f"{prefix} A metadata key is not a string."
+        raise InvalidDatabaseError(msg)
     fields: dict[str, Any] = {}
     for key, value_type in _METADATA_TYPES.items():
         value = metadata.get(key)

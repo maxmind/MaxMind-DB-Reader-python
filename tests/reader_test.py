@@ -761,6 +761,7 @@ class BaseTestReader(unittest.TestCase):
     def test_metadata_that_does_not_decode_is_rejected(self) -> None:
         cases = {
             "list key": _database_with_metadata([([1], "value")]),
+            "integer key": _database_with_metadata([(7, "value")]),
             "string that is not UTF-8": _database_with_metadata(
                 database_type="NOT-UTF-8",
             ).replace(b"NOT-UTF-8", b"\xff" * 9),
