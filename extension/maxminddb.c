@@ -137,6 +137,7 @@ static bool can_read(const char *path);
 static int get_record(PyObject *self, PyObject *args, PyObject **record);
 static PyObject *metadata_value(PyObject *map, const char *key);
 static void set_error_from_cause(PyObject *type, const char *message);
+static PyObject *Metadata_node_byte_size(PyObject *self, void *closure);
 static PyObject *reader_iter_next(PyObject *self);
 static bool format_sockaddr(struct sockaddr *addr, char *dst);
 static PyObject *from_entry_data_list(maxminddb_state *state,
@@ -1435,18 +1436,6 @@ static PyMemberDef Metadata_members[] = {
      NULL},
     {NULL, 0, 0, 0, NULL}};
 
-static PyObject *Metadata_node_byte_size(PyObject *self,
-                                         void *UNUSED(closure)) {
-    Metadata_obj *obj = (Metadata_obj *)self;
-    PyObject *four = PyLong_FromLong(4);
-    if (four == NULL) {
-        return NULL;
-    }
-    PyObject *node_byte_size = PyNumber_FloorDivide(obj->record_size, four);
-    Py_DECREF(four);
-    return node_byte_size;
-}
-
 static PyObject *Metadata_search_tree_size(PyObject *self,
                                            void *UNUSED(closure)) {
     Metadata_obj *obj = (Metadata_obj *)self;
@@ -1458,6 +1447,18 @@ static PyObject *Metadata_search_tree_size(PyObject *self,
         PyNumber_Multiply(obj->node_count, node_byte_size);
     Py_DECREF(node_byte_size);
     return search_tree_size;
+}
+
+static PyObject *Metadata_node_byte_size(PyObject *self,
+                                         void *UNUSED(closure)) {
+    Metadata_obj *obj = (Metadata_obj *)self;
+    PyObject *four = PyLong_FromLong(4);
+    if (four == NULL) {
+        return NULL;
+    }
+    PyObject *node_byte_size = PyNumber_FloorDivide(obj->record_size, four);
+    Py_DECREF(four);
+    return node_byte_size;
 }
 
 // These match the properties of the pure Python Metadata class.
