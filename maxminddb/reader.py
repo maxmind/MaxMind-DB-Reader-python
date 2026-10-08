@@ -10,7 +10,7 @@ except ImportError:
 import contextlib
 import ipaddress
 from dataclasses import dataclass
-from ipaddress import IPv4Address, IPv6Address
+from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from typing import IO, TYPE_CHECKING, Any
 
 from maxminddb.const import MODE_AUTO, MODE_FD, MODE_FILE, MODE_MEMORY, MODE_MMAP
@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 _IPV4_MAX_NUM = 2**32
 _REOPENED = "Attempt to iterate over a reopened MaxMind DB. Create a new iterator."
 _CLOSED = "Attempt to iterate over a closed MaxMind DB."
+_CORRUPT_TREE = "The MaxMind DB file's search tree is corrupt"
 
 
 class Reader:
@@ -48,6 +49,8 @@ class Reader:
     _metadata: Metadata
     _record_size: int
     _ipv4_start: int
+    _search_tree_size: int
+    _data_start: int
     # Incremented on each open, so an iterator can detect a reopen.
     _generation: int = 0
 
@@ -133,22 +136,22 @@ class Reader:
             self._metadata = Metadata(**_metadata_fields(metadata, filename))
             self._record_size = self._metadata.record_size
 
+            # _resolve_data_pointer uses these on every lookup.
+            self._search_tree_size = self._metadata.search_tree_size
+            self._data_start = (
+                self._search_tree_size + self._DATA_SECTION_SEPARATOR_SIZE
+            )
+
             # Traversal reads nodes below node_count. Once the tree fits, those
             # reads need no length checks of their own.
-            tree_end = (
-                self._metadata.search_tree_size + self._DATA_SECTION_SEPARATOR_SIZE
-            )
-            if tree_end > self._buffer_size:
+            if self._data_start > self._buffer_size:
                 msg = (
                     f"Error opening database file ({filename}). The search tree "
                     "extends past the end of the file."
                 )
                 raise InvalidDatabaseError(msg)  # noqa: TRY301
 
-            self._decoder = Decoder(
-                self._buffer,
-                self._metadata.search_tree_size + self._DATA_SECTION_SEPARATOR_SIZE,
-            )
+            self._decoder = Decoder(self._buffer, self._data_start)
             self.closed = False
 
             ipv4_start = 0
@@ -236,23 +239,36 @@ class Reader:
             yield record
 
     def _generate_children(self, node: int, depth: int, ip_acc: int) -> Iterator:
-        if ip_acc != 0 and node == self._ipv4_start:
-            # Skip nodes aliased to IPv4
-            return
-
         node_count = self._metadata.node_count
+        bits = 128 if self._metadata.ip_version == 6 else 32
         if node > node_count:
-            bits = 128 if self._metadata.ip_version == 6 else 32
             ip_acc <<= bits - depth
-            if ip_acc <= _IPV4_MAX_NUM and bits == 128:
-                depth -= 96
-            yield (
-                ipaddress.ip_network((ip_acc, depth)),
-                self._resolve_data_pointer(
-                    node,
-                ),
-            )
+            network: IPv4Network | IPv6Network
+            if bits == 32:
+                network = IPv4Network((ip_acc, depth))
+            elif depth >= 96 and ip_acc < _IPV4_MAX_NUM:
+                # An IPv4 network in an IPv6 tree is at least /96, and its
+                # first 96 bits are zero.
+                network = IPv4Network((ip_acc, depth - 96))
+            else:
+                network = IPv6Network((ip_acc, depth))
+            yield (network, self._resolve_data_pointer(node))
         elif node < node_count:
+            # Skip the IPv4 subtree when an address with a set bit in its first
+            # 96 bits leads to it, as the C extension does. Inside the IPv4
+            # subtree, or in an IPv4 tree, a record that points back to it is a
+            # cycle.
+            if (
+                node == self._ipv4_start
+                and bits == 128
+                and ip_acc >> max(depth - 96, 0) != 0
+            ):
+                return
+            # A node at the full address depth has no valid children, and no
+            # record can point to the root. Only a corrupt tree, such as one
+            # with a cycle, has either.
+            if depth >= bits or (node == 0 and depth > 0):
+                raise InvalidDatabaseError(_CORRUPT_TREE)
             left = self._read_node(node, 0)
             ip_acc <<= 1
             depth += 1
@@ -307,11 +323,12 @@ class Reader:
         raise InvalidDatabaseError(msg)
 
     def _resolve_data_pointer(self, pointer: int) -> Record:
-        resolved = pointer - self._metadata.node_count + self._metadata.search_tree_size
+        resolved = pointer - self._metadata.node_count + self._search_tree_size
 
-        if resolved >= self._buffer_size:
-            msg = "The MaxMind DB file's search tree is corrupt"
-            raise InvalidDatabaseError(msg)
+        # A pointer into the separator between the tree and the data section
+        # is as corrupt as one past the end, as libmaxminddb checks.
+        if resolved < self._data_start or resolved >= self._buffer_size:
+            raise InvalidDatabaseError(_CORRUPT_TREE)
 
         (data, _) = self._decoder.decode(resolved)
         return data
