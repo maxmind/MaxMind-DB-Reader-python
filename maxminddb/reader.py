@@ -49,7 +49,7 @@ class Reader:
     _metadata: Metadata
     _record_size: int
     _ipv4_start: int
-    _search_tree_size: int
+    _pointer_base: int
     _data_start: int
     # Incremented on each open, so an iterator can detect a reopen.
     _generation: int = 0
@@ -136,11 +136,11 @@ class Reader:
             self._metadata = Metadata(**_metadata_fields(metadata, filename))
             self._record_size = self._metadata.record_size
 
-            # _resolve_data_pointer uses these on every lookup.
-            self._search_tree_size = self._metadata.search_tree_size
-            self._data_start = (
-                self._search_tree_size + self._DATA_SECTION_SEPARATOR_SIZE
-            )
+            # _resolve_data_pointer uses these on every lookup. A data record
+            # minus node_count is an offset from the end of the search tree.
+            search_tree_size = self._metadata.search_tree_size
+            self._pointer_base = search_tree_size - self._metadata.node_count
+            self._data_start = search_tree_size + self._DATA_SECTION_SEPARATOR_SIZE
 
             # Traversal reads nodes below node_count. Once the tree fits, those
             # reads need no length checks of their own.
@@ -323,7 +323,7 @@ class Reader:
         raise InvalidDatabaseError(msg)
 
     def _resolve_data_pointer(self, pointer: int) -> Record:
-        resolved = pointer - self._metadata.node_count + self._search_tree_size
+        resolved = pointer + self._pointer_base
 
         # A pointer into the separator between the tree and the data section
         # is as corrupt as one past the end, as libmaxminddb checks.
