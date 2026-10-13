@@ -141,6 +141,9 @@ static PyObject *metadata_value(PyObject *map, const char *key);
 static void set_error_from_cause(PyObject *type, const char *message);
 static PyObject *Metadata_node_byte_size(PyObject *self, void *closure);
 static PyObject *reader_iter_next(PyObject *self);
+static PyObject *corrupt_tree_error(ReaderIter_obj *ri,
+                                    maxminddb_state *state,
+                                    struct record *cur);
 static void free_records(struct record *next);
 static bool format_sockaddr(struct sockaddr *addr, char *dst);
 static PyObject *from_entry_data_list(maxminddb_state *state,
@@ -970,14 +973,10 @@ static PyObject *reader_iter_next(PyObject *self) {
 
         switch (cur->type) {
             case MMDB_RECORD_TYPE_INVALID:
-                reader_release_read_lock(ri->reader);
                 // libmaxminddb before 1.14 returns this type for a record
                 // that points to the root or past the data section. Later
                 // versions fail in MMDB_read_node instead.
-                PyErr_SetString(state->MaxMindDB_error,
-                                MMDB_strerror(MMDB_CORRUPT_SEARCH_TREE_ERROR));
-                free(cur);
-                return NULL;
+                return corrupt_tree_error(ri, state, cur);
             case MMDB_RECORD_TYPE_SEARCH_NODE: {
                 if (cur->record ==
                         ri->reader->mmdb->ipv4_start_node.node_value &&
@@ -990,12 +989,7 @@ static PyObject *reader_iter_next(PyObject *self) {
                 // gives a network longer than /32, and a cycle in either tree
                 // writes past the end of ip_packed at depth 128.
                 if (cur->depth >= ri->reader->mmdb->depth) {
-                    reader_release_read_lock(ri->reader);
-                    PyErr_SetString(
-                        state->MaxMindDB_error,
-                        MMDB_strerror(MMDB_CORRUPT_SEARCH_TREE_ERROR));
-                    free(cur);
-                    return NULL;
+                    return corrupt_tree_error(ri, state, cur);
                 }
                 MMDB_search_node_s node;
                 int status = MMDB_read_node(
@@ -1131,6 +1125,17 @@ static PyObject *reader_iter_next(PyObject *self) {
         free(cur);
     }
     reader_release_read_lock(ri->reader);
+    return NULL;
+}
+
+// Sets the corrupt-tree error, releases the read lock and frees cur.
+static PyObject *corrupt_tree_error(ReaderIter_obj *ri,
+                                    maxminddb_state *state,
+                                    struct record *cur) {
+    reader_release_read_lock(ri->reader);
+    PyErr_SetString(state->MaxMindDB_error,
+                    MMDB_strerror(MMDB_CORRUPT_SEARCH_TREE_ERROR));
+    free(cur);
     return NULL;
 }
 
