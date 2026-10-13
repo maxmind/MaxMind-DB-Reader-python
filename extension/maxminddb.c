@@ -910,20 +910,28 @@ static bool is_ipv6(char ip[16]) {
 }
 
 static PyObject *ReaderIter_next(PyObject *self) {
-    PyObject *result;
+    ReaderIter_obj *ri = (ReaderIter_obj *)self;
+    PyObject *result = NULL;
 #ifdef Py_GIL_DISABLED
     // The iterator's list of pending records is not thread-safe, so let only
     // one thread at a time advance an iterator. The read lock is shared, so
     // it does not do this.
     Py_BEGIN_CRITICAL_SECTION(self);
 #endif
-    result = reader_iter_next(self);
-    // Stop after StopIteration or an error, as a generator does.
-    if (result == NULL) {
-        ReaderIter_obj *ri = (ReaderIter_obj *)self;
-        free_records(ri->next);
-        ri->next = NULL;
-        ri->done = true;
+    // An iterator that is exhausted or that raised an error stays done, even
+    // after the reader closes. The list of pending records cannot show this:
+    // it is already empty when the last record is returned, and the next call
+    // must still report a closed or reopened reader, as the pure Python
+    // iterator does. A failure to get the read lock is temporary and removes
+    // no record, so the iterator can continue after it.
+    if (!ri->done && reader_acquire_read_lock(ri->reader) == 0) {
+        result = reader_iter_next(self);
+        // Stop after StopIteration or another error, as a generator does.
+        if (result == NULL) {
+            free_records(ri->next);
+            ri->next = NULL;
+            ri->done = true;
+        }
     }
 #ifdef Py_GIL_DISABLED
     Py_END_CRITICAL_SECTION();
@@ -931,24 +939,13 @@ static PyObject *ReaderIter_next(PyObject *self) {
     return result;
 }
 
+// The caller holds the read lock. This function releases it on every path.
 static PyObject *reader_iter_next(PyObject *self) {
-    maxminddb_state *state = get_maxminddb_state_from_self((PyObject *)self);
-    if (state == NULL) {
-        return NULL;
-    }
-
     ReaderIter_obj *ri = (ReaderIter_obj *)self;
 
-    // An iterator that is exhausted or that raised an error stays done, even
-    // after the reader closes. The list of pending records cannot show this:
-    // it is already empty when the last record is returned, and the next call
-    // must still report a closed or reopened reader, as the pure Python
-    // iterator does.
-    if (ri->done) {
-        return NULL;
-    }
-
-    if (reader_acquire_read_lock(ri->reader) != 0) {
+    maxminddb_state *state = get_maxminddb_state_from_self((PyObject *)self);
+    if (state == NULL) {
+        reader_release_read_lock(ri->reader);
         return NULL;
     }
 

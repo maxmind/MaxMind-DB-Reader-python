@@ -46,9 +46,10 @@ History
     iterator.
   * An exhausted iterator now raises ``StopIteration`` after its ``Reader``
     closes, not ``ValueError``.
-  * The iterator now stops after any error, as the pure Python iterator
-    does. This includes an error in the data of one record. Previously, the
-    next call returned the remaining networks.
+  * The iterator now stops after an error, as the pure Python iterator does.
+    This includes an error in the data of one record, but not a failure to
+    get the read lock. Previously, the next call returned the remaining
+    networks.
   * Added the ``node_byte_size`` and ``search_tree_size`` properties to
     ``Metadata``, as the pure Python ``Metadata`` has.
 
