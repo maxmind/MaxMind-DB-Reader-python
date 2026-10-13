@@ -72,9 +72,9 @@ History
     cause.
 
 * Added ``maxminddb.Mode``, which the README already described.
-* ``maxminddb.types.Record`` and ``Primitive`` are no longer generic type
-  aliases. Remove any subscript, such as ``Record[str]``. Pull request by Adam
-  Hitchcock. GitHub #464.
+* Type checkers now reject a subscript of ``maxminddb.types.Record`` or
+  ``Primitive``, such as ``Record[str]``. The subscript still works at
+  runtime. Pull request by Adam Hitchcock. GitHub #464.
 
 * Type hints:
 

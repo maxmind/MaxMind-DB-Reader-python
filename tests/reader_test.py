@@ -28,6 +28,7 @@ try:
 except ImportError:
     maxminddb.extension = None  # type: ignore[assignment]
 
+import maxminddb.types
 from maxminddb import InvalidDatabaseError, open_database
 from maxminddb.const import (
     MODE_AUTO,
@@ -1421,6 +1422,12 @@ class TestExtensionReaderWithIPObjects(BaseTestReader):
 class TestModule(unittest.TestCase):
     def test_mode_is_exported(self) -> None:
         self.assertIs(maxminddb.Mode, maxminddb.const.Mode)
+
+    def test_record_subscript_works_at_runtime(self) -> None:
+        # 3.2.0 accepted Record[str] at runtime. typing_test.py checks that
+        # type checkers reject it.
+        maxminddb.types.Record[str]  # type: ignore[misc, type-arg]
+        maxminddb.types.Primitive[bytes]  # type: ignore[misc, type-arg]
 
 
 @unittest.skipIf(

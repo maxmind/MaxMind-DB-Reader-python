@@ -42,6 +42,16 @@ Types
 .. automodule:: maxminddb.types
     :members:
     :undoc-members:
+    :exclude-members: Primitive, Record
+
+.. The runtime values of these aliases contain AnyStr, so give the types that
+   type checkers see.
+
+.. autodata:: maxminddb.types.Primitive
+    :annotation: = str | bytes | bytearray | bool | float | int
+
+.. autodata:: maxminddb.types.Record
+    :annotation: = Primitive | RecordList | RecordDict
 
 ==================
 Indices and tables
