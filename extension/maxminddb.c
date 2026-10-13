@@ -1139,14 +1139,6 @@ static PyObject *corrupt_tree_error(ReaderIter_obj *ri,
     return NULL;
 }
 
-static void free_records(struct record *next) {
-    while (next != NULL) {
-        struct record *cur = next;
-        next = cur->next;
-        free(cur);
-    }
-}
-
 static void ReaderIter_dealloc(PyObject *self) {
     ReaderIter_obj *ri = (ReaderIter_obj *)self;
 
@@ -1156,6 +1148,14 @@ static void ReaderIter_dealloc(PyObject *self) {
     PyTypeObject *type = Py_TYPE(self);
     PyObject_Del(self);
     Py_DECREF(type);
+}
+
+static void free_records(struct record *next) {
+    while (next != NULL) {
+        struct record *cur = next;
+        next = cur->next;
+        free(cur);
+    }
 }
 
 // Metadata is immutable, so tp_new sets every field and there is no tp_init.
