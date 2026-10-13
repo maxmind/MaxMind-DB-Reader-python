@@ -88,6 +88,8 @@ typedef struct {
     Reader_obj *reader;
     struct record *next;
     uint64_t generation;
+    // Set once next() has raised StopIteration or an error.
+    bool done;
 } ReaderIter_obj;
 
 typedef struct {
@@ -139,6 +141,10 @@ static PyObject *metadata_value(PyObject *map, const char *key);
 static void set_error_from_cause(PyObject *type, const char *message);
 static PyObject *Metadata_node_byte_size(PyObject *self, void *closure);
 static PyObject *reader_iter_next(PyObject *self);
+static PyObject *corrupt_tree_error(ReaderIter_obj *ri,
+                                    maxminddb_state *state,
+                                    struct record *cur);
+static void free_records(struct record *next);
 static bool format_sockaddr(struct sockaddr *addr, char *dst);
 static PyObject *from_entry_data_list(maxminddb_state *state,
                                       MMDB_entry_data_list_s **entry_data_list);
@@ -907,29 +913,42 @@ static bool is_ipv6(char ip[16]) {
 }
 
 static PyObject *ReaderIter_next(PyObject *self) {
-    PyObject *result;
+    ReaderIter_obj *ri = (ReaderIter_obj *)self;
+    PyObject *result = NULL;
 #ifdef Py_GIL_DISABLED
     // The iterator's list of pending records is not thread-safe, so let only
     // one thread at a time advance an iterator. The read lock is shared, so
     // it does not do this.
     Py_BEGIN_CRITICAL_SECTION(self);
 #endif
-    result = reader_iter_next(self);
+    // An iterator that is exhausted or that raised an error stays done, even
+    // after the reader closes. The list of pending records cannot show this:
+    // it is already empty when the last record is returned, and the next call
+    // must still report a closed or reopened reader, as the pure Python
+    // iterator does. A failure to get the read lock is temporary and removes
+    // no record, so the iterator can continue after it.
+    if (!ri->done && reader_acquire_read_lock(ri->reader) == 0) {
+        result = reader_iter_next(self);
+        // Stop after StopIteration or another error, as a generator does.
+        if (result == NULL) {
+            free_records(ri->next);
+            ri->next = NULL;
+            ri->done = true;
+        }
+    }
 #ifdef Py_GIL_DISABLED
     Py_END_CRITICAL_SECTION();
 #endif
     return result;
 }
 
+// The caller holds the read lock. This function releases it on every path.
 static PyObject *reader_iter_next(PyObject *self) {
-    maxminddb_state *state = get_maxminddb_state_from_self((PyObject *)self);
-    if (state == NULL) {
-        return NULL;
-    }
-
     ReaderIter_obj *ri = (ReaderIter_obj *)self;
 
-    if (reader_acquire_read_lock(ri->reader) != 0) {
+    maxminddb_state *state = get_maxminddb_state_from_self((PyObject *)self);
+    if (state == NULL) {
+        reader_release_read_lock(ri->reader);
         return NULL;
     }
 
@@ -954,17 +973,23 @@ static PyObject *reader_iter_next(PyObject *self) {
 
         switch (cur->type) {
             case MMDB_RECORD_TYPE_INVALID:
-                reader_release_read_lock(ri->reader);
-                PyErr_SetString(state->MaxMindDB_error,
-                                "Invalid record when reading node");
-                free(cur);
-                return NULL;
+                // libmaxminddb before 1.14 returns this type for a record
+                // that points to the root or past the data section. Later
+                // versions fail in MMDB_read_node instead.
+                return corrupt_tree_error(ri, state, cur);
             case MMDB_RECORD_TYPE_SEARCH_NODE: {
                 if (cur->record ==
                         ri->reader->mmdb->ipv4_start_node.node_value &&
                     is_ipv6(cur->ip_packed)) {
                     // These are aliased networks. Skip them.
                     break;
+                }
+                // Only a corrupt tree, such as one with a cycle, has a node at
+                // the full address depth. Without this check, an IPv4 tree
+                // gives a network longer than /32, and a cycle in either tree
+                // writes past the end of ip_packed at depth 128.
+                if (cur->depth >= ri->reader->mmdb->depth) {
+                    return corrupt_tree_error(ri, state, cur);
                 }
                 MMDB_search_node_s node;
                 int status = MMDB_read_node(
@@ -1050,7 +1075,9 @@ static PyObject *reader_iter_next(PyObject *self) {
                 int ip_start = 0;
                 Py_ssize_t ip_length = 4;
                 if (depth == 128) {
-                    if (is_ipv6(cur->ip_packed)) {
+                    // A network shorter than /96 is IPv6, even if its first
+                    // 96 bits are zero.
+                    if (is_ipv6(cur->ip_packed) || cur->depth < 96) {
                         // IPv6 address
                         ip_length = 16;
                     } else {
@@ -1101,20 +1128,34 @@ static PyObject *reader_iter_next(PyObject *self) {
     return NULL;
 }
 
+// Sets the corrupt-tree error, releases the read lock and frees cur.
+static PyObject *corrupt_tree_error(ReaderIter_obj *ri,
+                                    maxminddb_state *state,
+                                    struct record *cur) {
+    reader_release_read_lock(ri->reader);
+    PyErr_SetString(state->MaxMindDB_error,
+                    MMDB_strerror(MMDB_CORRUPT_SEARCH_TREE_ERROR));
+    free(cur);
+    return NULL;
+}
+
 static void ReaderIter_dealloc(PyObject *self) {
     ReaderIter_obj *ri = (ReaderIter_obj *)self;
 
     Py_DECREF(ri->reader);
 
-    struct record *next = ri->next;
+    free_records(ri->next);
+    PyTypeObject *type = Py_TYPE(self);
+    PyObject_Del(self);
+    Py_DECREF(type);
+}
+
+static void free_records(struct record *next) {
     while (next != NULL) {
         struct record *cur = next;
         next = cur->next;
         free(cur);
     }
-    PyTypeObject *type = Py_TYPE(self);
-    PyObject_Del(self);
-    Py_DECREF(type);
 }
 
 // Metadata is immutable, so tp_new sets every field and there is no tp_init.
