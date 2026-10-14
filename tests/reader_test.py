@@ -18,7 +18,7 @@ import textwrap
 import threading
 import tracemalloc
 import unittest
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, cast, get_args
 from unittest import mock
 
 import maxminddb
@@ -1427,7 +1427,11 @@ class TestModule(unittest.TestCase):
         # 3.2.0 accepted Record[str] at runtime. typing_test.py checks that
         # type checkers reject it.
         maxminddb.types.Record[str]  # type: ignore[misc, type-arg]
-        maxminddb.types.Primitive[bytes]  # type: ignore[misc, type-arg]
+        # As in 3.2.0, Primitive[str] does not include bytes.
+        self.assertEqual(
+            get_args(maxminddb.types.Primitive[str]),  # type: ignore[misc, type-arg]
+            (str, bool, float, int),
+        )
 
 
 @unittest.skipIf(

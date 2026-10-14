@@ -9,9 +9,10 @@ if TYPE_CHECKING:
     Primitive: TypeAlias = str | bytes | bytearray | bool | float | int
     """Primitive is a type for a scalar value in a database record."""
 else:
-    # Through AnyStr, a subscript such as Record[str] works at runtime, as in
-    # 3.2.0. Type checkers reject the subscript.
-    Primitive: TypeAlias = AnyStr | bytes | bytearray | bool | float | int
+    # The 3.2.0 definition, so that a subscript such as Record[str] works
+    # and means the same at runtime. Keep it when the static alias changes.
+    # Type checkers reject the subscript.
+    Primitive: TypeAlias = AnyStr | bool | float | int
 
 RecordList: TypeAlias = list["Record"]
 """RecordList is a type for lists in a database record."""
