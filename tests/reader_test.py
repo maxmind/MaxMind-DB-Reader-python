@@ -18,7 +18,7 @@ import textwrap
 import threading
 import tracemalloc
 import unittest
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, cast, get_args
 from unittest import mock
 
 import maxminddb
@@ -28,6 +28,7 @@ try:
 except ImportError:
     maxminddb.extension = None  # type: ignore[assignment]
 
+import maxminddb.types
 from maxminddb import InvalidDatabaseError, open_database
 from maxminddb.const import (
     MODE_AUTO,
@@ -1416,6 +1417,21 @@ class TestExtensionReaderWithIPObjects(BaseTestReader):
 
     if has_maxminddb_extension():
         reader_class = maxminddb.extension.Reader
+
+
+class TestModule(unittest.TestCase):
+    def test_mode_is_exported(self) -> None:
+        self.assertIs(maxminddb.Mode, maxminddb.const.Mode)
+
+    def test_record_subscript_works_at_runtime(self) -> None:
+        # 3.2.0 accepted Record[str] at runtime. typing_test.py checks that
+        # type checkers reject it.
+        maxminddb.types.Record[str]  # type: ignore[misc, type-arg]
+        # As in 3.2.0, Primitive[str] does not include bytes.
+        self.assertEqual(
+            get_args(maxminddb.types.Primitive[str]),  # type: ignore[misc, type-arg]
+            (str, bool, float, int),
+        )
 
 
 @unittest.skipIf(

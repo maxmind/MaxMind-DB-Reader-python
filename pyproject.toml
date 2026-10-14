@@ -94,6 +94,11 @@ ignore = [
 "setup.py" = ["ALL"]
 "tests/*" = ["ANN201", "D"]
 
+[tool.mypy]
+# mypy 2 enables this by default. Without it, mypy 1 accepts bytearray as
+# bytes, and the bytearray check in tests/typing_test.py cannot fail.
+strict_bytes = true
+
 [tool.pytest.ini_options]
 # Use importlib mode to prevent pytest from adding the project root to sys.path.
 # This ensures tests import from the tox virtualenv's installed package (which includes
