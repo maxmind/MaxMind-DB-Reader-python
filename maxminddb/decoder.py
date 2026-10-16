@@ -65,7 +65,7 @@ class Decoder:
 
     def __init__(
         self,
-        database_buffer: FileBuffer | mmap.mmap | bytes,
+        database_buffer: FileBuffer | mmap.mmap | bytes | bytearray,
         pointer_base: int = 0,
         pointer_test: bool = False,  # noqa: FBT001, FBT002
     ) -> None:
@@ -116,7 +116,7 @@ class Decoder:
         size: int,
         offset: int,
         budget: _DecodeBudget,
-    ) -> tuple[bytes, int]:
+    ) -> tuple[bytes | bytearray, int]:
         # Charge the payload before copying so a crafted size cannot force a
         # large allocation, and so pointers reusing one target recharge.
         remaining = budget.payload_left - size
