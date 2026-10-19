@@ -52,9 +52,12 @@ def open_database(
                   MODE_MMAP, MODE_FILE and MODE_MEMORY also accept the file
                   descriptor of a regular file. MODE_MEMORY reads it from its
                   current offset, the others from the start. Without the C
-                  extension, MODE_AUTO accepts one too. The reader closes a
-                  file descriptor, even when the file is not a valid database.
-                  The reader does not close a file object.
+                  extension, MODE_AUTO accepts one too. Once the reader opens
+                  a file descriptor, it closes it, even when the file is not
+                  a valid database. If an error comes first, for example for
+                  a mode that takes no descriptor or for a directory, the
+                  caller still owns it. The reader does not close a file
+                  object.
         mode: mode to open the database with. Valid mode are:
               * MODE_MMAP_EXT - use the C extension with memory map.
               * MODE_MMAP - read from memory map. Pure Python.

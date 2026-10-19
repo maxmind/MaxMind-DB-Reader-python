@@ -54,9 +54,9 @@ second argument. The modes are available from ``maxminddb.Mode``. Valid modes ar
 
 **NOTE**: When using a file object, it is the *caller's* responsibility to be
 sure that the file object gets closed properly. The caller may close the
-file object immediately after the ``Reader`` object is created. A reader
-closes a file descriptor that you pass to ``Mode.MMAP``, ``Mode.FILE`` or
-``Mode.MEMORY``.
+file object immediately after the ``Reader`` object is created. The pure
+Python reader closes a file descriptor that you pass to it. This includes
+``Mode.AUTO`` when the C extension is not installed.
 
 The ``open_database`` function returns a ``Reader`` object. To look up an IP
 address, use the ``get`` method on this object. The method will return the

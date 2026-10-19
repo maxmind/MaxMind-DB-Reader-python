@@ -78,9 +78,11 @@ class Reader:
                       MODE_AUTO, MODE_MMAP, MODE_FILE and MODE_MEMORY also
                       accept the file descriptor of a regular file. MODE_MEMORY
                       reads it from its current offset, the others from the
-                      start. The reader closes a file descriptor, even when
-                      the file is not a valid database. The reader does not
-                      close a file object.
+                      start. Once the reader opens a file descriptor, it
+                      closes it, even when the file is not a valid database.
+                      If an error comes first, for example for a mode that
+                      takes no descriptor or for a directory, the caller
+                      still owns it. The reader does not close a file object.
             mode: mode to open the database with. Valid mode are:
                   * MODE_MMAP - read from memory map.
                   * MODE_FILE - read database as standard file.
