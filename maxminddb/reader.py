@@ -82,7 +82,9 @@ class Reader:
                       closes it, even when the file is not a valid database.
                       If an error comes first, for example for a mode that
                       takes no descriptor or for a directory, the caller
-                      still owns it. The reader does not close a file object.
+                      still owns it. The reader does not close a file object,
+                      but it closes a buffer that read() returns if the
+                      buffer has close(), such as an mmap.
             mode: mode to open the database with. Valid mode are:
                   * MODE_MMAP - read from memory map.
                   * MODE_FILE - read database as standard file.
@@ -433,7 +435,7 @@ class Reader:
         except UnicodeDecodeError as e:
             msg = "The database file object is a text file. Open it in binary mode."
             raise TypeError(msg) from e
-        # 3.2.0 also accepted an mmap, such as one that the caller mapped.
+        # 3.2.0 also accepted an mmap. The reader owns it and closes it.
         if not isinstance(buf, (bytes, bytearray)) and not (
             mmap and isinstance(buf, mmap.mmap)
         ):

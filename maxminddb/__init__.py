@@ -57,7 +57,8 @@ def open_database(
                   a valid database. If an error comes first, for example for
                   a mode that takes no descriptor or for a directory, the
                   caller still owns it. The reader does not close a file
-                  object.
+                  object, but it closes a buffer that read() returns if the
+                  buffer has close(), such as an mmap.
         mode: mode to open the database with. Valid mode are:
               * MODE_MMAP_EXT - use the C extension with memory map.
               * MODE_MMAP - read from memory map. Pure Python.
