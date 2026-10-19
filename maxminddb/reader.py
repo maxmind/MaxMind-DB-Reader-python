@@ -414,11 +414,14 @@ class Reader:
         elif mode in (MODE_AUTO, MODE_FILE):
             self._buffer = FileBuffer(database)
             self._buffer_size = self._buffer.size()
-        else:
+        elif mode == MODE_MEMORY:
             with open(database, "rb") as db_file:
                 buf = db_file.read()
                 self._buffer = buf
                 self._buffer_size = len(buf)
+        else:
+            msg = f"Unsupported open mode ({mode}) for a path or a file descriptor."
+            raise ValueError(msg)
         return database
 
     def _load_file_object(self, database: object, read: Callable[[], object]) -> object:

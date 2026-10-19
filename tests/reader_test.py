@@ -2134,6 +2134,12 @@ class TestReaderInitialization(unittest.TestCase):
             with self.assertRaisesRegex(TypeError, r"Array given\)\.$"):
                 maxminddb.open_database(Array(), MODE_MMAP_EXT)  # type: ignore[arg-type]
 
+    def test_load_path_refuses_other_modes(self) -> None:
+        reader = maxminddb.reader.Reader.__new__(maxminddb.reader.Reader)
+        path = f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb"
+        with self.assertRaisesRegex(ValueError, r"Unsupported open mode \(16\)"):
+            reader._load_path(path, MODE_FD)  # noqa: SLF001
+
     def test_fd_mode_reads_any_binary_reader(self) -> None:
         data = pathlib.Path(
             f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb",
