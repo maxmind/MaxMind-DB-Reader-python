@@ -605,8 +605,15 @@ def _close_buffer(buffer: object, keep: object = None) -> None:
 
 def _is_descriptor(database: object) -> TypeGuard[SupportsIndex]:
     # open() takes an object with __index__, such as numpy.int64, as a file
-    # descriptor. bool is an int, but it is never a file descriptor.
-    return not isinstance(database, bool) and hasattr(type(database), "__index__")
+    # descriptor. bool is an int, but it is never a file descriptor. A numpy
+    # array of many values has __index__, but it raises TypeError.
+    if isinstance(database, bool) or not hasattr(database, "__index__"):
+        return False
+    try:
+        operator.index(database)
+    except TypeError:
+        return False
+    return True
 
 
 def _type_name(value: object) -> str:

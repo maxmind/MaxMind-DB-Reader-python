@@ -2120,6 +2120,20 @@ class TestReaderInitialization(unittest.TestCase):
             with self.assertRaisesRegex(TypeError, r"\(bool given\)\.$"):
                 maxminddb.open_database(False, MODE_MMAP_EXT)  # noqa: FBT003
 
+    def test_index_that_raises_is_not_a_descriptor(self) -> None:
+        class Array:
+            """An array of many values, as a numpy.ndarray is."""
+
+            def __index__(self) -> int:
+                msg = "only integer scalar arrays can be converted"
+                raise TypeError(msg)
+
+        with self.assertRaisesRegex(TypeError, r"Array\)\. Pass a path"):
+            maxminddb.reader.Reader(Array(), MODE_AUTO)  # type: ignore[arg-type]
+        if has_maxminddb_extension():
+            with self.assertRaisesRegex(TypeError, r"Array given\)\.$"):
+                maxminddb.open_database(Array(), MODE_MMAP_EXT)  # type: ignore[arg-type]
+
     def test_fd_mode_reads_any_binary_reader(self) -> None:
         data = pathlib.Path(
             f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb",
