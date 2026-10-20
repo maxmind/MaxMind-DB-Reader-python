@@ -1068,6 +1068,24 @@ class BaseTestReader(unittest.TestCase):
         with self.assertRaises(UnicodeDecodeError):
             reader.get_with_prefix_len("163.254.149.39")
 
+    def test_non_string_map_key_is_rejected(self) -> None:
+        data = pathlib.Path(
+            f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb"
+        ).read_bytes()
+        # Each record map refers to the shared "ip" key through a pointer.
+        self.assertEqual(data.count(b"\x42ip"), 1)
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "non-string-map-key.mmdb"
+            # Change the key type from string (0x42) to bytes or uint16.
+            for ctrl in (b"\x82", b"\xa2"):
+                path.write_bytes(data.replace(b"\x42ip", ctrl + b"ip"))
+                with (
+                    self.subTest(ctrl=ctrl.hex()),
+                    open_database(str(path), self.mode) as reader,
+                    self.assertRaisesRegex(InvalidDatabaseError, "not a string"),
+                ):
+                    reader.get(self.ipf("1.1.1.1"))
+
     def test_too_many_constructor_args(self) -> None:
         with self.assertRaises(TypeError):
             self.reader_class("README.md", self.mode, 1)  # type: ignore[arg-type,call-arg]
@@ -1444,21 +1462,6 @@ class TestExtensionReader(BaseTestReader):
 
     if has_maxminddb_extension():
         reader_class = maxminddb.extension.Reader
-
-    def test_map_key_that_is_not_a_string_is_rejected(self) -> None:
-        data = bytearray(
-            pathlib.Path(f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb").read_bytes(),
-        )
-        # Change the type of the "ip" key from a string to a uint16.
-        data[data.index(b"\x42ip")] = 0xA2
-        with tempfile.TemporaryDirectory() as directory:
-            path = pathlib.Path(directory) / "int-key.mmdb"
-            path.write_bytes(data)
-            with (
-                maxminddb.extension.Reader(path) as reader,
-                self.assertRaisesRegex(InvalidDatabaseError, "not a string"),
-            ):
-                reader.get("1.1.1.1")
 
     def test_invalid_utf8_key_does_not_leak(self) -> None:
         def fail_to_decode(count: int) -> None:
