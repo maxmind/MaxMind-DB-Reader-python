@@ -341,6 +341,28 @@ class TestDecoder(unittest.TestCase):
                 with self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"):
                     Decoder(buf, data_end=data_end).decode(offset)
 
+    def test_map_key_past_data_end_is_rejected(self) -> None:
+        for buf, data_end, expected in (
+            # A map whose inline key "ab" ends past data_end. Its value, an
+            # empty map, has no payload to check.
+            ("e1426162e0", 3, ({"ab": {}}, 5)),
+            # A map whose key is a pointer to the string "a" at offset 4.
+            ("e12004a04161", 4, ({"a": 0}, 4)),
+        ):
+            with self.subTest(buf=buf):
+                self.assertEqual(expected, Decoder(bytes.fromhex(buf)).decode(0))
+                with self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"):
+                    Decoder(bytes.fromhex(buf), data_end=data_end).decode(0)
+        # The inline key, and the key pointer's target, is 0xab, the first byte
+        # of the metadata marker. It is not a string, so the type check would
+        # report it if the data_end check did not come first.
+        for buf, data_end in (("e1abcd", 1), ("e12004abcd", 4)):
+            with (
+                self.subTest(buf=buf),
+                self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"),
+            ):
+                Decoder(bytes.fromhex(buf), data_end=data_end).decode(0)
+
     def test_read_from_a_shrunk_file_is_rejected(self) -> None:
         # Offset 0 holds an empty map, and the pointer at offset 1 targets the
         # string at offset 3. After the file shrinks to 2 bytes, a short read
@@ -547,6 +569,7 @@ class TestDecoder(unittest.TestCase):
             "040100ffff",  # int32 declaring 4 bytes
             "680000",  # double
             "040800",  # float
+            "e120",  # map key pointer missing its byte
         ):
             self.assert_bad_data_in_each_buffer(bytes.fromhex(truncated))
 
@@ -574,6 +597,8 @@ class TestDecoder(unittest.TestCase):
             "e18141a101",  # bytes key
             "e1a101a101",  # uint16 key
             "e10104a1014178",  # array key, which cannot be hashed
+            "e12003a0a101",  # pointer to a uint16 key
+            "e12004a02000",  # pointer to a pointer key
         ):
             with (
                 self.subTest(bad_key=bad_key),

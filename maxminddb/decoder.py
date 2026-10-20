@@ -208,14 +208,59 @@ class Decoder:
         budget.depth = depth
         container: dict[str, Record] = {}
         decode = self._decode
+        decode_key = self._decode_key
         for _ in range(size):
-            (key, offset) = decode(offset, budget, False)  # noqa: FBT003
-            if type(key) is not str:
-                raise InvalidDatabaseError(_NON_STRING_KEY)
+            (key, offset) = decode_key(offset, budget)
             (value, offset) = decode(offset, budget, False)  # noqa: FBT003
             container[key] = value
         budget.depth -= 1
         return container, offset
+
+    def _decode_key(self, offset: int, budget: _DecodeBudget) -> tuple[str, int]:  # noqa: C901
+        # A key is a string or a pointer to one. Real databases share most keys
+        # through pointers, so decode both here without the generic dispatch.
+        # A string cannot nest, so a pointer key does not count toward the
+        # depth. This repeats the pointer arithmetic of _decode_pointer to save
+        # a call per key. pointer_test applies to pointer values only.
+        buffer = self._buffer
+        data_end = self._data_end
+        ctrl_byte = buffer[offset]
+        new_offset = offset + 1
+        is_pointer = ctrl_byte >> 5 == 1
+        if is_pointer:
+            size = ctrl_byte & 0x1F
+            pointer_size = (size >> 3) + 1
+            pointer_end = new_offset + pointer_size
+            if pointer_end > data_end:
+                raise InvalidDatabaseError(_BAD_DATA)
+            pointer = int.from_bytes(buffer[new_offset:pointer_end], "big")
+            if pointer_size < 4:
+                pointer |= (size & 0x7) << (pointer_size << 3)
+                pointer += _POINTER_VALUE_OFFSETS[pointer_size]
+            pointer += self._pointer_base
+            if pointer >= data_end:
+                raise InvalidDatabaseError(_BAD_DATA)
+            ctrl_byte = buffer[pointer]
+            new_offset = pointer + 1
+        elif offset >= data_end:
+            raise InvalidDatabaseError(_BAD_DATA)
+        if ctrl_byte >> 5 != 2:
+            raise InvalidDatabaseError(_NON_STRING_KEY)
+        size = ctrl_byte & 0x1F
+        if size >= 29:
+            (size, new_offset) = self._size_from_ctrl_byte(size, new_offset)
+        remaining = budget.payload_left - size
+        if remaining < 0:
+            raise InvalidDatabaseError(_TOO_LARGE)
+        budget.payload_left = remaining
+        end = new_offset + size
+        if end > data_end:
+            raise InvalidDatabaseError(_BAD_DATA)
+        key = buffer[new_offset:end].decode("utf-8")
+        if is_pointer:
+            # The map continues after the pointer, not after its target.
+            return key, pointer_end
+        return key, end
 
     def _decode_pointer(
         self,
