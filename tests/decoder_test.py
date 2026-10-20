@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import contextlib
 import mmap
+import os
+import pathlib
 import sys
+import tempfile
 import threading
 import unittest
 from typing import TYPE_CHECKING, Any, ClassVar, SupportsIndex
 
 from maxminddb.decoder import Decoder
 from maxminddb.errors import InvalidDatabaseError
+from maxminddb.file import FileBuffer
 
 if TYPE_CHECKING:
     from _typeshed import SizedBuffer
@@ -328,6 +333,40 @@ class TestDecoder(unittest.TestCase):
         with self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"):
             Decoder(buf).decode(3)
 
+    def test_pointer_past_data_end_is_rejected(self) -> None:
+        for buf, offset, data_end, expected in (
+            # The pointer targets the empty map at offset 2. An empty map has
+            # no payload, so only the target check can reject it.
+            (self._pointer(2) + b"\xe0", 0, 2, ({}, 2)),
+            # The pointer at offset 2 targets the string "a" at offset 0, but
+            # its offset byte is past data_end.
+            (b"\x41a" + self._pointer(0), 2, 3, ("a", 4)),
+        ):
+            with self.subTest(buf=buf.hex()):
+                self.assertEqual(expected, Decoder(buf).decode(offset))
+                with self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"):
+                    Decoder(buf, data_end=data_end).decode(offset)
+
+    def test_read_from_a_shrunk_file_is_rejected(self) -> None:
+        # Offset 0 holds an empty map, and the pointer at offset 1 targets the
+        # string at offset 3. After the file shrinks to 2 bytes, a short read
+        # of the pointer byte would give a pointer to offset 0. After it
+        # shrinks to 1 byte, the pointer's ctrl byte is past the end.
+        data = b"\xe0" + self._pointer(3) + b"\x41a"
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "data"
+            path.write_bytes(data)
+            with contextlib.closing(FileBuffer(str(path))) as file_buffer:
+                decoder = Decoder(file_buffer)
+                self.assertEqual(("a", 3), decoder.decode(1))
+                for size in (2, 1):
+                    os.truncate(path, size)
+                    with (
+                        self.subTest(size=size),
+                        self.assertRaisesRegex(InvalidDatabaseError, "changed after"),
+                    ):
+                        decoder.decode(1)
+
     def test_cyclic_pointer_raises(self) -> None:
         with self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"):
             Decoder(self._pointer(0)).decode(0)
@@ -497,11 +536,44 @@ class TestDecoder(unittest.TestCase):
 
     def test_truncated_data_raises_invalid_database_error(self) -> None:
         # A ctrl byte past the buffer end, a string header missing its size
-        # bytes, and a pointer missing its offset byte must not escape as
-        # IndexError or struct.error.
-        for truncated in (b"", bytes([0x5F]), bytes([0x20])):
-            with self.assertRaisesRegex(InvalidDatabaseError, "bad data"):
-                Decoder(truncated, pointer_base=0).decode(0)
+        # bytes, a pointer missing its offset byte, and a map missing its key
+        # must not escape as IndexError or struct.error.
+        with self.assertRaisesRegex(InvalidDatabaseError, "bad data"):
+            Decoder(b"", pointer_base=0).decode(0)
+        for truncated in (b"\x5f", b"\x20", b"\xe1"):
+            self.assert_bad_data_in_each_buffer(truncated)
+
+    def assert_bad_data_in_each_buffer(self, data: bytes) -> None:
+        # A slice of bytes or an mmap past its end returns fewer bytes, and
+        # FileBuffer raises its own error. Check that the default data_end of
+        # each buffer type stops the decode first.
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "data"
+            path.write_bytes(data)
+            with (
+                contextlib.closing(FileBuffer(str(path))) as file_buffer,
+                mmap.mmap(-1, len(data)) as mm,
+            ):
+                mm.write(data)
+                for buffer in (data, mm, file_buffer):
+                    with (
+                        self.subTest(data=data.hex(), buffer=type(buffer).__name__),
+                        self.assertRaisesRegex(InvalidDatabaseError, "bad data"),
+                    ):
+                        Decoder(buffer, pointer_base=0).decode(0)
+
+    def test_truncated_payload_raises_invalid_database_error(self) -> None:
+        for truncated in (
+            "c4ffff",  # uint32 declaring 4 bytes
+            "0303ffff",  # uint128 declaring 3 bytes
+            "456162",  # string declaring 5 bytes
+            "856162",  # bytes declaring 5 bytes
+            "0301ff",  # int32 declaring 3 bytes
+            "040100ffff",  # int32 declaring 4 bytes
+            "680000",  # double
+            "040800",  # float
+        ):
+            self.assert_bad_data_in_each_buffer(bytes.fromhex(truncated))
 
     @classmethod
     def _wrapped_string_pointers(cls, pointer_count: int) -> tuple[bytes, int]:

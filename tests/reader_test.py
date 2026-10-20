@@ -150,12 +150,20 @@ def _database_with_metadata(
     return data[:start] + _encode_control(7, len(entries)) + items
 
 
-def _database(records: tuple[int, ...], *, ip_version: int) -> bytes:
+def _database(
+    records: tuple[int, ...],
+    *,
+    ip_version: int,
+    data: bytes | None = None,
+) -> bytes:
     """Return a database with a 24-bit search tree and one data record.
 
     The tree has two records per node, and a record of node_count + 16 points
-    at the data record, the string "net".
+    at the data record. data is the encoded data section, by default the
+    string "net".
     """
+    if data is None:
+        data = _encode_value("net")
     metadata = {
         "binary_format_major_version": 2,
         "binary_format_minor_version": 0,
@@ -168,13 +176,7 @@ def _database(records: tuple[int, ...], *, ip_version: int) -> bytes:
         "record_size": 24,
     }
     tree = b"".join(record.to_bytes(3, "big") for record in records)
-    return (
-        tree
-        + bytes(16)
-        + _encode_value("net")
-        + _METADATA_START_MARKER
-        + _encode_value(metadata)
-    )
+    return tree + bytes(16) + data + _METADATA_START_MARKER + _encode_value(metadata)
 
 
 def _encode_value(value: object, key: str = "") -> bytes:
@@ -961,6 +963,75 @@ class BaseTestReader(unittest.TestCase):
                     ),
                 ):
                     list(reader)
+
+    def test_value_past_data_section_is_rejected(self) -> None:
+        if self.reader_class is not maxminddb.reader.Reader:
+            self.skipTest("libmaxminddb's data section bound includes the metadata")
+        # One node whose records both point to the start of the data section.
+        # The value is the whole data section, so its payload overruns into
+        # the metadata marker.
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "overrun.mmdb"
+            for value in (
+                "c4ffff",  # uint32 declaring 4 bytes
+                "0303ffff",  # uint128 declaring 3 bytes
+                "456162",  # string declaring 5 bytes
+                "856162",  # bytes declaring 5 bytes
+                "0301ff",  # int32 declaring 3 bytes
+                "680000",  # double
+                "040800",  # float
+                "2800",  # pointer declaring 2 bytes
+            ):
+                data = bytes.fromhex(value)
+                path.write_bytes(_database((17, 17), ip_version=4, data=data))
+                with (
+                    self.subTest(value=value),
+                    open_database(str(path), self.mode) as reader,
+                    self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"),
+                ):
+                    reader.get(self.ipf("1.1.1.1"))
+
+    def test_record_that_points_into_the_metadata_is_rejected(self) -> None:
+        if self.reader_class is not maxminddb.reader.Reader:
+            self.skipTest("libmaxminddb's data section bound includes the metadata")
+        data = bytearray(_database((17, 17), ip_version=4))
+        # binary_format_minor_version is a uint16 with no payload, so only the
+        # record check can reject it.
+        key = _encode_value("binary_format_minor_version")
+        target = data.index(key) + len(key)
+        self.assertEqual(data[target], 0xA0)
+        # A record resolves to itself plus the tree size minus node_count.
+        data[:6] = (target - 5).to_bytes(3, "big") * 2
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "metadata-record.mmdb"
+            path.write_bytes(data)
+            with (
+                open_database(str(path), self.mode) as reader,
+                self.assertRaisesRegex(InvalidDatabaseError, "search tree is corrupt"),
+            ):
+                reader.get(self.ipf("1.1.1.1"))
+
+    def test_search_tree_that_overlaps_the_metadata_is_rejected(self) -> None:
+        if self.reader_class is not maxminddb.reader.Reader:
+            self.skipTest("libmaxminddb's data section bound includes the metadata")
+        # The file holds a 6-byte tree, but node_count 3 needs 18 bytes. The
+        # tree and separator then end past the metadata marker, but not past
+        # the end of the file.
+        node_count = _encode_value("node_count")
+        data = _database((17, 17), ip_version=4)
+        self.assertEqual(data.count(node_count + b"\xc1\x01"), 1)
+        data = data.replace(node_count + b"\xc1\x01", node_count + b"\xc1\x03")
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "overlap.mmdb"
+            path.write_bytes(data)
+            with (
+                self.assertRaisesRegex(
+                    InvalidDatabaseError,
+                    "The search tree extends into the metadata section",
+                ),
+                open_database(str(path), self.mode),
+            ):
+                pass
 
     def test_ip_validation(self) -> None:
         reader = open_database(
