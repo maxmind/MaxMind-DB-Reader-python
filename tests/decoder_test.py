@@ -321,12 +321,6 @@ class TestDecoder(unittest.TestCase):
         with self.assertRaisesRegex(InvalidDatabaseError, _TOO_MANY_VALUES):
             Decoder(self._scalar_pointer_array(65_536), pointer_base=0).decode(1)
 
-    def test_map_key_that_cannot_be_hashed_is_rejected(self) -> None:
-        # A map with one entry, whose key is the array [1].
-        decoder = Decoder(bytes.fromhex("e10104a1014178"))
-        with self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"):
-            decoder.decode(0)
-
     def test_pointer_to_pointer_is_rejected(self) -> None:
         # The root array shares a pointer chain that would bypass value counting.
         buf = b"\xa0" + self._pointer(0) + b"\x02\x04" + self._pointer(1) * 2
@@ -543,6 +537,19 @@ class TestDecoder(unittest.TestCase):
         for truncated in (b"\x5f", b"\x20", b"\xe1"):
             self.assert_bad_data_in_each_buffer(truncated)
 
+    def test_truncated_payload_raises_invalid_database_error(self) -> None:
+        for truncated in (
+            "c4ffff",  # uint32 declaring 4 bytes
+            "0303ffff",  # uint128 declaring 3 bytes
+            "456162",  # string declaring 5 bytes
+            "856162",  # bytes declaring 5 bytes
+            "0301ff",  # int32 declaring 3 bytes
+            "040100ffff",  # int32 declaring 4 bytes
+            "680000",  # double
+            "040800",  # float
+        ):
+            self.assert_bad_data_in_each_buffer(bytes.fromhex(truncated))
+
     def assert_bad_data_in_each_buffer(self, data: bytes) -> None:
         # A slice of bytes or an mmap past its end returns fewer bytes, and
         # FileBuffer raises its own error. Check that the default data_end of
@@ -562,18 +569,17 @@ class TestDecoder(unittest.TestCase):
                     ):
                         Decoder(buffer, pointer_base=0).decode(0)
 
-    def test_truncated_payload_raises_invalid_database_error(self) -> None:
-        for truncated in (
-            "c4ffff",  # uint32 declaring 4 bytes
-            "0303ffff",  # uint128 declaring 3 bytes
-            "456162",  # string declaring 5 bytes
-            "856162",  # bytes declaring 5 bytes
-            "0301ff",  # int32 declaring 3 bytes
-            "040100ffff",  # int32 declaring 4 bytes
-            "680000",  # double
-            "040800",  # float
+    def test_non_string_map_key_raises_invalid_database_error(self) -> None:
+        for bad_key in (
+            "e18141a101",  # bytes key
+            "e1a101a101",  # uint16 key
+            "e10104a1014178",  # array key, which cannot be hashed
         ):
-            self.assert_bad_data_in_each_buffer(bytes.fromhex(truncated))
+            with (
+                self.subTest(bad_key=bad_key),
+                self.assertRaisesRegex(InvalidDatabaseError, "not a string"),
+            ):
+                Decoder(bytes.fromhex(bad_key)).decode(0)
 
     @classmethod
     def _wrapped_string_pointers(cls, pointer_count: int) -> tuple[bytes, int]:

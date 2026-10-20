@@ -49,6 +49,8 @@ _BAD_DATA = (
     "The MaxMind DB file's data section contains bad data "
     "(unknown data type or corrupt data)"
 )
+# The same message as the C extension.
+_NON_STRING_KEY = "Invalid map key: the key is not a string."
 
 
 @dataclass
@@ -208,12 +210,10 @@ class Decoder:
         decode = self._decode
         for _ in range(size):
             (key, offset) = decode(offset, budget, False)  # noqa: FBT003
+            if type(key) is not str:
+                raise InvalidDatabaseError(_NON_STRING_KEY)
             (value, offset) = decode(offset, budget, False)  # noqa: FBT003
-            try:
-                container[key] = value  # type: ignore[index]
-            except TypeError as ex:
-                # The key cannot be hashed, such as a list.
-                raise InvalidDatabaseError(_BAD_DATA) from ex
+            container[key] = value
         budget.depth -= 1
         return container, offset
 

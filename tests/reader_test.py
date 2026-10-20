@@ -815,6 +815,8 @@ class BaseTestReader(unittest.TestCase):
                             cm.exception.__cause__,
                             UnicodeDecodeError,
                         )
+                    else:
+                        self.assertIn("not a string", str(cm.exception))
 
     def test_exhausted_iterator_stops_after_close(self) -> None:
         with open_database(
@@ -2289,8 +2291,7 @@ class TestReaderInitialization(unittest.TestCase):
         self.assertEqual(
             str(cm.exception),
             f"Error reading metadata in database file ({path}). "
-            "The MaxMind DB file's data section contains bad data "
-            "(unknown data type or corrupt data)",
+            "Invalid map key: the key is not a string.",
         )
 
     def test_failed_initialization_closes_buffer(self) -> None:
