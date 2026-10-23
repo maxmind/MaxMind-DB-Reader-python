@@ -2342,6 +2342,20 @@ class TestReaderInitialization(unittest.TestCase):
                         else:
                             self.assertTrue(buffer.closed)
 
+    def test_empty_file_is_rejected(self) -> None:
+        # MODE_MMAP is left out, because mmap cannot map an empty file.
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "empty.mmdb"
+            path.write_bytes(b"")
+            for mode in (MODE_FILE, MODE_MEMORY):
+                with (
+                    self.subTest(mode=mode),
+                    self.assertRaisesRegex(
+                        InvalidDatabaseError, "Is this a valid MaxMind DB"
+                    ),
+                ):
+                    maxminddb.reader.Reader(path, mode)
+
 
 class TestSearchTreeNodes(unittest.TestCase):
     def test_28_bit_records_preserve_high_nibbles(self) -> None:

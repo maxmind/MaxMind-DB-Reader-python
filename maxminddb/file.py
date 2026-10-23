@@ -58,7 +58,7 @@ class FileBuffer:
 
     def rfind(self, needle: bytes, start: int) -> int:
         """Reverse find needle from start."""
-        pos = self._read(self._size - start - 1, start).rfind(needle)
+        pos = self._read(self._size - start, start).rfind(needle)
         if pos == -1:
             return pos
         return start + pos

@@ -31,6 +31,8 @@ History
 * The pure Python reader now raises ``InvalidDatabaseError`` when a record map
   key is not a string, as the C extension does. Previously, it returned the
   non-string key or raised ``TypeError``.
+* An empty database file now raises ``InvalidDatabaseError`` in ``MODE_FILE``,
+  as in ``MODE_MEMORY``. Previously, it raised ``OSError``.
 * C extension:
 
   * Fixed segmentation faults from invalid use of ``Metadata``, ``Reader`` and
