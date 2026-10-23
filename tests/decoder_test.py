@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import contextlib
 import mmap
+import os
+import pathlib
 import sys
+import tempfile
 import threading
 import unittest
 from typing import TYPE_CHECKING, Any, ClassVar, SupportsIndex
 
 from maxminddb.decoder import Decoder
 from maxminddb.errors import InvalidDatabaseError
+from maxminddb.file import FileBuffer
 
 if TYPE_CHECKING:
     from _typeshed import SizedBuffer
@@ -316,17 +321,67 @@ class TestDecoder(unittest.TestCase):
         with self.assertRaisesRegex(InvalidDatabaseError, _TOO_MANY_VALUES):
             Decoder(self._scalar_pointer_array(65_536), pointer_base=0).decode(1)
 
-    def test_map_key_that_cannot_be_hashed_is_rejected(self) -> None:
-        # A map with one entry, whose key is the array [1].
-        decoder = Decoder(bytes.fromhex("e10104a1014178"))
-        with self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"):
-            decoder.decode(0)
-
     def test_pointer_to_pointer_is_rejected(self) -> None:
         # The root array shares a pointer chain that would bypass value counting.
         buf = b"\xa0" + self._pointer(0) + b"\x02\x04" + self._pointer(1) * 2
         with self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"):
             Decoder(buf).decode(3)
+
+    def test_pointer_past_data_end_is_rejected(self) -> None:
+        for buf, offset, data_end, expected in (
+            # The pointer targets the empty map at offset 2. An empty map has
+            # no payload, so only the target check can reject it.
+            (self._pointer(2) + b"\xe0", 0, 2, ({}, 2)),
+            # The pointer at offset 2 targets the string "a" at offset 0, but
+            # its offset byte is past data_end.
+            (b"\x41a" + self._pointer(0), 2, 3, ("a", 4)),
+        ):
+            with self.subTest(buf=buf.hex()):
+                self.assertEqual(expected, Decoder(buf).decode(offset))
+                with self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"):
+                    Decoder(buf, data_end=data_end).decode(offset)
+
+    def test_map_key_past_data_end_is_rejected(self) -> None:
+        for buf, data_end, expected in (
+            # A map whose inline key "ab" ends past data_end. Its value, an
+            # empty map, has no payload to check.
+            ("e1426162e0", 3, ({"ab": {}}, 5)),
+            # A map whose key is a pointer to the string "a" at offset 4.
+            ("e12004a04161", 4, ({"a": 0}, 4)),
+        ):
+            with self.subTest(buf=buf):
+                self.assertEqual(expected, Decoder(bytes.fromhex(buf)).decode(0))
+                with self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"):
+                    Decoder(bytes.fromhex(buf), data_end=data_end).decode(0)
+        # The inline key, and the key pointer's target, is 0xab, the first byte
+        # of the metadata marker. It is not a string, so the type check would
+        # report it if the data_end check did not come first.
+        for buf, data_end in (("e1abcd", 1), ("e12004abcd", 4)):
+            with (
+                self.subTest(buf=buf),
+                self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"),
+            ):
+                Decoder(bytes.fromhex(buf), data_end=data_end).decode(0)
+
+    def test_read_from_a_shrunk_file_is_rejected(self) -> None:
+        # Offset 0 holds an empty map, and the pointer at offset 1 targets the
+        # string at offset 3. After the file shrinks to 2 bytes, a short read
+        # of the pointer byte would give a pointer to offset 0. After it
+        # shrinks to 1 byte, the pointer's ctrl byte is past the end.
+        data = b"\xe0" + self._pointer(3) + b"\x41a"
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "data"
+            path.write_bytes(data)
+            with contextlib.closing(FileBuffer(str(path))) as file_buffer:
+                decoder = Decoder(file_buffer)
+                self.assertEqual(("a", 3), decoder.decode(1))
+                for size in (2, 1):
+                    os.truncate(path, size)
+                    with (
+                        self.subTest(size=size),
+                        self.assertRaisesRegex(InvalidDatabaseError, "changed after"),
+                    ):
+                        decoder.decode(1)
 
     def test_cyclic_pointer_raises(self) -> None:
         with self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"):
@@ -497,11 +552,59 @@ class TestDecoder(unittest.TestCase):
 
     def test_truncated_data_raises_invalid_database_error(self) -> None:
         # A ctrl byte past the buffer end, a string header missing its size
-        # bytes, and a pointer missing its offset byte must not escape as
-        # IndexError or struct.error.
-        for truncated in (b"", bytes([0x5F]), bytes([0x20])):
-            with self.assertRaisesRegex(InvalidDatabaseError, "bad data"):
-                Decoder(truncated, pointer_base=0).decode(0)
+        # bytes, a pointer missing its offset byte, and a map missing its key
+        # must not escape as IndexError or struct.error.
+        with self.assertRaisesRegex(InvalidDatabaseError, "bad data"):
+            Decoder(b"", pointer_base=0).decode(0)
+        for truncated in (b"\x5f", b"\x20", b"\xe1"):
+            self.assert_bad_data_in_each_buffer(truncated)
+
+    def test_truncated_payload_raises_invalid_database_error(self) -> None:
+        for truncated in (
+            "c4ffff",  # uint32 declaring 4 bytes
+            "0303ffff",  # uint128 declaring 3 bytes
+            "456162",  # string declaring 5 bytes
+            "856162",  # bytes declaring 5 bytes
+            "0301ff",  # int32 declaring 3 bytes
+            "040100ffff",  # int32 declaring 4 bytes
+            "680000",  # double
+            "040800",  # float
+            "e120",  # map key pointer missing its byte
+        ):
+            self.assert_bad_data_in_each_buffer(bytes.fromhex(truncated))
+
+    def assert_bad_data_in_each_buffer(self, data: bytes) -> None:
+        # A slice of bytes or an mmap past its end returns fewer bytes, and
+        # FileBuffer raises its own error. Check that the default data_end of
+        # each buffer type stops the decode first.
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "data"
+            path.write_bytes(data)
+            with (
+                contextlib.closing(FileBuffer(str(path))) as file_buffer,
+                mmap.mmap(-1, len(data)) as mm,
+            ):
+                mm.write(data)
+                for buffer in (data, mm, file_buffer):
+                    with (
+                        self.subTest(data=data.hex(), buffer=type(buffer).__name__),
+                        self.assertRaisesRegex(InvalidDatabaseError, "bad data"),
+                    ):
+                        Decoder(buffer, pointer_base=0).decode(0)
+
+    def test_non_string_map_key_raises_invalid_database_error(self) -> None:
+        for bad_key in (
+            "e18141a101",  # bytes key
+            "e1a101a101",  # uint16 key
+            "e10104a1014178",  # array key, which cannot be hashed
+            "e12003a0a101",  # pointer to a uint16 key
+            "e12004a02000",  # pointer to a pointer key
+        ):
+            with (
+                self.subTest(bad_key=bad_key),
+                self.assertRaisesRegex(InvalidDatabaseError, "not a string"),
+            ):
+                Decoder(bytes.fromhex(bad_key)).decode(0)
 
     @classmethod
     def _wrapped_string_pointers(cls, pointer_count: int) -> tuple[bytes, int]:

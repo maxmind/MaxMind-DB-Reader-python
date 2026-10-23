@@ -12,9 +12,9 @@ except ImportError:
     mmap = None  # type: ignore[assignment]
 
 from maxminddb.errors import InvalidDatabaseError
+from maxminddb.file import FileBuffer
 
 if TYPE_CHECKING:
-    from maxminddb.file import FileBuffer
     from maxminddb.types import Record
 
 
@@ -49,6 +49,8 @@ _BAD_DATA = (
     "The MaxMind DB file's data section contains bad data "
     "(unknown data type or corrupt data)"
 )
+# The same message as the C extension.
+_NON_STRING_KEY = "Invalid map key: the key is not a string."
 
 
 @dataclass
@@ -68,6 +70,7 @@ class Decoder:
         database_buffer: FileBuffer | mmap.mmap | bytes | bytearray,
         pointer_base: int = 0,
         pointer_test: bool = False,  # noqa: FBT001, FBT002
+        data_end: int | None = None,
     ) -> None:
         """Create a Decoder for a MaxMind DB.
 
@@ -75,11 +78,23 @@ class Decoder:
             database_buffer: an mmap'd MaxMind DB file.
             pointer_base: the base number to use when decoding a pointer
             pointer_test: used for internal unit testing of pointer code
+            data_end: the offset where the decoded section ends. No payload
+                may extend past it, and no pointer may target it or a later
+                offset. Control and size bytes are not checked. The default
+                is the end of the buffer.
 
         """
         self._pointer_test = pointer_test
         self._buffer = database_buffer
         self._pointer_base = pointer_base
+        if data_end is None:
+            # FileBuffer has no __len__, because len() fails for a size past
+            # sys.maxsize, as on 32-bit Python.
+            if isinstance(database_buffer, FileBuffer):
+                data_end = database_buffer.size()
+            else:
+                data_end = len(database_buffer)
+        self._data_end = data_end
 
     def _decode_array(
         self,
@@ -124,6 +139,8 @@ class Decoder:
             raise InvalidDatabaseError(_TOO_LARGE)
         budget.payload_left = remaining
         new_offset = offset + size
+        if new_offset > self._data_end:
+            raise InvalidDatabaseError(_BAD_DATA)
         return self._buffer[offset:new_offset], new_offset
 
     def _decode_double(
@@ -134,6 +151,8 @@ class Decoder:
     ) -> tuple[float, int]:
         self._verify_size(size, 8)
         new_offset = offset + size
+        if new_offset > self._data_end:
+            raise InvalidDatabaseError(_BAD_DATA)
         packed_bytes = self._buffer[offset:new_offset]
         (value,) = struct.unpack(b"!d", packed_bytes)
         return value, new_offset
@@ -146,6 +165,8 @@ class Decoder:
     ) -> tuple[float, int]:
         self._verify_size(size, 4)
         new_offset = offset + size
+        if new_offset > self._data_end:
+            raise InvalidDatabaseError(_BAD_DATA)
         packed_bytes = self._buffer[offset:new_offset]
         (value,) = struct.unpack(b"!f", packed_bytes)
         return value, new_offset
@@ -161,6 +182,8 @@ class Decoder:
         if size == 0:
             return 0, offset
         new_offset = offset + size
+        if new_offset > self._data_end:
+            raise InvalidDatabaseError(_BAD_DATA)
         packed_bytes = self._buffer[offset:new_offset]
 
         if size != 4:
@@ -185,16 +208,59 @@ class Decoder:
         budget.depth = depth
         container: dict[str, Record] = {}
         decode = self._decode
+        decode_key = self._decode_key
         for _ in range(size):
-            (key, offset) = decode(offset, budget, False)  # noqa: FBT003
+            (key, offset) = decode_key(offset, budget)
             (value, offset) = decode(offset, budget, False)  # noqa: FBT003
-            try:
-                container[key] = value  # type: ignore[index]
-            except TypeError as ex:
-                # The key cannot be hashed, such as a list.
-                raise InvalidDatabaseError(_BAD_DATA) from ex
+            container[key] = value
         budget.depth -= 1
         return container, offset
+
+    def _decode_key(self, offset: int, budget: _DecodeBudget) -> tuple[str, int]:  # noqa: C901
+        # A key is a string or a pointer to one. Real databases share most keys
+        # through pointers, so decode both here without the generic dispatch.
+        # A string cannot nest, so a pointer key does not count toward the
+        # depth. This repeats the pointer arithmetic of _decode_pointer to save
+        # a call per key. pointer_test applies to pointer values only.
+        buffer = self._buffer
+        data_end = self._data_end
+        ctrl_byte = buffer[offset]
+        new_offset = offset + 1
+        is_pointer = ctrl_byte >> 5 == 1
+        if is_pointer:
+            size = ctrl_byte & 0x1F
+            pointer_size = (size >> 3) + 1
+            pointer_end = new_offset + pointer_size
+            if pointer_end > data_end:
+                raise InvalidDatabaseError(_BAD_DATA)
+            pointer = int.from_bytes(buffer[new_offset:pointer_end], "big")
+            if pointer_size < 4:
+                pointer |= (size & 0x7) << (pointer_size << 3)
+                pointer += _POINTER_VALUE_OFFSETS[pointer_size]
+            pointer += self._pointer_base
+            if pointer >= data_end:
+                raise InvalidDatabaseError(_BAD_DATA)
+            ctrl_byte = buffer[pointer]
+            new_offset = pointer + 1
+        elif offset >= data_end:
+            raise InvalidDatabaseError(_BAD_DATA)
+        if ctrl_byte >> 5 != 2:
+            raise InvalidDatabaseError(_NON_STRING_KEY)
+        size = ctrl_byte & 0x1F
+        if size >= 29:
+            (size, new_offset) = self._size_from_ctrl_byte(size, new_offset)
+        remaining = budget.payload_left - size
+        if remaining < 0:
+            raise InvalidDatabaseError(_TOO_LARGE)
+        budget.payload_left = remaining
+        end = new_offset + size
+        if end > data_end:
+            raise InvalidDatabaseError(_BAD_DATA)
+        key = buffer[new_offset:end].decode("utf-8")
+        if is_pointer:
+            # The map continues after the pointer, not after its target.
+            return key, pointer_end
+        return key, end
 
     def _decode_pointer(
         self,
@@ -204,10 +270,9 @@ class Decoder:
     ) -> tuple[Record, int]:
         pointer_size = (size >> 3) + 1
         new_offset = offset + pointer_size
-        pointer_bytes = self._buffer[offset:new_offset]
-        if len(pointer_bytes) != pointer_size:
+        if new_offset > self._data_end:
             raise InvalidDatabaseError(_BAD_DATA)
-        pointer = int.from_bytes(pointer_bytes, "big")
+        pointer = int.from_bytes(self._buffer[offset:new_offset], "big")
         if pointer_size < 4:
             # The low three bits of the ctrl byte are the high bits of the
             # pointer, and sizes 2 and 3 add a fixed offset.
@@ -217,6 +282,11 @@ class Decoder:
 
         if self._pointer_test:
             return pointer, new_offset
+
+        # The payload checks do not cover a target with no payload, such as
+        # an empty map.
+        if pointer >= self._data_end:
+            raise InvalidDatabaseError(_BAD_DATA)
 
         # The value at the pointer's position was charged by its containing
         # array or map, so the target costs nothing more. Only the depth changes.
@@ -239,6 +309,8 @@ class Decoder:
         if size > _MAX_UINT_BYTES:
             raise InvalidDatabaseError(_BAD_DATA)
         new_offset = offset + size
+        if new_offset > self._data_end:
+            raise InvalidDatabaseError(_BAD_DATA)
         uint_bytes = self._buffer[offset:new_offset]
         return int.from_bytes(uint_bytes, "big"), new_offset
 
@@ -297,6 +369,8 @@ class Decoder:
                     raise InvalidDatabaseError(_TOO_LARGE)
                 budget.payload_left = remaining
                 end = new_offset + size
+                if end > self._data_end:
+                    raise InvalidDatabaseError(_BAD_DATA)
                 return self._buffer[new_offset:end].decode("utf-8"), end
             case 1:
                 if pointer_target:
