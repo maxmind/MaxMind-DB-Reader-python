@@ -2178,7 +2178,7 @@ class TestReaderInitialization(unittest.TestCase):
         data = pathlib.Path(
             f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb"
         ).read_bytes()
-        original = b"node_count\xc1\xa3"
+        original = b"node_count\xc1\x8b"
         self.assertEqual(data.count(original), 1)
         with (
             io.BytesIO(data.replace(original, b"node_count\xc0")) as database,
@@ -2194,7 +2194,7 @@ class TestReaderInitialization(unittest.TestCase):
         cases = (
             (b"record_size\xa1\x18", b"record_size\xa1\x1e", "Unknown record size: 30"),
             (
-                b"node_count\xc1\xa3",
+                b"node_count\xc1\x8b",
                 b"node_count\x04\x01\xff\xff\xff\xff",
                 "The node_count value -1 is out of range",
             ),
