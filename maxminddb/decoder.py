@@ -78,10 +78,11 @@ class Decoder:
             database_buffer: an mmap'd MaxMind DB file.
             pointer_base: the base number to use when decoding a pointer
             pointer_test: used for internal unit testing of pointer code
-            data_end: the offset where the decoded section ends. No payload
-                may extend past it, and no pointer may target it or a later
-                offset. Control and size bytes are not checked. The default
-                is the end of the buffer.
+            data_end: the offset where the decoded section ends. Payloads,
+                pointer targets and map keys must stay before it. Other
+                control bytes are not checked, so a value with no payload,
+                such as an empty map, can start past it. The default is the
+                end of the buffer.
 
         """
         self._pointer_test = pointer_test
