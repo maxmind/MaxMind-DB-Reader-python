@@ -23,9 +23,16 @@ History
   C extension. Before, the iterator walked the new database with node
   numbers from the old one. A failed ``__init__`` keeps the old database.
   After ``close()``, an iterator raises ``ValueError`` in every mode.
-* For a record map with a key that cannot be hashed, such as a list, the
-  pure Python reader raises ``InvalidDatabaseError`` instead of ``TypeError``,
-  as the C extension does.
+* The pure Python reader now raises ``InvalidDatabaseError`` when a value,
+  search tree record or pointer goes past the end of the data section, or when
+  the search tree overlaps the metadata. Previously, it could return a shorter
+  or wrong value, or decode bytes from the metadata section.
+* The pure Python reader now raises ``InvalidDatabaseError`` when a record map
+  key is not a string, as the C extension does. Previously, it returned the
+  non-string key or raised ``TypeError``.
+* An empty database file now raises ``InvalidDatabaseError`` in ``MODE_FILE``,
+  as in ``MODE_MEMORY``. Previously, it raised ``OSError`` on platforms with
+  ``os.pread``.
 * C extension:
 
   * Fixed segmentation faults from invalid use of ``Metadata``, ``Reader`` and

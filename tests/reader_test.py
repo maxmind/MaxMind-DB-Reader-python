@@ -150,12 +150,20 @@ def _database_with_metadata(
     return data[:start] + _encode_control(7, len(entries)) + items
 
 
-def _database(records: tuple[int, ...], *, ip_version: int) -> bytes:
+def _database(
+    records: tuple[int, ...],
+    *,
+    ip_version: int,
+    data: bytes | None = None,
+) -> bytes:
     """Return a database with a 24-bit search tree and one data record.
 
     The tree has two records per node, and a record of node_count + 16 points
-    at the data record, the string "net".
+    at the data record. data is the encoded data section, by default the
+    string "net".
     """
+    if data is None:
+        data = _encode_value("net")
     metadata = {
         "binary_format_major_version": 2,
         "binary_format_minor_version": 0,
@@ -168,13 +176,7 @@ def _database(records: tuple[int, ...], *, ip_version: int) -> bytes:
         "record_size": 24,
     }
     tree = b"".join(record.to_bytes(3, "big") for record in records)
-    return (
-        tree
-        + bytes(16)
-        + _encode_value("net")
-        + _METADATA_START_MARKER
-        + _encode_value(metadata)
-    )
+    return tree + bytes(16) + data + _METADATA_START_MARKER + _encode_value(metadata)
 
 
 def _encode_value(value: object, key: str = "") -> bytes:
@@ -813,6 +815,8 @@ class BaseTestReader(unittest.TestCase):
                             cm.exception.__cause__,
                             UnicodeDecodeError,
                         )
+                    else:
+                        self.assertIn("not a string", str(cm.exception))
 
     def test_exhausted_iterator_stops_after_close(self) -> None:
         with open_database(
@@ -962,6 +966,75 @@ class BaseTestReader(unittest.TestCase):
                 ):
                     list(reader)
 
+    def test_value_past_data_section_is_rejected(self) -> None:
+        if self.reader_class is not maxminddb.reader.Reader:
+            self.skipTest("libmaxminddb's data section bound includes the metadata")
+        # One node whose records both point to the start of the data section.
+        # The value is the whole data section, so its payload overruns into
+        # the metadata marker.
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "overrun.mmdb"
+            for value in (
+                "c4ffff",  # uint32 declaring 4 bytes
+                "0303ffff",  # uint128 declaring 3 bytes
+                "456162",  # string declaring 5 bytes
+                "856162",  # bytes declaring 5 bytes
+                "0301ff",  # int32 declaring 3 bytes
+                "680000",  # double
+                "040800",  # float
+                "2800",  # pointer declaring 2 bytes
+            ):
+                data = bytes.fromhex(value)
+                path.write_bytes(_database((17, 17), ip_version=4, data=data))
+                with (
+                    self.subTest(value=value),
+                    open_database(str(path), self.mode) as reader,
+                    self.assertRaisesRegex(InvalidDatabaseError, "contains bad data"),
+                ):
+                    reader.get(self.ipf("1.1.1.1"))
+
+    def test_record_that_points_into_the_metadata_is_rejected(self) -> None:
+        if self.reader_class is not maxminddb.reader.Reader:
+            self.skipTest("libmaxminddb's data section bound includes the metadata")
+        data = bytearray(_database((17, 17), ip_version=4))
+        # binary_format_minor_version is a uint16 with no payload, so only the
+        # record check can reject it.
+        key = _encode_value("binary_format_minor_version")
+        target = data.index(key) + len(key)
+        self.assertEqual(data[target], 0xA0)
+        # A record resolves to itself plus the tree size minus node_count.
+        data[:6] = (target - 5).to_bytes(3, "big") * 2
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "metadata-record.mmdb"
+            path.write_bytes(data)
+            with (
+                open_database(str(path), self.mode) as reader,
+                self.assertRaisesRegex(InvalidDatabaseError, "search tree is corrupt"),
+            ):
+                reader.get(self.ipf("1.1.1.1"))
+
+    def test_search_tree_that_overlaps_the_metadata_is_rejected(self) -> None:
+        if self.reader_class is not maxminddb.reader.Reader:
+            self.skipTest("libmaxminddb's data section bound includes the metadata")
+        # The file holds a 6-byte tree, but node_count 3 needs 18 bytes. The
+        # tree and separator then end past the metadata marker, but not past
+        # the end of the file.
+        node_count = _encode_value("node_count")
+        data = _database((17, 17), ip_version=4)
+        self.assertEqual(data.count(node_count + b"\xc1\x01"), 1)
+        data = data.replace(node_count + b"\xc1\x01", node_count + b"\xc1\x03")
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "overlap.mmdb"
+            path.write_bytes(data)
+            with (
+                self.assertRaisesRegex(
+                    InvalidDatabaseError,
+                    "The search tree extends into the metadata section",
+                ),
+                open_database(str(path), self.mode),
+            ):
+                pass
+
     def test_ip_validation(self) -> None:
         reader = open_database(
             "tests/data/test-data/MaxMind-DB-test-decoder.mmdb",
@@ -994,6 +1067,24 @@ class BaseTestReader(unittest.TestCase):
         )
         with self.assertRaises(UnicodeDecodeError):
             reader.get_with_prefix_len("163.254.149.39")
+
+    def test_non_string_map_key_is_rejected(self) -> None:
+        data = pathlib.Path(
+            f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb"
+        ).read_bytes()
+        # Each record map refers to the shared "ip" key through a pointer.
+        self.assertEqual(data.count(b"\x42ip"), 1)
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "non-string-map-key.mmdb"
+            # Change the key type from string (0x42) to bytes or uint16.
+            for ctrl in (b"\x82", b"\xa2"):
+                path.write_bytes(data.replace(b"\x42ip", ctrl + b"ip"))
+                with (
+                    self.subTest(ctrl=ctrl.hex()),
+                    open_database(str(path), self.mode) as reader,
+                    self.assertRaisesRegex(InvalidDatabaseError, "not a string"),
+                ):
+                    reader.get(self.ipf("1.1.1.1"))
 
     def test_too_many_constructor_args(self) -> None:
         with self.assertRaises(TypeError):
@@ -1371,21 +1462,6 @@ class TestExtensionReader(BaseTestReader):
 
     if has_maxminddb_extension():
         reader_class = maxminddb.extension.Reader
-
-    def test_map_key_that_is_not_a_string_is_rejected(self) -> None:
-        data = bytearray(
-            pathlib.Path(f"{_TEST_DATA_DIR}/MaxMind-DB-test-ipv4-24.mmdb").read_bytes(),
-        )
-        # Change the type of the "ip" key from a string to a uint16.
-        data[data.index(b"\x42ip")] = 0xA2
-        with tempfile.TemporaryDirectory() as directory:
-            path = pathlib.Path(directory) / "int-key.mmdb"
-            path.write_bytes(data)
-            with (
-                maxminddb.extension.Reader(path) as reader,
-                self.assertRaisesRegex(InvalidDatabaseError, "not a string"),
-            ):
-                reader.get("1.1.1.1")
 
     def test_invalid_utf8_key_does_not_leak(self) -> None:
         def fail_to_decode(count: int) -> None:
@@ -2218,8 +2294,7 @@ class TestReaderInitialization(unittest.TestCase):
         self.assertEqual(
             str(cm.exception),
             f"Error reading metadata in database file ({path}). "
-            "The MaxMind DB file's data section contains bad data "
-            "(unknown data type or corrupt data)",
+            "Invalid map key: the key is not a string.",
         )
 
     def test_failed_initialization_closes_buffer(self) -> None:
@@ -2266,6 +2341,20 @@ class TestReaderInitialization(unittest.TestCase):
                             self.assertTrue(buffer._handle.closed)  # noqa: SLF001
                         else:
                             self.assertTrue(buffer.closed)
+
+    def test_empty_file_is_rejected(self) -> None:
+        # MODE_MMAP is left out, because mmap cannot map an empty file.
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "empty.mmdb"
+            path.write_bytes(b"")
+            for mode in (MODE_FILE, MODE_MEMORY):
+                with (
+                    self.subTest(mode=mode),
+                    self.assertRaisesRegex(
+                        InvalidDatabaseError, "Is this a valid MaxMind DB"
+                    ),
+                ):
+                    maxminddb.reader.Reader(path, mode)
 
 
 class TestSearchTreeNodes(unittest.TestCase):

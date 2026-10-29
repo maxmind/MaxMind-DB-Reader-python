@@ -52,6 +52,8 @@ class Reader:
 
     _buffer: bytes | bytearray | FileBuffer | "mmap.mmap"  # noqa: UP037
     _buffer_size: int
+    # The offset of the metadata marker, where the data section ends.
+    _data_end: int
     # No database is open until __init__ succeeds.
     closed: bool = True
     _decoder: Decoder
@@ -137,6 +139,7 @@ class Reader:
                     msg,
                 )
 
+            self._data_end = metadata_start
             metadata_start += len(self._METADATA_START_MARKER)
             metadata_decoder = Decoder(self._buffer, metadata_start)
             # For a repeated key, the decoder keeps the last value, but
@@ -167,14 +170,13 @@ class Reader:
 
             # Traversal reads nodes below node_count. Once the tree fits, those
             # reads need no length checks of their own.
-            if self._data_start > self._buffer_size:
-                msg = (
-                    f"Error opening database file ({filename}). The search tree "
-                    "extends past the end of the file."
-                )
-                raise InvalidDatabaseError(msg)  # noqa: TRY301
+            _check_search_tree_fits(
+                self._data_start, self._data_end, self._buffer_size, filename
+            )
 
-            self._decoder = Decoder(self._buffer, self._data_start)
+            self._decoder = Decoder(
+                self._buffer, self._data_start, data_end=self._data_end
+            )
             self.closed = False
 
             ipv4_start = 0
@@ -362,9 +364,9 @@ class Reader:
     def _resolve_data_pointer(self, pointer: int) -> Record:
         resolved = pointer + self._pointer_base
 
-        # A pointer into the separator between the tree and the data section
-        # is as corrupt as one past the end, as libmaxminddb checks.
-        if resolved < self._data_start or resolved >= self._buffer_size:
+        # A record must point into the data section. libmaxminddb also rejects
+        # a pointer into the separator between the tree and the data section.
+        if resolved < self._data_start or resolved >= self._data_end:
             raise InvalidDatabaseError(_CORRUPT_TREE)
 
         (data, _) = self._decoder.decode(resolved)
@@ -501,10 +503,6 @@ def _metadata_fields(metadata: RecordDict, filename: object) -> dict[str, Any]:
     A new minor version of the format can add keys. This ignores them.
     """
     prefix = f"Error reading metadata in database file ({filename})."
-    # The C extension also rejects a key that is not a string.
-    if not all(type(k) is str for k in metadata):
-        msg = f"{prefix} A metadata key is not a string."
-        raise InvalidDatabaseError(msg)
     fields: dict[str, Any] = {}
     for key, value_type in _METADATA_TYPES.items():
         value = metadata.get(key)
@@ -513,7 +511,7 @@ def _metadata_fields(metadata: RecordDict, filename: object) -> dict[str, Any]:
         if valid and isinstance(value, list):
             valid = all(type(v) is str for v in value)
         elif valid and isinstance(value, dict):
-            valid = all(type(k) is str and type(v) is str for k, v in value.items())
+            valid = all(type(v) is str for v in value.values())
         if not valid:
             msg = f"{prefix} The {key} value is missing or has the wrong type."
             raise InvalidDatabaseError(msg)
@@ -547,6 +545,23 @@ def _check_metadata_ranges(fields: dict[str, Any], prefix: str) -> None:
     if fields["build_epoch"] == 0:
         msg = f"{prefix} The build_epoch is 0."
         raise InvalidDatabaseError(msg)
+
+
+def _check_search_tree_fits(
+    data_start: int,
+    data_end: int,
+    file_size: int,
+    filename: object,
+) -> None:
+    """Raise InvalidDatabaseError unless the search tree ends before the metadata."""
+    if data_start <= data_end:
+        return
+    if data_start > file_size:
+        problem = "extends past the end of the file"
+    else:
+        problem = "extends into the metadata section"
+    msg = f"Error opening database file ({filename}). The search tree {problem}."
+    raise InvalidDatabaseError(msg)
 
 
 @dataclass(kw_only=True, frozen=True)
