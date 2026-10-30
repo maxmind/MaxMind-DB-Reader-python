@@ -399,16 +399,9 @@ class Decoder:
 
     def _read_extended(self, offset: int) -> tuple[int, int]:
         next_byte = self._buffer[offset]
-        type_num = next_byte + 7
-        if type_num < 7:
-            msg = (
-                "Something went horribly wrong in the decoder. An "
-                f"extended type resolved to a type number < 8 ({type_num})"
-            )
-            raise InvalidDatabaseError(
-                msg,
-            )
-        return type_num, offset + 1
+        if not next_byte:
+            raise InvalidDatabaseError(_BAD_DATA)
+        return next_byte + 7, offset + 1
 
     @staticmethod
     def _verify_size(expected: int, actual: int) -> None:
