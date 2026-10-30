@@ -5,6 +5,7 @@ from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 
 from typing_extensions import Self
 
+from maxminddb.reader import Metadata as Metadata
 from maxminddb.types import Record, StrOrBytesPath
 
 class Reader:
@@ -58,78 +59,3 @@ class Reader:
     def __iter__(self) -> Iterator[tuple[IPv4Network | IPv6Network, Record]]: ...
     def __enter__(self) -> Self: ...
     def __exit__(self, *args: object) -> None: ...
-
-class Metadata:
-    """Metadata for the MaxMind DB reader."""
-
-    binary_format_major_version: int
-    """
-    The major version number of the binary format used when creating the
-    database.
-    """
-
-    binary_format_minor_version: int
-    """
-    The minor version number of the binary format used when creating the
-    database.
-    """
-
-    build_epoch: int
-    """
-    The Unix epoch for the build time of the database.
-    """
-
-    database_type: str
-    """
-    A string identifying the database type, e.g., "GeoIP2-City".
-    """
-
-    description: dict[str, str]
-    """
-    A map from locales to text descriptions of the database.
-    """
-
-    ip_version: int
-    """
-    The IP version of the data in a database. A value of "4" means the
-    database only supports IPv4. A database with a value of "6" may support
-    both IPv4 and IPv6 lookups.
-    """
-
-    languages: list[str]
-    """
-    A list of locale codes supported by the database.
-    """
-
-    node_count: int
-    """
-    The number of nodes in the database.
-    """
-
-    record_size: int
-    """
-    The bit size of a record in the search tree.
-    """
-
-    def __init__(
-        self,
-        *,
-        binary_format_major_version: int,
-        binary_format_minor_version: int,
-        build_epoch: int,
-        database_type: str,
-        description: dict[str, str],
-        ip_version: int,
-        languages: list[str],
-        node_count: int,
-        record_size: int,
-    ) -> None:
-        """Create new Metadata object from the metadata fields in the spec."""
-
-    @property
-    def node_byte_size(self) -> int:
-        """The size of a node in bytes."""
-
-    @property
-    def search_tree_size(self) -> int:
-        """The size of the search tree."""

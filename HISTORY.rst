@@ -35,8 +35,8 @@ History
   ``os.pread``.
 * C extension:
 
-  * Fixed segmentation faults from invalid use of ``Metadata``, ``Reader`` and
-    the internal iterator type.
+  * Fixed segmentation faults from invalid use of ``Reader`` and the internal
+    iterator type.
   * Fixed a segmentation fault on a database with a map key that is not a
     string. Such a database now raises ``InvalidDatabaseError``.
   * Fixed large ``uint32`` values, which came back negative on platforms
@@ -44,7 +44,6 @@ History
   * Fixed memory leaks and a use-after-free. A second ``__init__`` on a
     ``Reader`` now closes the old database, and an iterator from before it
     raises ``ValueError``. A failed ``__init__`` keeps the old database.
-    Reinitializing a ``Metadata`` changes nothing.
   * Fixed a ``RuntimeWarning`` or ``RuntimeError`` on free-threaded Python on
     macOS when a ``Reader`` failed to open or was used without ``__init__``.
   * Fixed a deadlock on free-threaded Python when a ``Reader`` was closed
@@ -57,8 +56,16 @@ History
     This includes an error in the data of one record, but not a failure to
     get the read lock. Previously, the next call returned the remaining
     networks.
-  * Added the ``node_byte_size`` and ``search_tree_size`` properties to
-    ``Metadata``, as the pure Python ``Metadata`` has.
+  * ``Reader.metadata()`` now returns the pure Python
+    ``maxminddb.reader.Metadata`` dataclass, as the pure Python reader does.
+    Metadata from the two readers compares equal with ``==``, and it works
+    with ``repr()`` and ``dataclasses.asdict()``. It also has the
+    ``node_byte_size`` and ``search_tree_size`` properties.
+    ``maxminddb.extension.Metadata`` is now the same class. As with the pure
+    Python class, ``hash()`` raises ``TypeError``, the constructor takes
+    only keyword arguments and raises ``TypeError`` for a missing or unknown
+    argument, and assignment to an attribute raises
+    ``dataclasses.FrozenInstanceError``. GitHub #468.
 
 * Metadata:
 
