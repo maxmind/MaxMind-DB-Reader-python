@@ -91,19 +91,6 @@ typedef struct {
     // Set once next() has raised StopIteration or an error.
     bool done;
 } ReaderIter_obj;
-
-typedef struct {
-    PyObject_HEAD /* no semicolon */
-    PyObject *binary_format_major_version;
-    PyObject *binary_format_minor_version;
-    PyObject *build_epoch;
-    PyObject *database_type;
-    PyObject *description;
-    PyObject *ip_version;
-    PyObject *languages;
-    PyObject *node_count;
-    PyObject *record_size;
-} Metadata_obj;
 // clang-format on
 
 // =============================================================================
@@ -139,7 +126,6 @@ static bool can_read(const char *path);
 static int get_record(PyObject *self, PyObject *args, PyObject **record);
 static PyObject *metadata_value(PyObject *map, const char *key);
 static void set_error_from_cause(PyObject *type, const char *message);
-static PyObject *Metadata_node_byte_size(PyObject *self, void *closure);
 static PyObject *reader_iter_next(PyObject *self);
 static PyObject *corrupt_tree_error(ReaderIter_obj *ri,
                                     maxminddb_state *state,
@@ -745,18 +731,32 @@ static PyObject *Reader_metadata(PyObject *self, PyObject *UNUSED(args)) {
                                 "Error decoding metadata.");
             }
         } else {
-            // The order of the values must match kwlist in Metadata_new.
-            metadata = PyObject_CallFunction(state->Metadata_Type,
-                                             "HHKOOHOIH",
-                                             binary_format_major_version,
-                                             binary_format_minor_version,
-                                             (unsigned long long)build_epoch,
-                                             database_type,
-                                             description,
-                                             ip_version,
-                                             languages,
-                                             (unsigned int)node_count,
-                                             record_size);
+            // Metadata takes keyword arguments only.
+            PyObject *kwargs =
+                Py_BuildValue("{s:H,s:H,s:K,s:O,s:O,s:H,s:O,s:I,s:H}",
+                              "binary_format_major_version",
+                              binary_format_major_version,
+                              "binary_format_minor_version",
+                              binary_format_minor_version,
+                              "build_epoch",
+                              (unsigned long long)build_epoch,
+                              "database_type",
+                              database_type,
+                              "description",
+                              description,
+                              "ip_version",
+                              ip_version,
+                              "languages",
+                              languages,
+                              "node_count",
+                              (unsigned int)node_count,
+                              "record_size",
+                              record_size);
+            if (kwargs != NULL) {
+                metadata = PyObject_VectorcallDict(
+                    state->Metadata_Type, NULL, 0, kwargs);
+                Py_DECREF(kwargs);
+            }
         }
         Py_DECREF(map);
     }
@@ -1158,74 +1158,6 @@ static void free_records(struct record *next) {
     }
 }
 
-// Metadata is immutable, so tp_new sets every field and there is no tp_init.
-// No object can then have a NULL field or be initialized twice.
-static PyObject *
-Metadata_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
-    PyObject *binary_format_major_version, *binary_format_minor_version,
-        *build_epoch, *database_type, *description, *ip_version, *languages,
-        *node_count, *record_size;
-
-    // Reader_metadata passes the values in this order.
-    static char *kwlist[] = {"binary_format_major_version",
-                             "binary_format_minor_version",
-                             "build_epoch",
-                             "database_type",
-                             "description",
-                             "ip_version",
-                             "languages",
-                             "node_count",
-                             "record_size",
-                             NULL};
-
-    if (!PyArg_ParseTupleAndKeywords(args,
-                                     kwds,
-                                     "OOOOOOOOO:Metadata",
-                                     kwlist,
-                                     &binary_format_major_version,
-                                     &binary_format_minor_version,
-                                     &build_epoch,
-                                     &database_type,
-                                     &description,
-                                     &ip_version,
-                                     &languages,
-                                     &node_count,
-                                     &record_size)) {
-        return NULL;
-    }
-
-    Metadata_obj *obj = (Metadata_obj *)type->tp_alloc(type, 0);
-    if (obj == NULL) {
-        return NULL;
-    }
-    obj->binary_format_major_version = Py_NewRef(binary_format_major_version);
-    obj->binary_format_minor_version = Py_NewRef(binary_format_minor_version);
-    obj->build_epoch = Py_NewRef(build_epoch);
-    obj->database_type = Py_NewRef(database_type);
-    obj->description = Py_NewRef(description);
-    obj->ip_version = Py_NewRef(ip_version);
-    obj->languages = Py_NewRef(languages);
-    obj->node_count = Py_NewRef(node_count);
-    obj->record_size = Py_NewRef(record_size);
-    return (PyObject *)obj;
-}
-
-static void Metadata_dealloc(PyObject *self) {
-    Metadata_obj *obj = (Metadata_obj *)self;
-    Py_DECREF(obj->binary_format_major_version);
-    Py_DECREF(obj->binary_format_minor_version);
-    Py_DECREF(obj->build_epoch);
-    Py_DECREF(obj->database_type);
-    Py_DECREF(obj->description);
-    Py_DECREF(obj->ip_version);
-    Py_DECREF(obj->languages);
-    Py_DECREF(obj->node_count);
-    Py_DECREF(obj->record_size);
-    PyTypeObject *type = Py_TYPE(self);
-    PyObject_Del(self);
-    Py_DECREF(type);
-}
-
 static PyObject *
 from_entry_data_list(maxminddb_state *state,
                      MMDB_entry_data_list_s **entry_data_list) {
@@ -1431,90 +1363,6 @@ static PyMemberDef Reader_members[] = {
 
 static PyMethodDef ReaderIter_methods[] = {{NULL, NULL, 0, NULL}};
 
-static PyMethodDef Metadata_methods[] = {{NULL, NULL, 0, NULL}};
-
-static PyMemberDef Metadata_members[] = {
-    {"binary_format_major_version",
-     T_OBJECT,
-     offsetof(Metadata_obj, binary_format_major_version),
-     READONLY,
-     NULL},
-    {"binary_format_minor_version",
-     T_OBJECT,
-     offsetof(Metadata_obj, binary_format_minor_version),
-     READONLY,
-     NULL},
-    {"build_epoch",
-     T_OBJECT,
-     offsetof(Metadata_obj, build_epoch),
-     READONLY,
-     NULL},
-    {"database_type",
-     T_OBJECT,
-     offsetof(Metadata_obj, database_type),
-     READONLY,
-     NULL},
-    {"description",
-     T_OBJECT,
-     offsetof(Metadata_obj, description),
-     READONLY,
-     NULL},
-    {"ip_version",
-     T_OBJECT,
-     offsetof(Metadata_obj, ip_version),
-     READONLY,
-     NULL},
-    {"languages", T_OBJECT, offsetof(Metadata_obj, languages), READONLY, NULL},
-    {"node_count",
-     T_OBJECT,
-     offsetof(Metadata_obj, node_count),
-     READONLY,
-     NULL},
-    {"record_size",
-     T_OBJECT,
-     offsetof(Metadata_obj, record_size),
-     READONLY,
-     NULL},
-    {NULL, 0, 0, 0, NULL}};
-
-static PyObject *Metadata_search_tree_size(PyObject *self,
-                                           void *UNUSED(closure)) {
-    Metadata_obj *obj = (Metadata_obj *)self;
-    PyObject *node_byte_size = Metadata_node_byte_size(self, NULL);
-    if (node_byte_size == NULL) {
-        return NULL;
-    }
-    PyObject *search_tree_size =
-        PyNumber_Multiply(obj->node_count, node_byte_size);
-    Py_DECREF(node_byte_size);
-    return search_tree_size;
-}
-
-static PyObject *Metadata_node_byte_size(PyObject *self,
-                                         void *UNUSED(closure)) {
-    Metadata_obj *obj = (Metadata_obj *)self;
-    PyObject *four = PyLong_FromLong(4);
-    if (four == NULL) {
-        return NULL;
-    }
-    PyObject *node_byte_size = PyNumber_FloorDivide(obj->record_size, four);
-    Py_DECREF(four);
-    return node_byte_size;
-}
-
-// These match the properties of the pure Python Metadata class.
-static PyGetSetDef Metadata_getset[] = {{"node_byte_size",
-                                         Metadata_node_byte_size,
-                                         NULL,
-                                         "The size of a node in bytes.",
-                                         NULL},
-                                        {"search_tree_size",
-                                         Metadata_search_tree_size,
-                                         NULL,
-                                         "The size of the search tree.",
-                                         NULL},
-                                        {NULL, NULL, NULL, NULL, NULL}};
-
 // =============================================================================
 // Type specs for heap type conversion (PEP 489)
 // =============================================================================
@@ -1535,23 +1383,6 @@ static PyType_Spec Reader_Type_spec = {
     .basicsize = sizeof(Reader_obj),
     .flags = Py_TPFLAGS_DEFAULT,
     .slots = Reader_Type_slots,
-};
-
-static PyType_Slot Metadata_Type_slots[] = {
-    {Py_tp_doc, "Metadata object"},
-    {Py_tp_dealloc, Metadata_dealloc},
-    {Py_tp_new, Metadata_new},
-    {Py_tp_methods, Metadata_methods},
-    {Py_tp_members, Metadata_members},
-    {Py_tp_getset, Metadata_getset},
-    {0, NULL},
-};
-
-static PyType_Spec Metadata_Type_spec = {
-    .name = "maxminddb.extension.Metadata",
-    .basicsize = sizeof(Metadata_obj),
-    .flags = Py_TPFLAGS_DEFAULT,
-    .slots = Metadata_Type_slots,
 };
 
 static PyType_Slot ReaderIter_Type_slots[] = {
@@ -1614,8 +1445,14 @@ static int maxminddb_exec(PyObject *module) {
         return -1;
     }
 
-    state->Metadata_Type =
-        PyType_FromModuleAndSpec(module, &Metadata_Type_spec, NULL);
+    // metadata() returns the pure Python Metadata, so both readers return
+    // the same type.
+    PyObject *reader_mod = PyImport_ImportModule("maxminddb.reader");
+    if (reader_mod == NULL) {
+        return -1;
+    }
+    state->Metadata_Type = PyObject_GetAttrString(reader_mod, "Metadata");
+    Py_DECREF(reader_mod);
     if (state->Metadata_Type == NULL) {
         return -1;
     }

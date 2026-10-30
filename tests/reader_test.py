@@ -53,18 +53,6 @@ if TYPE_CHECKING:
 # Directory holding the shared MaxMind DB test fixtures.
 _TEST_DATA_DIR = "tests/data/test-data"
 _DECODER_DB = f"{_TEST_DATA_DIR}/MaxMind-DB-test-decoder.mmdb"
-# Valid arguments for the C extension Metadata.
-_METADATA_FIELDS: dict[str, Any] = {
-    "binary_format_major_version": 2,
-    "binary_format_minor_version": 0,
-    "build_epoch": 1,
-    "database_type": "db",
-    "description": {},
-    "ip_version": 4,
-    "languages": [],
-    "node_count": 1,
-    "record_size": 24,
-}
 _PAYLOAD_TOO_LARGE = (
     "^The MaxMind DB file's data section exceeds the maximum payload size$"
 )
@@ -1148,7 +1136,7 @@ class BaseTestReader(unittest.TestCase):
         metadata = reader.metadata()
         with self.assertRaisesRegex(
             AttributeError,
-            r"'(maxminddb\.extension\.)?Metadata' object has no attribute 'blah'",
+            "'Metadata' object has no attribute 'blah'",
         ):
             metadata.blah  # type:  ignore[attr-defined]  # noqa: B018
         reader.close()
@@ -1286,6 +1274,37 @@ class BaseTestReader(unittest.TestCase):
     def _reinitialize(self, reader: Any, path: str, mode: int) -> None:  # noqa: ANN401
         with _database_source(path, mode) as database:
             reader.__init__(database, mode)
+
+    def test_metadata_is_a_dataclass(self) -> None:
+        with open_database(_DECODER_DB, self.mode) as reader:
+            metadata = reader.metadata()
+            self.assertEqual(metadata, reader.metadata())
+        with maxminddb.reader.Reader(_DECODER_DB) as reader:
+            expected = reader.metadata()
+        self.assertIs(type(metadata), maxminddb.reader.Metadata)
+        self.assertEqual(metadata, expected)
+        self.assertEqual(repr(metadata), repr(expected))
+        self.assertTrue(repr(metadata).startswith("Metadata("))
+        self.assertEqual(
+            dataclasses.asdict(metadata),
+            {
+                "binary_format_major_version": 2,
+                "binary_format_minor_version": 0,
+                "build_epoch": expected.build_epoch,
+                "database_type": "MaxMind DB Decoder Test",
+                "description": {
+                    "en": "MaxMind DB Decoder Test database - "
+                    "contains every MaxMind DB data type",
+                },
+                "ip_version": 6,
+                "languages": ["en"],
+                "node_count": expected.node_count,
+                "record_size": 24,
+            },
+        )
+        # The description dict makes Metadata unhashable.
+        with self.assertRaises(TypeError):
+            hash(metadata)
 
     def test_closed_metadata(self) -> None:
         reader = open_database(
@@ -1524,18 +1543,8 @@ class TestModule(unittest.TestCase):
 class TestExtensionObjects(unittest.TestCase):
     """Objects in states that crashed the extension."""
 
-    def test_new_metadata_requires_arguments(self) -> None:
-        metadata_class = maxminddb.extension.Metadata
-        with self.assertRaisesRegex(TypeError, "missing required argument"):
-            metadata_class.__new__(metadata_class)
-
-    def test_metadata_missing_argument(self) -> None:
-        with self.assertRaisesRegex(TypeError, "missing required argument"):
-            maxminddb.extension.Metadata(binary_format_major_version=2)  # type: ignore[call-arg]
-
-    def test_metadata_too_many_arguments(self) -> None:
-        with self.assertRaisesRegex(TypeError, "at most 9"):
-            maxminddb.extension.Metadata(**_METADATA_FIELDS, unknown=1)  # type: ignore[call-arg]
+    def test_metadata_is_the_pure_python_class(self) -> None:
+        self.assertIs(maxminddb.extension.Metadata, maxminddb.reader.Metadata)
 
     def test_iterate_uninitialized_reader(self) -> None:
         reader_class = maxminddb.extension.Reader
@@ -1704,11 +1713,6 @@ class TestExtensionObjects(unittest.TestCase):
         reader.__init__(_DECODER_DB)  # type: ignore[misc]
         with reader:
             self.assertIsNotNone(reader.get("::1.1.1.0"))
-
-    def test_reinitialize_metadata_changes_nothing(self) -> None:
-        metadata = maxminddb.extension.Metadata(**_METADATA_FIELDS)
-        metadata.__init__(**{**_METADATA_FIELDS, "record_size": 28})  # type: ignore[misc]
-        self.assertEqual(metadata.record_size, 24)
 
     @unittest.skipUnless(
         hasattr(sys, "getrefcount") and not sysconfig.get_config_var("Py_GIL_DISABLED"),
