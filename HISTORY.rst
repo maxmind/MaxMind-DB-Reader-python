@@ -30,6 +30,9 @@ History
 * The pure Python reader now raises ``InvalidDatabaseError`` when a record map
   key is not a string, as the C extension does. Previously, it returned the
   non-string key or raised ``TypeError``.
+* The pure Python reader now raises ``InvalidDatabaseError`` for extended type
+  byte 0. Previously, it decoded the value as a map. The C extension decodes
+  it as a map when libmaxminddb does not check this byte, as in version 1.14.0.
 * An empty database file now raises ``InvalidDatabaseError`` in ``MODE_FILE``,
   as in ``MODE_MEMORY``. Previously, it raised ``OSError`` on platforms with
   ``os.pread``.
