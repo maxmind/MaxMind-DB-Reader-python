@@ -349,9 +349,15 @@ class Decoder:
         new_offset = offset + 1
         ctrl_byte = self._buffer[offset]
         type_num = ctrl_byte >> 5
-        # Extended type
+        # Extended type. The next byte holds the type number minus 7.
         if not type_num:
-            (type_num, new_offset) = self._read_extended(new_offset)
+            if new_offset >= self._data_end:
+                raise InvalidDatabaseError(_BAD_DATA)
+            type_num = self._buffer[new_offset] + 7
+            new_offset += 1
+            if type_num == 7:
+                msg = "Invalid extended type byte (0)"
+                raise InvalidDatabaseError(msg)
 
         size = ctrl_byte & 0x1F
         # Sizes under 29 are stored in the ctrl byte, and a pointer's size bits
@@ -394,21 +400,10 @@ class Decoder:
             case 15:
                 return self._decode_float(size, new_offset, budget)
             case _:
-                msg = f"Unexpected type number ({type_num}) encountered"
+                # Only an extended type byte can give a type number that is
+                # not handled above.
+                msg = f"Invalid extended type byte ({type_num - 7})"
                 raise InvalidDatabaseError(msg)
-
-    def _read_extended(self, offset: int) -> tuple[int, int]:
-        next_byte = self._buffer[offset]
-        type_num = next_byte + 7
-        if type_num < 7:
-            msg = (
-                "Something went horribly wrong in the decoder. An "
-                f"extended type resolved to a type number < 8 ({type_num})"
-            )
-            raise InvalidDatabaseError(
-                msg,
-            )
-        return type_num, offset + 1
 
     @staticmethod
     def _verify_size(expected: int, actual: int) -> None:

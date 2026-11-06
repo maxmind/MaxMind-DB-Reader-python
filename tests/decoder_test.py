@@ -550,6 +550,31 @@ class TestDecoder(unittest.TestCase):
         with self.assertRaises(InvalidDatabaseError):
             Decoder(oversized_int32, pointer_base=0).decode(0)
 
+    def test_invalid_extended_type_byte_is_rejected(self) -> None:
+        # Types below 8 use the type field of the ctrl byte, so extended type
+        # byte 0 (map) is invalid. Bytes 5 and 6 are types 12 and 13 (data
+        # cache container and end marker), which a record cannot hold. Bytes
+        # 9 to 255 are types 16 to 262, which are not defined. 0x00: extended
+        # type, size 0.
+        for type_byte in (0x00, 0x05, 0x06, 0x09, 0xFF):
+            with (
+                self.subTest(type_byte=type_byte),
+                self.assertRaisesRegex(
+                    InvalidDatabaseError, rf"extended type byte \({type_byte}\)"
+                ),
+            ):
+                Decoder(bytes([0x00, type_byte]), pointer_base=0).decode(0)
+
+    def test_extended_type_byte_past_data_end_is_rejected(self) -> None:
+        # The buffer continues past data_end, as the metadata follows the data
+        # section in a database. 0x04: array, 0x07: boolean.
+        for data in (b"\x00\x04", b"\x01\x07"):
+            with (
+                self.subTest(data=data.hex()),
+                self.assertRaisesRegex(InvalidDatabaseError, "bad data"),
+            ):
+                Decoder(data, pointer_base=0, data_end=1).decode(0)
+
     def test_truncated_data_raises_invalid_database_error(self) -> None:
         # A ctrl byte past the buffer end, a string header missing its size
         # bytes, a pointer missing its offset byte, and a map missing its key
