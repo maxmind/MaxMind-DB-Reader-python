@@ -1086,6 +1086,29 @@ class BaseTestReader(unittest.TestCase):
                 ):
                     reader.get(self.ipf("1.1.1.1"))
 
+    def test_extended_type_byte_0(self) -> None:
+        # The pure Python reader rejects extended type byte 0. The bundled
+        # libmaxminddb does not check this byte, so the C extension decodes it
+        # as an empty map. If the bundled libmaxminddb starts to reject it,
+        # update HISTORY.rst too. A system libmaxminddb can already reject it.
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "extended-type-byte-0.mmdb"
+            path.write_bytes(_database((17, 17), ip_version=4, data=b"\x00\x00"))
+            with open_database(str(path), self.mode) as reader:
+                if self.reader_class is maxminddb.reader.Reader:
+                    with self.assertRaisesRegex(
+                        InvalidDatabaseError, r"extended type byte \(0\)"
+                    ):
+                        reader.get(self.ipf("1.1.1.1"))
+                    return
+                try:
+                    record = reader.get(self.ipf("1.1.1.1"))
+                except InvalidDatabaseError:
+                    if not os.environ.get("MAXMINDDB_USE_SYSTEM_LIBMAXMINDDB"):
+                        raise
+                    return
+                self.assertEqual(record, {})
+
     def test_too_many_constructor_args(self) -> None:
         with self.assertRaises(TypeError):
             self.reader_class("README.md", self.mode, 1)  # type: ignore[arg-type,call-arg]
