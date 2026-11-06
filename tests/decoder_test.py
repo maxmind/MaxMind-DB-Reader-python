@@ -554,11 +554,14 @@ class TestDecoder(unittest.TestCase):
         # Types below 8 use the type field of the ctrl byte, so extended type
         # byte 0 (map) is invalid. Byte 9 would be type 16, which is not
         # defined. 0x00: extended type, size 0.
-        for type_byte, msg in ((0x00, "bad data"), (0x09, "type number")):
-            with self.subTest(type_byte=type_byte):
-                buf = bytes([0x00, type_byte])
-                with self.assertRaisesRegex(InvalidDatabaseError, msg):
-                    Decoder(buf, pointer_base=0).decode(0)
+        for type_byte in (0x00, 0x09):
+            with (
+                self.subTest(type_byte=type_byte),
+                self.assertRaisesRegex(
+                    InvalidDatabaseError, rf"extended type byte \({type_byte}\)"
+                ),
+            ):
+                Decoder(bytes([0x00, type_byte]), pointer_base=0).decode(0)
 
     def test_extended_type_byte_past_data_end_is_rejected(self) -> None:
         # The buffer continues past data_end, as the metadata follows the data

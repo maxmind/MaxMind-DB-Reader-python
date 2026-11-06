@@ -356,7 +356,8 @@ class Decoder:
             type_num = self._buffer[new_offset] + 7
             new_offset += 1
             if type_num == 7:
-                raise InvalidDatabaseError(_BAD_DATA)
+                msg = "Invalid extended type byte (0)"
+                raise InvalidDatabaseError(msg)
 
         size = ctrl_byte & 0x1F
         # Sizes under 29 are stored in the ctrl byte, and a pointer's size bits
@@ -399,7 +400,9 @@ class Decoder:
             case 15:
                 return self._decode_float(size, new_offset, budget)
             case _:
-                msg = f"Unexpected type number ({type_num}) encountered"
+                # Only an extended type byte can give a type number that is
+                # not handled above.
+                msg = f"Invalid extended type byte ({type_num - 7})"
                 raise InvalidDatabaseError(msg)
 
     @staticmethod
