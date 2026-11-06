@@ -349,9 +349,12 @@ class Decoder:
         new_offset = offset + 1
         ctrl_byte = self._buffer[offset]
         type_num = ctrl_byte >> 5
-        # Extended type
+        # Extended type. The next byte holds the type number minus 7.
         if not type_num:
-            (type_num, new_offset) = self._read_extended(new_offset)
+            type_num = self._buffer[new_offset] + 7
+            new_offset += 1
+            if type_num == 7:
+                raise InvalidDatabaseError(_BAD_DATA)
 
         size = ctrl_byte & 0x1F
         # Sizes under 29 are stored in the ctrl byte, and a pointer's size bits
@@ -396,12 +399,6 @@ class Decoder:
             case _:
                 msg = f"Unexpected type number ({type_num}) encountered"
                 raise InvalidDatabaseError(msg)
-
-    def _read_extended(self, offset: int) -> tuple[int, int]:
-        next_byte = self._buffer[offset]
-        if not next_byte:
-            raise InvalidDatabaseError(_BAD_DATA)
-        return next_byte + 7, offset + 1
 
     @staticmethod
     def _verify_size(expected: int, actual: int) -> None:
