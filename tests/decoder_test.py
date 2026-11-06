@@ -552,9 +552,11 @@ class TestDecoder(unittest.TestCase):
 
     def test_invalid_extended_type_byte_is_rejected(self) -> None:
         # Types below 8 use the type field of the ctrl byte, so extended type
-        # byte 0 (map) is invalid. Byte 9 would be type 16, which is not
-        # defined. 0x00: extended type, size 0.
-        for type_byte in (0x00, 0x09):
+        # byte 0 (map) is invalid. Bytes 5 and 6 are types 12 and 13 (data
+        # cache container and end marker), which a record cannot hold. Bytes
+        # 9 to 255 are types 16 to 262, which are not defined. 0x00: extended
+        # type, size 0.
+        for type_byte in (0x00, 0x05, 0x06, 0x09, 0xFF):
             with (
                 self.subTest(type_byte=type_byte),
                 self.assertRaisesRegex(
