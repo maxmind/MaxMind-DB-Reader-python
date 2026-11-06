@@ -560,6 +560,16 @@ class TestDecoder(unittest.TestCase):
                 with self.assertRaisesRegex(InvalidDatabaseError, msg):
                     Decoder(buf, pointer_base=0).decode(0)
 
+    def test_extended_type_byte_past_data_end_is_rejected(self) -> None:
+        # The buffer continues past data_end, as the metadata follows the data
+        # section in a database. 0x04: array, 0x07: boolean.
+        for data in (b"\x00\x04", b"\x01\x07"):
+            with (
+                self.subTest(data=data.hex()),
+                self.assertRaisesRegex(InvalidDatabaseError, "bad data"),
+            ):
+                Decoder(data, pointer_base=0, data_end=1).decode(0)
+
     def test_truncated_data_raises_invalid_database_error(self) -> None:
         # A ctrl byte past the buffer end, a string header missing its size
         # bytes, a pointer missing its offset byte, and a map missing its key

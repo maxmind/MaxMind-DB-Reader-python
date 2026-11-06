@@ -351,6 +351,8 @@ class Decoder:
         type_num = ctrl_byte >> 5
         # Extended type. The next byte holds the type number minus 7.
         if not type_num:
+            if new_offset >= self._data_end:
+                raise InvalidDatabaseError(_BAD_DATA)
             type_num = self._buffer[new_offset] + 7
             new_offset += 1
             if type_num == 7:
