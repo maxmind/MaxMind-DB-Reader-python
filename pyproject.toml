@@ -33,7 +33,7 @@ Documentation = "https://maxminddb.readthedocs.io/en/latest/"
 [dependency-groups]
 dev = [
     "pytest>=8.3.5",
-    "tox-uv>=1.29.0",
+    "tox-uv-bare>=1.32.0",
 ]
 lint = [
     "mypy>=1.15.0",
