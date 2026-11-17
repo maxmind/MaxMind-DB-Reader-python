@@ -105,6 +105,8 @@ History
   slower than with a path when the extension is installed.
 * The pure Python reader raises ``TypeError`` when the database argument does
   not suit the mode.
+* Updated the vendored libmaxminddb to 1.14.1. This fixes a build failure
+  with ``-Werror`` on platforms where ``ssize_t`` is 32 bits, such as i686.
 
 3.2.0 (2026-09-10)
 ++++++++++++++++++
