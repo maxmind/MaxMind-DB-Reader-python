@@ -3,7 +3,7 @@
 History
 -------
 
-3.3.0
+3.3.0 (2026-11-17)
 ++++++++++++++++++
 
 * Fixed iteration over an IPv6 database with a network shorter than /96
